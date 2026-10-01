@@ -6,6 +6,14 @@ while ($l.IsListening) {
   $c = $l.GetContext()
   $p = $c.Request.Url.LocalPath.TrimStart('/'); if ($p -eq '') { $p = 'index.html' }
   # Nur für den Regelwerk-Export: POST /save-regelwerk schreibt genau regelwerk\daten.json (sonst nichts)
+  # Golden Values fuer den Godot-Szenario-Runner: POST /save-golden schreibt genau regelwerk\golden-skills.json
+  if ($c.Request.HttpMethod -eq 'POST' -and $p -eq 'save-golden') {
+    $sr = New-Object IO.StreamReader($c.Request.InputStream, [Text.Encoding]::UTF8)
+    $body = $sr.ReadToEnd(); $sr.Close()
+    $dir = Join-Path $root 'regelwerk'; if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir | Out-Null }
+    [IO.File]::WriteAllText((Join-Path $dir 'golden-skills.json'), $body, (New-Object Text.UTF8Encoding($false)))
+    $c.Response.StatusCode = 200; $c.Response.Close(); continue
+  }
   if ($c.Request.HttpMethod -eq 'POST' -and $p -eq 'save-regelwerk') {
     $sr = New-Object IO.StreamReader($c.Request.InputStream, [Text.Encoding]::UTF8)
     $body = $sr.ReadToEnd(); $sr.Close()
