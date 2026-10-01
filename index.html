@@ -116,6 +116,13 @@
 <div id="start"><div class="box">
   <h2 style="margin-top:0">Lane Wars – wähle deinen Helden</h2>
   <p><small>Du hast eine gerade Lane links von deiner Basis. Der Gegner hat seine eigene Lane mit eigenem Helden (unten im Minimap, mit <b>Tab</b> kannst du ihm zuschauen). Monster, die du sendest, laufen auf seine Basis zu – und umgekehrt. Wer zuerst alle Leben verliert, verliert.</small></p>
+  <div class="panel" style="margin:0 0 12px"><b>So gewinnst du</b>
+    <ol style="margin:6px 0 0 18px;padding:0;color:#9aa3b5;font-size:13px;line-height:1.5">
+      <li>Dein Held hält die Monsterwellen auf deiner Lane auf (Rechtsklick = laufen/angreifen, Q W E R = Skills).</li>
+      <li>Besiegte Monster geben Gold und XP. Kaufe Items im Shop – in der Basis, links.</li>
+      <li>Schicke Monster zum Gegner (Z X C V): das kostet Gold, erhöht aber dein Einkommen.</li>
+      <li>Wer zuerst alle Leben verliert, verliert. Alle 10 Wellen kommen Elite-Monster, auf Welle 20 ein Boss.</li>
+    </ol></div>
   <div class="row" style="margin-bottom:12px;align-items:center">
     <label>Schwierigkeit&nbsp;<select id="diffSel"><option value="easy">Leicht</option><option value="normal" selected>Normal</option><option value="hard">Schwer</option><option value="expert">Experte</option></select></label>
     <label>Gegner-Held&nbsp;<select id="enemySel"><option value="random" selected>Zufall</option><option value="tank">Tank</option><option value="damage">Damage</option><option value="caster">Caster</option></select></label>
@@ -132,7 +139,7 @@
 <div id="settings" class="overlay" style="display:none"><div class="box" style="min-width:420px">
   <h2 style="margin-top:0">Einstellungen</h2>
   <div id="settingsBody"></div>
-  <div class="row" style="margin-top:14px"><button id="btnKeysReset">Tasten auf Standard</button><button id="btnSettingsClose">Schließen</button></div>
+  <div class="row" style="margin-top:14px"><button id="btnKeysReset">Tasten auf Standard</button><button id="btnTipsReset">Tipps erneut zeigen</button><button id="btnSettingsClose">Schließen</button></div>
 </div></div>
 <div id="tip"></div>
 <div id="dbg">
@@ -1506,10 +1513,26 @@ function uiAlert(text, kind='info', ms=3200){
   while(box.children.length > 4) box.removeChild(box.firstChild);
   setTimeout(()=>d.remove(), ms);
 }
+// Einsteiger-Tipps: erscheinen je einmal zum passenden Zeitpunkt (gemerkt in den Einstellungen; Zurücksetzen: Einstellungen → „Tipps erneut zeigen“)
+const TIPS = [
+  {id:'move',  when:(g,h)=>g.t>2,  text:'Ziel: Halte die Monsterwellen auf. Rechtsklick auf die Lane = Held läuft und greift an.'},
+  {id:'skill', when:(g,h)=>g.t>12, text:'Skills: Q W E R wirken auf den Mauszeiger. Skillpunkte vergibst du mit Shift+Taste oder „+“.'},
+  {id:'shop',  when:(g,h)=>g.t>30 && g.gold>=80 && h.bag.length===0, text:'Gold ausgeben: Items im Shop unten stärken deinen Helden. Kaufen geht nur in der Basis (links, B = Backport).'},
+  {id:'send',  when:(g,h)=>g.t>50 && g.gold>=90 && !Object.keys(g.stats.sent).length, text:'Monster senden (Z X C V): kostet Gold, erhöht dein Einkommen. Der Gegner bekommt dafür XP – Mut zum Risiko lohnt sich.'},
+  {id:'lives', when:(g,h)=>g.lives<CFG.startLives, text:'Jedes Monster, das durchkommt, kostet Leben. Wer zuerst 0 Leben hat, verliert. Mit Tab siehst du dem Gegner zu.'},
+];
+function coachTick(g, h){
+  const seen = settings.tipsSeen || (settings.tipsSeen = {});
+  for(const t of TIPS){
+    if(seen[t.id] || !t.when(g,h)) continue;
+    seen[t.id] = 1; saveSettings(); uiAlert('💡 '+t.text, 'good', 8000); break;   // höchstens ein Tipp auf einmal
+  }
+}
 function uiTick(dt){   // Warnungen: Basis in Gefahr, verlorene Leben, ungenutzte Skillpunkte; Endbildschirm
   if(!P) return;
   const g = P.G, h = P.H;
   if(!g.over && !paused){
+    uiT.coach = (uiT.coach||0) - dt; if(uiT.coach <= 0){ uiT.coach = 2; coachTick(g,h); }
     uiT.base -= dt; uiT.sp -= dt;
     if(uiT.lives === null) uiT.lives = g.lives;
     if(g.lives < uiT.lives) uiAlert(`−${uiT.lives-g.lives} Leben! Noch ${Math.max(0,g.lives)}`, 'danger');
@@ -1660,6 +1683,7 @@ document.getElementById('btnMenu').onclick = toMenu;
 document.getElementById('btnSettings').onclick = openSettings;
 document.getElementById('btnStartSettings').onclick = openSettings;
 document.getElementById('btnSettingsClose').onclick = closeSettings;
+document.getElementById('btnTipsReset').onclick = ()=>{ settings.tipsSeen = {}; saveSettings(); const b = document.getElementById('btnTipsReset'); b.textContent = '✓ Tipps zurückgesetzt'; };
 document.getElementById('btnKeysReset').onclick = ()=>{ settings.keys = {...DEFAULT_KEYS}; saveSettings(); applyKeys(); if(running){ buildSend(); buildSkills(); } buildHelp(); syncToolbar(); renderSettings(); };
 document.getElementById('btnRematch').onclick = ()=>{ closeOverlays(); newGame(P.H.key); };
 document.getElementById('btnEndMenu').onclick = ()=>{ closeOverlays(); running = false; toMenu(); };

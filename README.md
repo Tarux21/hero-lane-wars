@@ -31,6 +31,8 @@ Einkaufen geht nur in der Basis (Shop, Rucksack mit 6 Plätzen, Rezepte mit Hove
 | `index.html` | Das komplette Spiel (Logik, Oberfläche, Bot). Alle Balance-Zahlen stehen oben im Block `CFG`, dazu `UNITS`, `HEROES`, `ITEM_LIST`, `DIFF`. |
 | `sim2.js` | Simulation: zwei Bots spielen ohne Grafik gegeneinander (für das Balancing). |
 | `bal.js` | Hilfen für Balance-Messungen (Rahmenbaupläne, Messfunktionen). |
+| `snowball.js` | Messung: Wie oft gewinnt, wer nach 3/6 Minuten führt? (`snowball(30)`; Aufholhilfe aus: `CFG.comebackCap=0`) |
+| `ROADMAP.md` | Plan und Stand der Phasen |
 | `serve.ps1` | Kleiner lokaler Webserver (Port 8123). |
 
 ## Balancing mit der Simulation

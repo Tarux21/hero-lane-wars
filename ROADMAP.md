@@ -4,8 +4,9 @@ Rolle: Projektmanager (Planung, Abnahme) – Claude setzt um und stellt nach jed
 
 ## Phase 1 – Browser-Prototyp verbessern (jetzt)
 - [x] Testfenster standardmäßig zu (F2 öffnet es), Spielfeld skaliert auf kleine Fenster
-- [ ] Einstieg: kurze Einführung für neue Spieler (Ziel, Steuerung, erste Schritte)
-- [ ] Snowball-Bremse: Wer weit zurückliegt, bekommt etwas Hilfe (Recherche: Rubber-Banding)
+- [x] Einstieg: Kasten „So gewinnst du“ im Startmenü + 5 Einsteiger-Tipps im Spiel (je einmal; Einstellungen → „Tipps erneut zeigen“)
+- [x] Aufholhilfe: ab 3 Leben Rückstand +4 % Einkommen je Leben, max. +20 % (HUD zeigt „Aufholhilfe“). Messung `snowball.js`: Bot-Partien snowballen kaum (Führender nach 3 Min gewinnt ~52 %); Balance und Spieldauer unverändert (~15 Min). Die Hilfe ist ein Netz für menschliche Fehler – bitte im Spiel prüfen.
+- [ ] Offen aus der Messung: Damage liegt bei 38–42 % Siegquote (Ziel 50 %), vom Balancing-Stand 2161de5 unabhängig von der Aufholhilfe
 - [ ] Spielgefühl: Treffer-Feedback, Schadenszahlen, Sounds prüfen
 - [ ] Bot-Verhalten und Schwierigkeitsstufen mit der Simulation gegenprüfen
 
