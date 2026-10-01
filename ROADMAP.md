@@ -11,6 +11,9 @@ Rolle: Projektmanager (Planung, Abnahme) – Claude setzt um und stellt nach jed
 - [x] Bot (Stand 1, wartet auf Abnahme): Stufen gemessen (Bot gegen Bot, je Klasse gespiegelt): Normal schlägt Leicht ~77 %, Schwer schlägt Normal ~83 %, Experte schlägt Schwer ~58–85 % (Damage am schwächsten, ~58 %; frühere Werte um 43 % waren Messrauschen). Neu: 3 Gegner-Spielstile (Ausgewogen, Aggressiv, Wirtschaft; im Menü wählbar oder Zufall, im HUD sichtbar), gegeneinander fair (je ~42–58 %).
 - [ ] Offen: Wie sich die Stufen für einen Menschen anfühlen, kann nur im Spiel getestet werden (Abnahme durch den Projektmanager)
 
+- [x] Testversion v0.3.0-test: Versionsnummer, Feedback-Fenster, Build-Skript `build-testversion.ps1` (ZIP in `dist\`)
+- [ ] Optik: schönere Figuren, Hintergründe, Oberfläche (als Nächstes)
+
 ## Phase 2 – Umzug in eine Engine
 - Empfehlung: Godot (kostenlos, leicht, gutes 2D, Web-Export). Unity nur, wenn C# und viele Plattformen wichtig sind.
 - Regeln und Zahlen (CFG, UNITS, HEROES, ITEM_LIST) bleiben als Datenbasis erhalten.

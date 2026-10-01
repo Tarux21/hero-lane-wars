@@ -47,6 +47,9 @@ measure('damage', ['dStorm'], 'dStd'); // Item-Variante gegen den Standardbuild
 
 Hinweis: Die Messungen streuen um etwa ±10 Prozentpunkte; für aussagekräftige Werte mehrere Messreihen mitteln.
 
+## Testversion für Tester
+`powershell -ExecutionPolicy Bypass -File build-testversion.ps1` erzeugt `dist\HeroLaneWars-Test-v<Version>.zip` (Ordner mit `index.html` und `LIESMICH.txt`, Testfenster F2 aus). Die Version steht in `index.html` (`VERSION`) und muss vor jedem Paket hochgezählt werden. Das Feedback-Fenster („💬 Feedback“) sendet nichts: Der Tester kopiert den Text oder speichert eine Datei (mit Version, Spielstand und Fehlermeldungen) und schickt ihn selbst weiter.
+
 ## Gegner-Stile
 `BOT_STYLE` in `index.html` (Ausgewogen, Aggressiv, Wirtschaft). Für Simulationen: `duel('tank','tank',{style:['rush','balanced']})`. Messwerte (je Klasse gespiegelt, Normal): Aggressiv ~49 % gegen Ausgewogen, Wirtschaft ~55 % gegen Ausgewogen, Aggressiv ~42 % gegen Wirtschaft.
 

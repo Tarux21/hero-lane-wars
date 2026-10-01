@@ -97,7 +97,7 @@
   <div id="toolbar">
     <button id="btnPause"></button>
     <span class="tsep">Tempo</span><button data-speed="1">×1</button><button data-speed="2">×2</button><button data-speed="3">×3</button>
-    <span class="tsep"></span><button id="btnRestart">↺ Neustart</button><button id="btnMenu">☰ Menü</button><button id="btnSettings">⚙ Einstellungen</button>
+    <span class="tsep"></span><button id="btnRestart">↺ Neustart</button><button id="btnMenu">☰ Menü</button><button id="btnSettings">⚙ Einstellungen</button><button id="btnFeedback">💬 Feedback</button><span class="tsep" id="verTag"></span>
   </div>
   <div id="pauseNote">⏸ PAUSE – Shop und Skillpunkte bleiben bedienbar (der Held muss zum Kaufen in der Basis stehen).</div>
   <div id="hud"></div>
@@ -129,7 +129,8 @@
     <label>Gegner-Held&nbsp;<select id="enemySel"><option value="random" selected>Zufall</option><option value="tank">Tank</option><option value="damage">Damage</option><option value="caster">Caster</option></select></label>
   </div>
   <div class="row" id="heroPick"></div>
-  <div class="row" style="margin-top:12px"><button id="btnStartSettings">⚙ Einstellungen (Tasten, Lautstärke)</button></div>
+  <div class="row" style="margin-top:12px"><button id="btnStartSettings">⚙ Einstellungen (Tasten, Lautstärke)</button><button id="btnStartFeedback">💬 Feedback geben</button></div>
+  <p style="margin:12px 0 0"><small id="verStart"></small></p>
 </div></div>
 <div id="msg"></div>
 <div id="endScreen" class="overlay" style="display:none"><div class="box">
@@ -141,6 +142,17 @@
   <h2 style="margin-top:0">Einstellungen</h2>
   <div id="settingsBody"></div>
   <div class="row" style="margin-top:14px"><button id="btnKeysReset">Tasten auf Standard</button><button id="btnTipsReset">Tipps erneut zeigen</button><button id="btnSettingsClose">Schließen</button></div>
+</div></div>
+<div id="feedback" class="overlay" style="display:none"><div class="box" style="min-width:460px;max-width:560px">
+  <h2 style="margin-top:0">Feedback zur Testversion</h2>
+  <p><small>Das Feedback wird nirgendwohin gesendet. Du kopierst es und schickst es selbst weiter (Spielstand und Version werden automatisch angehängt).</small></p>
+  <div class="krow"><span>Gesamteindruck</span><span id="fbRate" style="display:flex;gap:4px"></span></div>
+  <div class="krow"><span>Schwierigkeit</span><select id="fbDiff"><option value="">–</option><option>zu leicht</option><option>passt</option><option>zu schwer</option></select></div>
+  <label>Was war gut?<br><textarea id="fbGood" rows="2" style="width:100%;box-sizing:border-box;margin:4px 0 8px;background:#262b38;color:#e6e6e6;border:1px solid #3c4458;border-radius:5px;padding:6px"></textarea></label>
+  <label>Was nervt oder ist kaputt?<br><textarea id="fbBad" rows="3" style="width:100%;box-sizing:border-box;margin:4px 0 8px;background:#262b38;color:#e6e6e6;border:1px solid #3c4458;border-radius:5px;padding:6px"></textarea></label>
+  <label>Was fehlt dir?<br><textarea id="fbWish" rows="2" style="width:100%;box-sizing:border-box;margin:4px 0 8px;background:#262b38;color:#e6e6e6;border:1px solid #3c4458;border-radius:5px;padding:6px"></textarea></label>
+  <div class="row" style="margin-top:8px"><button id="btnFbCopy">📋 In Zwischenablage kopieren</button><button id="btnFbSave">💾 Als Datei speichern</button><button id="btnFbClose">Schließen</button></div>
+  <small id="fbNote" style="display:block;margin-top:8px"></small>
 </div></div>
 <div id="tip"></div>
 <div id="dbg">
@@ -1343,6 +1355,7 @@ addEventListener('keydown', e=>{
   if(rebinding){ handleRebind(e, k); return; }                       // Einstellungen: neue Taste zuweisen
   if(document.activeElement && ['INPUT','SELECT','TEXTAREA'].includes(document.activeElement.tagName)) return;
   if(!running) return;
+  if(document.getElementById('feedback').style.display === 'flex') return;   // Feedback-Fenster offen: keine Spielbefehle
   const K = settings.keys;
   if(k==='escape'){ if(document.getElementById('settings').style.display!=='none') closeSettings(); else togglePause(); return; }
   if(k===K.pause){ e.preventDefault(); togglePause(); return; }
@@ -1785,6 +1798,55 @@ document.getElementById('btnPause').onclick = togglePause;
 document.querySelectorAll('#toolbar [data-speed]').forEach(b=>b.onclick=()=>setSpeed(+b.dataset.speed));
 document.getElementById('btnRestart').onclick = restartGame;
 document.getElementById('btnMenu').onclick = toMenu;
+// ====== TESTVERSION: Versionsnummer und Feedback ======
+const VERSION = '0.3.0-test', BUILD_DATE = '2026-10-01';
+const errLog = [];
+addEventListener('error', e=>{ if(errLog.length<5) errLog.push(`${e.message} (${(e.filename||'').split('/').pop()}:${e.lineno})`); });
+document.getElementById('verTag').textContent = 'v'+VERSION;
+document.getElementById('verStart').textContent = `Testversion v${VERSION} · Stand ${BUILD_DATE} · Fehler und Wünsche bitte über „Feedback“ melden.`;
+let fbRate = 0, fbPaused = false;
+function fbRenderRate(){
+  const box = document.getElementById('fbRate'); box.innerHTML = '';
+  for(let i=1;i<=5;i++){ const b = document.createElement('button'); b.textContent = i<=fbRate ? '★' : '☆'; b.style.cssText = 'padding:2px 8px;min-width:0;font-size:16px;color:#ffd166'; b.onclick = ()=>{ fbRate = i; fbRenderRate(); }; box.appendChild(b); }
+}
+function fbContext(){
+  const L = ['--- Spielstand (automatisch) ---', `Version: ${VERSION} (${BUILD_DATE})`];
+  if(P && E){
+    const t = P.G.t, sent = Object.values(P.G.stats.sent).reduce((a,b)=>a+b,0);
+    L.push(`Held: ${P.H.d.name} Lv ${P.H.lvl} | Gegner: ${E.H.d.name} Lv ${E.H.lvl}, ${E.diff.name}, Stil ${(BOT_STYLE[E.style]||BOT_STYLE.balanced).name}`);
+    L.push(`Zeit ${Math.floor(t/60)}:${String(Math.floor(t%60)).padStart(2,'0')} | Welle ${P.G.wave} | Leben ${P.G.lives} zu ${E.G.lives>1e8?'∞':E.G.lives} | Tode ${P.H.deaths} | Monster gesendet ${sent} | ${P.G.over ? (P.G.lives>0?'Partie gewonnen':'Partie verloren') : 'Partie läuft'}`);
+  } else L.push('Keine Partie aktiv');
+  L.push(`Fenster ${innerWidth}x${innerHeight} | ${navigator.userAgent}`);
+  if(errLog.length) L.push('Fehlermeldungen: '+errLog.join(' ; '));
+  return L.join('\n');
+}
+function fbText(){
+  const v = id=>document.getElementById(id).value.trim() || '–';
+  return `Feedback Hero Lane Wars\nGesamteindruck: ${fbRate ? fbRate+' von 5' : '–'}\nSchwierigkeit: ${v('fbDiff')}\nGut: ${v('fbGood')}\nNervt/kaputt: ${v('fbBad')}\nFehlt: ${v('fbWish')}\n\n${fbContext()}\n`;
+}
+function openFeedback(){
+  if(running && !paused && P && !P.G.over){ paused = true; fbPaused = true; syncToolbar(); }
+  fbRenderRate(); document.getElementById('fbNote').textContent = ''; document.getElementById('feedback').style.display = 'flex';
+}
+function closeFeedback(){
+  document.getElementById('feedback').style.display = 'none';
+  if(fbPaused){ paused = false; fbPaused = false; syncToolbar(); }
+}
+document.getElementById('btnFeedback').onclick = openFeedback;
+document.getElementById('btnStartFeedback').onclick = openFeedback;
+document.getElementById('btnFbClose').onclick = closeFeedback;
+document.getElementById('feedback').addEventListener('keydown', e=>{ if(e.key==='Escape') closeFeedback(); });
+document.getElementById('btnFbCopy').onclick = async ()=>{
+  const txt = fbText(), note = document.getElementById('fbNote');
+  try{ await navigator.clipboard.writeText(txt); note.textContent = '✓ Kopiert. Jetzt in eine Nachricht einfügen (Strg+V).'; }
+  catch(e){ const ta = document.createElement('textarea'); ta.value = txt; document.body.appendChild(ta); ta.select(); let ok = false; try{ ok = document.execCommand('copy'); }catch(_){} ta.remove();
+    note.textContent = ok ? '✓ Kopiert. Jetzt in eine Nachricht einfügen (Strg+V).' : 'Kopieren hat nicht geklappt – bitte „Als Datei speichern“ nutzen.'; }
+};
+document.getElementById('btnFbSave').onclick = ()=>{
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([fbText()], {type:'text/plain;charset=utf-8'}));
+  a.download = `feedback-v${VERSION}-${new Date().toISOString().slice(0,16).replace(/[:T]/g,'-')}.txt`; document.body.appendChild(a); a.click(); a.remove();
+  document.getElementById('fbNote').textContent = '✓ Datei gespeichert (Ordner „Downloads“).';
+};
 document.getElementById('btnSettings').onclick = openSettings;
 document.getElementById('btnStartSettings').onclick = openSettings;
 document.getElementById('btnSettingsClose').onclick = closeSettings;
