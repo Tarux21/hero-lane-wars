@@ -276,7 +276,7 @@ const ITEM_LIST = [
   {id:'thornPlate', group:'fertig', name:'Dornenpanzerweste', parts:['strongArmor','thornShirt'], cost:200,
      desc:'+85 Rüstung. '+THORN_TXT, stats:{armor:85}, unique:['thorns']},
   {id:'stormBreaker', group:'fertig', name:'Sturmbrecher', parts:['rake','critCloak','windCloak'], cost:350,
-     desc:'+48 Angriffsschaden, +25 % Krit-Chance, +30 % Angriffstempo. Einmalig – kritische Treffer geben dir 3 s lang +40 % Angriffstempo.', stats:{dmg:48, crit:.25, as:.30}, unique:['stormCrit']},
+     desc:'+48 Angriffsschaden, +22 % Krit-Chance, +30 % Angriffstempo. Einmalig – kritische Treffer geben dir 3 s lang +40 % Angriffstempo.', stats:{dmg:48, crit:.22, as:.30}, unique:['stormCrit']},
   {id:'timeStaff', group:'fertig', name:'Zeitzauberstab', parts:['bigStaff','timeAmulet'], cost:350,
      desc:'+90 Zauberkraft, −20 % Abklingzeit. Einmalig – Nach einer Fähigkeit macht die nächste innerhalb von 5 s 30 % mehr Schaden.', stats:{sp:90, cdr:.20}, unique:['comboAmp']},
   {id:'titanPlate', group:'fertig', name:'Titanenpanzer', parts:['cloth','lifeStone','regenBand'], cost:300,
@@ -293,7 +293,7 @@ const ITEM_LIST = [
      desc:'+50 Angriffsschaden, +25 % Angriffstempo, +12 % Lebensraub. Einmalig – Angriffe verursachen zusätzlich 5 % des aktuellen Lebens des Ziels als Schaden (mindestens 12, höchstens 120).', stats:{dmg:50, as:.25, ls:.12}, unique:['ruin']},
   // Tank: Lebensquell-Harnisch
   {id:'lifeSpring', group:'fertig', name:'Lebensquell-Harnisch', parts:['lifeStone','ruby','regenBand'], cost:300,
-     desc:'+1100 Leben, +2 % Leben/s Regeneration. Einmalig – Lebensfluss: Hast du 5 s lang keinen Schaden erlitten, regenerierst du 8 % deines maximalen Lebens pro Sekunde.', stats:{hp:1100, regen:.02}, unique:['lifeflow']},
+     desc:'+1000 Leben, +2 % Leben/s Regeneration. Einmalig – Lebensfluss: Hast du 5 s lang keinen Schaden erlitten, regenerierst du 8 % deines maximalen Lebens pro Sekunde.', stats:{hp:1000, regen:.02}, unique:['lifeflow']},
   // Weitere fertige Items (klassenübergreifend kombinierbar)
   {id:'cleaver', group:'fertig', name:'Splitteraxt', parts:['bigSword','dagger'], cost:520,
      desc:'+60 Angriffsschaden, +25 % Angriffstempo. Einmalig – Basisangriffe treffen auch bis zu 3 Gegner im Umkreis von 80 Pixeln mit 40 % Schaden.', stats:{dmg:60, as:.25}, unique:['cleave']},
