@@ -10,14 +10,13 @@ const TEAM_SPACE := 28.0             # Abstand zwischen den Lane-Rändern der be
 const WALL_OPEN_BASE := 300.0        # bis hierhin (Spielwerte) ist die Basis offen: nur dort kommt man zur anderen Lane des Teams
 const MINI_W := 290.0                # Größe der Minimap (Pixel)
 const MINI_H := 270.0
+const ENEMY_LANE_VIEW := 700.0       # Gegner-Lane auf der Minimap: nur dieser Abschnitt (Spielwerte) bei deren Basis
 const CAM_PITCH := 58.0             # Kamerawinkel in Grad (wie Warcraft 3: schräg von oben)
 var cam_dist := 28.0                 # Kamera-Abstand zum Helden (Mausrad)
 
 var cfg: Dictionary
 var t := 0.0
-var gold: float
-var income: float
-var lives: int
+var team_lives: Array[int] = [20, 20]    # Leben je Team (gemeinsam): [dein Team, Gegner-Team]
 var wave := 0
 var wave_t: float
 var income_t := 0.0
@@ -46,6 +45,10 @@ var trace := false
 var selftest := false
 var menu_shot := ""
 var mini: Control                    # Minimap
+var life_labels: Array[Label3D] = [] # Lebensanzeige über den Team-Kristallen
+var team_mid_y := 0.0                # Quer-Mitte deines Teams (Spielwerte); bei 4v4 laufen die Lanes hier zusammen
+var cam_free := false                # Kamera vom Helden gelöst (nach Klick auf die Minimap), Leertaste = zurück zum Helden
+var cam_focus := Vector3.ZERO
 var menu_layer: CanvasLayer
 
 
@@ -96,9 +99,7 @@ func _ready() -> void:
 
 ## Startet eine Partie mit dem gewählten Modus (team_size) und Helden (hero_key).
 func _start_game() -> void:
-	gold = cfg["startGold"]
-	income = cfg["baseIncome"]
-	lives = int(cfg["startLives"])
+	team_lives = [int(cfg["startLives"]), int(cfg["startLives"])]
 	wave_t = cfg["firstWave"]
 	_setup_layout()
 	_build_world()
@@ -197,6 +198,7 @@ func _setup_layout() -> void:
 	lane_off_g.clear()
 	for k in lanes_per_team:
 		lane_off_g.append((lane_xs[k] - lane_xs[0]) / S)
+	team_mid_y = (lane_off_g[0] + lane_off_g[lanes_per_team - 1]) / 2.0
 
 
 func _cam_offset() -> Vector3:
@@ -283,6 +285,29 @@ func _build_map() -> void:
 				_house(Vector3(slot_x + (h - 1.5) * 2.5, 0.0, plaza_z + 5.0))
 		for sx in [-1.0, 1.0]:
 			_cyl(Vector3(lane_xs[i] + sx * (half - 1.5), 0.2, plaza_z - 1.0), 1.1, 0.4, Color("#6d6558"))     # Händler-Sockel
+	# Team-Lebenspunkt: ein Kristall am Ende der Lanes. Bei 4v4 laufen beide Lanes eines Teams hier zusammen.
+	life_labels.clear()
+	for team in 2:
+		var first := team * lanes_per_team
+		var cx: float = (lane_xs[first] + lane_xs[first + lanes_per_team - 1]) / 2.0
+		var col := Color("#4fd8ff") if team == 0 else Color("#ff9a3a")
+		_cyl(Vector3(cx, 0.25, 0.8), 1.6, 0.5, Color("#6d6558"))                                  # Sockel
+		var crystal := MeshInstance3D.new()
+		var sm := SphereMesh.new()
+		sm.radius = 1.0
+		sm.height = 3.2
+		crystal.mesh = sm
+		crystal.position = Vector3(cx, 2.3, 0.8)
+		var cmat := _mat(col)
+		cmat.emission_enabled = true
+		cmat.emission = col
+		cmat.emission_energy_multiplier = 1.4
+		crystal.material_override = cmat
+		add_child(crystal)
+		var ll := _label3d("", 44, col)
+		ll.position = Vector3(cx, 5.2, 0.8)
+		add_child(ll)
+		life_labels.append(ll)
 	# Bäume außerhalb der Lanes
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 7
@@ -397,14 +422,15 @@ func _build_hud() -> void:
 	mini.offset_right = 14.0 + MINI_W
 	mini.offset_bottom = -14.0
 	mini.offset_top = -14.0 - MINI_H
-	mini.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	mini.clip_contents = true
+	mini.mouse_filter = Control.MOUSE_FILTER_STOP
 	mini.draw.connect(_draw_minimap)
+	mini.gui_input.connect(_mini_input)
 	layer.add_child(mini)
 
 
-## Minimap: alle Lanes von oben. Monster sind rot (Elite größer, Boss am größten), dein Held ist in Heldenfarbe.
-## Über jeder Lane deines Teams steht, wie viele Monster dort laufen, damit man sieht, wo mehr los ist.
-func _draw_minimap() -> void:
+## Minimap-Abbildung: Welt-Koordinaten (Meter) <-> Pixel der Minimap. Wird zum Zeichnen und für Klicks genutzt.
+func _mini_map() -> Dictionary:
 	var n := lane_xs.size()
 	var half := lane_half_g * S
 	var x_min: float = lane_xs[0] - half - WALL
@@ -412,16 +438,50 @@ func _draw_minimap() -> void:
 	var lane_len: float = cfg["laneLen"] * S
 	var z_top := -(lane_len + 8.0)
 	var z_bot := 8.0
-	var sx := MINI_W / (x_max - x_min)
-	var sy := (MINI_H - 18.0) / (z_bot - z_top)
 	var top := 18.0                       # oben Platz für die Monster-Zahlen
-	var pt := func(wx: float, wz: float) -> Vector2: return Vector2((wx - x_min) * sx, top + (wz - z_top) * sy)
+	return {"x_min": x_min, "z_top": z_top, "z_bot": z_bot, "top": top,
+		"sx": MINI_W / (x_max - x_min), "sy": (MINI_H - top) / (z_bot - z_top)}
+
+
+func _mini_pt(m: Dictionary, wx: float, wz: float) -> Vector2:
+	return Vector2((wx - m["x_min"]) * m["sx"], m["top"] + (wz - m["z_top"]) * m["sy"])
+
+
+## Klick oder Ziehen auf der Minimap: Kamera springt dorthin (Leertaste: zurück zum Helden).
+func _mini_input(event: InputEvent) -> void:
+	var pressed := false
+	var pos := Vector2.ZERO
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		pressed = true
+		pos = event.position
+	elif event is InputEventMouseMotion and (event.button_mask & MOUSE_BUTTON_MASK_LEFT) != 0:
+		pressed = true
+		pos = event.position
+	if not pressed or not started:
+		return
+	var m := _mini_map()
+	var wx: float = m["x_min"] + pos.x / m["sx"]
+	var wz: float = m["z_top"] + (pos.y - m["top"]) / m["sy"]
+	cam_focus = Vector3(wx, 0.0, clampf(wz, m["z_top"], m["z_bot"]))
+	cam_free = true
+	mini.accept_event()
+
+
+## Minimap: alle Lanes von oben. Monster sind rot (Elite/Boss größer), dein Held in Heldenfarbe.
+## Über jeder Lane deines Teams steht die Zahl der Monster (wo ist mehr los?). Von der Gegner-Seite sieht man nur
+## den unteren Abschnitt jeder Lane (bei deren Basis), damit man abschätzen kann, ob Druck sinnvoll ist, aber keine Gegner.
+func _draw_minimap() -> void:
+	var n := lane_xs.size()
+	var half := lane_half_g * S
+	var m := _mini_map()
+	var z_top: float = m["z_top"]
+	var z_bot: float = m["z_bot"]
 	mini.draw_rect(Rect2(0, 0, MINI_W, MINI_H), Color(0.05, 0.06, 0.08, 0.82))
-	mini.draw_rect(Rect2(0, 0, MINI_W, MINI_H), Color("#8d7d55"), false, 2.0)
 	var river_x: float = (lane_xs[lanes_per_team - 1] + lane_xs[lanes_per_team]) / 2.0
-	var rp: Vector2 = pt.call(river_x - 2.5, z_top)
-	mini.draw_rect(Rect2(rp.x, rp.y, 5.0 * sx, (z_bot - z_top) * sy), Color("#1f5fa8"))
+	var rp := _mini_pt(m, river_x - 2.5, z_top)
+	mini.draw_rect(Rect2(rp.x, rp.y, 5.0 * m["sx"], (z_bot - z_top) * m["sy"]), Color("#1f5fa8"))
 	var base_z := -float(cfg["baseX"]) * S
+	var enemy_view_z := -float(ENEMY_LANE_VIEW) * S      # Gegner-Lane: nur bis hierhin (vom Ende her) sichtbar
 	var counts: Array[int] = []
 	counts.resize(lanes_per_team)
 	counts.fill(0)
@@ -429,28 +489,39 @@ func _draw_minimap() -> void:
 		counts[u["lane"]] += 1
 	for i in n:
 		var mine := i < lanes_per_team
-		var a: Vector2 = pt.call(lane_xs[i] - half, z_top)
-		var b: Vector2 = pt.call(lane_xs[i] + half, z_bot)
+		var a := _mini_pt(m, lane_xs[i] - half, z_top if mine else enemy_view_z)
+		var b := _mini_pt(m, lane_xs[i] + half, z_bot)
 		mini.draw_rect(Rect2(a, b - a), Color("#6b5f3e") if mine else Color("#4a4a52"))
-		var ba: Vector2 = pt.call(lane_xs[i] - half, base_z)
-		mini.draw_rect(Rect2(ba, b - ba), Color("#2d4f7a") if mine else Color("#5a3a3a"))           # Basis
+		var ba := _mini_pt(m, lane_xs[i] - half, base_z)
+		mini.draw_rect(Rect2(ba, b - ba), Color("#2d4f7a") if mine else Color("#6a3a3a"))           # Basis
 		if mine:
 			var c: int = counts[i]
 			var col := Color("#ff5a5a") if c > 0 else Color("#9aa3b5")
 			mini.draw_string(ThemeDB.fallback_font, Vector2(a.x + 2.0, 14.0), str(c), HORIZONTAL_ALIGNMENT_LEFT, b.x - a.x, 14, col)
-	if lanes_per_team == 2:               # gemeinsame Wand
-		var wa: Vector2 = pt.call((lane_xs[0] + lane_xs[1]) / 2.0, z_top)
-		var wb: Vector2 = pt.call((lane_xs[0] + lane_xs[1]) / 2.0, -float(WALL_OPEN_BASE) * S)
+		else:
+			mini.draw_line(a, Vector2(b.x, a.y), Color("#9aa3b5"), 1.0)                              # Grenze des sichtbaren Abschnitts
+	if lanes_per_team == 2:               # gemeinsame Wand, offen in der Basis
+		var wa := _mini_pt(m, (lane_xs[0] + lane_xs[1]) / 2.0, z_top)
+		var wb := _mini_pt(m, (lane_xs[0] + lane_xs[1]) / 2.0, -float(WALL_OPEN_BASE) * S)
 		mini.draw_line(wa, wb, Color("#9aa3b5"), 2.0)
 	for u in units:
 		var d: Dictionary = u["def"]
 		var r := 2.5 + clampf(float(d["r"]) / 9.0, 0.0, 4.0) * 0.8
-		var p: Vector2 = pt.call(_wp(u["x"], u["y"]).x, _wp(u["x"], u["y"]).z)
-		mini.draw_circle(p, r, Color("#ff3030"))
+		var w := _wp(u["x"], u["y"])
+		mini.draw_circle(_mini_pt(m, w.x, w.z), r, Color("#ff3030"))
 	if hero["dead"] <= 0.0:
-		var hp: Vector2 = pt.call(_wp(hero["x"], hero["y"]).x, _wp(hero["x"], hero["y"]).z)
+		var hw := _wp(hero["x"], hero["y"])
+		var hp := _mini_pt(m, hw.x, hw.z)
 		mini.draw_circle(hp, 5.5, Color.WHITE)
 		mini.draw_circle(hp, 4.0, Color.html(hero["d"]["col"]))
+	if cam != null and cam_init:          # Sichtfeld der Kamera
+		var sz := get_viewport().get_visible_rect().size
+		var pts := PackedVector2Array()
+		for c in [Vector2(0, 0), Vector2(sz.x, 0), Vector2(sz.x, sz.y), Vector2(0, sz.y), Vector2(0, 0)]:
+			var g := _ground_point(c)
+			pts.append(_mini_pt(m, g.x, g.z))
+		mini.draw_polyline(pts, Color(1, 1, 1, 0.75), 1.5)
+	mini.draw_rect(Rect2(0, 0, MINI_W, MINI_H), Color("#8d7d55"), false, 2.0)
 
 
 func _label3d(text: String, size: int, col: Color) -> Label3D:
@@ -486,7 +557,7 @@ func _spawn_hero() -> void:
 	node.add_child(ring)
 	hero = {"d": d, "x": 120.0, "y": slot_ys[0], "lvl": 1, "xp": 0.0, "hp": float(d["hp"]), "dead": 0.0,
 		"atk_t": 0.0, "target": null, "move_to": null, "deaths": 0, "node": node, "label": lab,
-		"bp": 0.0, "bp_cd": 0.0, "ring": ring}
+		"bp": 0.0, "bp_cd": 0.0, "ring": ring, "gold": float(cfg["startGold"]), "income": float(cfg["baseIncome"])}   # jeder Spieler hat eigenes Gold und Einkommen
 
 
 # ---------------------------------------------------------------- Formeln (wie im Browser-Prototyp)
@@ -567,7 +638,7 @@ func _kill_unit(u: Dictionary) -> void:
 	u["node"].queue_free()
 	kills += 1
 	var def: Dictionary = u["def"]
-	gold += float(def["gold"]) if def.has("gold") else float(cfg["killGold"])
+	hero["gold"] += float(def["gold"]) if def.has("gold") else float(cfg["killGold"])
 	_gain_xp(float(def["xp"]))
 
 
@@ -619,14 +690,14 @@ func step(dt: float) -> void:
 	income_t += dt
 	if income_t >= float(cfg["incomeTick"]):
 		income_t -= float(cfg["incomeTick"])
-		gold += income
+		hero["gold"] += hero["income"]
 	wave_t -= dt
 	if wave_t <= 0.0:
 		_spawn_wave()
 		wave_t = float(cfg["earlyWaveEvery"]) if wave <= int(cfg["earlyWaves"]) else float(cfg["waveEvery"])
 	_step_hero(dt)
 	_step_units(dt)
-	if lives <= 0:
+	if team_lives[0] <= 0:
 		over = true
 		msg.text = "NIEDERLAGE"
 
@@ -760,6 +831,7 @@ func _step_units(dt: float) -> void:
 			var step_len: float = u["spd"] * dt
 			var dx := -1.0
 			var dy := 0.0
+			var chasing := false
 			if hero["dead"] <= 0.0 and u["type"] != "fast":
 				var hx: float = hero["x"] - u["x"]
 				var hy: float = hero["y"] - u["y"]
@@ -767,12 +839,22 @@ func _step_units(dt: float) -> void:
 				if dist <= (float(cfg["aggroRange"]) if hx <= 40.0 else float(cfg["aggroBehind"])):
 					dx = hx / dist
 					dy = hy / dist
+					chasing = true
+			var in_base_zone: bool = lanes_per_team == 2 and u["x"] < WALL_OPEN_BASE
+			if in_base_zone and not chasing:     # 4v4: beide Lanes laufen am Ende auf den gemeinsamen Team-Kristall zu
+				var dv := Vector2(float(cfg["leakX"]) - u["x"], team_mid_y - u["y"])
+				var dl := maxf(1.0, dv.length())
+				dx = dv.x / dl
+				dy = dv.y / dl
 			u["x"] += dx * step_len
 			var ly: float = lane_half_g - 16.0
 			var off: float = lane_off_g[u["lane"]]
-			u["y"] = clampf(u["y"] + dy * step_len, off - ly, off + ly)
+			if in_base_zone:                     # in der offenen Basis gilt der Quer-Bereich beider Lanes
+				u["y"] = clampf(u["y"] + dy * step_len, lane_off_g[0] - ly, lane_off_g[lanes_per_team - 1] + ly)
+			else:
+				u["y"] = clampf(u["y"] + dy * step_len, off - ly, off + ly)
 		if u["x"] <= float(cfg["leakX"]):
-			lives -= int(u["def"]["lives"])
+			team_lives[0] -= int(u["def"]["lives"])
 			units.erase(u)
 			u["node"].queue_free()
 
@@ -801,8 +883,10 @@ func _sync_visuals(delta: float) -> void:
 			f["node"].queue_free()
 			texts.erase(f)
 	var off := _cam_offset()
-	var want := hn.position + off
+	var want := (cam_focus if cam_free else hn.position) + off
 	cam.position = want if not cam_init else cam.position.lerp(want, minf(1.0, delta * 6.0))
+	for i in life_labels.size():
+		life_labels[i].text = "Leben %d" % maxi(0, team_lives[i])
 	cam_init = true
 	cam.look_at(cam.position - off)
 	var ring: MeshInstance3D = hero["ring"]
@@ -817,8 +901,8 @@ func _sync_visuals(delta: float) -> void:
 	elif not _in_base():
 		bp_txt = "CD %ds" % int(ceil(hero["bp_cd"])) if hero["bp_cd"] > 0.0 else "bereit"
 	var min_t := int(t) / 60
-	hud.text = "Gold %d   Einkommen +%.0f / %ds   Leben %d   Welle %d   Zeit %d:%02d\nLevel %d   XP %d / %d   HP %d / %d   Kills %d   [B] Backport: %s" % [
-		int(gold), income, int(cfg["incomeTick"]), lives, wave, min_t, int(t) % 60,
+	hud.text = "Gold %d   Einkommen +%.0f / %ds   Team-Leben %d  (Gegner %d)   Welle %d   Zeit %d:%02d\nLevel %d   XP %d / %d   HP %d / %d   Kills %d   [B] Backport: %s" % [
+		int(hero["gold"]), hero["income"], int(cfg["incomeTick"]), team_lives[0], team_lives[1], wave, min_t, int(t) % 60,
 		hero["lvl"], int(hero["xp"]), int(_xp_need(hero["lvl"])), int(hero["hp"]), int(_hero_max_hp()), kills, bp_txt]
 	if mini != null:
 		mini.queue_redraw()
@@ -833,6 +917,8 @@ func _ground_point(screen_pos: Vector2) -> Vector3:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if started and event is InputEventKey and event.pressed and event.keycode == KEY_SPACE:
+		cam_free = false                  # Leertaste: Kamera zurück zum Helden
 	if event is InputEventMouseButton and event.pressed:   # Mausrad: Kamera näher/weiter weg
 		if event.button_index == MOUSE_BUTTON_WHEEL_UP:
 			cam_dist = clampf(cam_dist - 2.0, 14.0, 50.0)
@@ -908,6 +994,33 @@ func _selftest() -> void:
 	_start_backport()
 	_damage_hero(10.0)
 	check.call("Schaden unterbricht den Backport", hero["bp"] == 0.0)
+	# 6. Minimap: Klick setzt die Kamera dorthin, Leertaste zurück zum Helden
+	var mp := _mini_map()
+	var click := InputEventMouseButton.new()
+	click.button_index = MOUSE_BUTTON_LEFT
+	click.pressed = true
+	click.position = _mini_pt(mp, lane_xs[1], -75.0)          # Mitte der 2. Lane, ca. 75 m vor der Basis
+	_mini_input(click)
+	check.call("Minimap-Klick löst die Kamera (frei=%s, Ziel x=%.1f z=%.1f)" % [cam_free, cam_focus.x, cam_focus.z], cam_free and absf(cam_focus.x - lane_xs[1]) < 1.0 and absf(cam_focus.z + 75.0) < 1.0)
+	var space := InputEventKey.new()
+	space.keycode = KEY_SPACE
+	space.pressed = true
+	_unhandled_input(space)
+	check.call("Leertaste: Kamera wieder am Helden", not cam_free)
+	# 7. Monster der 2. Lane laufen am Ende auf den gemeinsamen Team-Kristall zu
+	units.clear()
+	hero["x"] = 2000.0
+	hero["y"] = lane_off_g[0]
+	_spawn_unit("grunt", 0.0, 1.0, 1)
+	var gr: Dictionary = units[0]
+	gr["x"] = 280.0
+	gr["y"] = lane_off_g[1]
+	hero["dead"] = 99.0                                         # Held aus dem Weg
+	for i in 80:
+		_step_units(0.05)
+		if units.is_empty():
+			break
+	check.call("Monster aus Lane 2 erreichen den Kristall in der Mitte (y=%.0f, Mitte=%.0f)" % [gr["y"], team_mid_y], units.is_empty() or absf(gr["y"] - team_mid_y) < absf(lane_off_g[1] - team_mid_y))
 	print("SELFTEST " + ("OK" if ok else "FEHLER"))
 	get_tree().quit()
 
@@ -922,7 +1035,7 @@ func _run_simulation(secs: float, shot_path: String) -> void:
 			print("t=%.0f Held x=%.0f y=%.0f | Ziel: %s | Einheiten %d" % [t, hero["x"], hero["y"],
 				"-" if tg == null else "x=%.0f y=%.0f lane=%d" % [tg["x"], tg["y"], tg["lane"]], units.size()])
 	print("SIM %.0f s | Welle %d | Leben %d | Gold %d | Level %d | Kills %d | Tode %d | Einheiten %d" % [
-		secs, wave, lives, int(gold), hero["lvl"], kills, hero["deaths"], units.size()])
+		secs, wave, team_lives[0], int(hero["gold"]), hero["lvl"], kills, hero["deaths"], units.size()])
 	if shot_path != "":
 		_sync_visuals(1.0)
 		await get_tree().process_frame
