@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="de">
 <head>
 <meta charset="utf-8">
@@ -165,12 +165,12 @@ const CFG = {
   critDmgBase: 2.0, critDmgBonus: 0.25,             // Kritischer Schaden: Grundfaktor / Bonus der Mächtigen Klinge
   spMulBonus: 0.30,                                 // Zauberkrone: Zauberkraft +30 %
   stormCritAs: 0.40, stormCritTime: 3,              // Sturmbrecher: +40 % Angriffstempo für 3 s nach einem Krit
-  cdrCap: 0.40, comboAmp: 0.20, comboWindow: 5,     // Abklingzeit-Obergrenze / Zeitzauberstab: +20 % Schaden innerhalb von 5 s
+  cdrCap: 0.40, comboAmp: 0.30, comboWindow: 5,     // Abklingzeit-Obergrenze / Zeitzauberstab: +30 % Schaden innerhalb von 5 s
   auraSlow: 0.20, auraRadius: 150,                  // Titanenpanzer: Verlangsamung der Gegner im Umkreis
   tormentTime: 3, tormentEvery: 0.5,                // Quälende Maske: Dauer / Abstand der Schadensinstanzen (Sek.)
   tormentFlat: 8, tormentAp: 0.05, tormentPct: 0.006, // Schaden je Instanz: fest + Anteil der Zauberkraft + Anteil des max. Lebens des Ziels
   tormentCd: 6,                                     // Abklingzeit je Ziel (Sek.) bis die Qual erneut wirken kann; 0 = keine Abklingzeit
-  ruinPct: 0.06, ruinMin: 12, ruinMax: 120,         // Schneide des gefallenen Monarchen: % des aktuellen Lebens (min/max Schaden)
+  ruinPct: 0.05, ruinMin: 12, ruinMax: 120,         // Schneide des gefallenen Monarchen: % des aktuellen Lebens (min/max Schaden)
   drCap: 0.40,                                      // Obergrenze für verringerten Schaden durch Items
   sparkFlat: 12, sparkAp: 0.35,                      // Funkenklinge: magischer Zusatzschaden je Angriff
   giantsPct: 0.025, cleaveItemPct: 0.40, cleaveMax: 3,             // Gigantenschlag (% max. Leben) / Splitteraxt (Anteil des Schadens)
@@ -196,7 +196,7 @@ const CFG = {
   itemPower: {sword:.8, armor:1.3, heart:1.2, gloves:1.1, staff:1.6, boots:1},   // Stärke je Item (Balance-Regler; Beschreibungen im Shop passend halten)
   incMul: 1, itemMul: 1,   // Balance-Regler: Einkommen pro gesendetem Monster / Stärke aller Items
   power: {tank:0.93, damage:1.12, caster:0.95},
-  adEff: {tank:0.5, damage:1, caster:1},
+  adEff: {tank:0.8, damage:1, caster:1},
   earlyBoost: {tank:0, damage:0, caster:0.7},   // Balance-Regler: Skillschaden-Bonus in der Frühphase je Klasse (Level 1 voll, Level 15 null)   // Wirkung von Angriffsschaden-Items je Klasse (Balance-Regler)   // Skillschaden-Faktor je Held (nur zum Balancen)
   unitDmgScale: 0.5,         // wie stark der Schaden der Monster mit der Zeit mitwächst (relativ zu ihrem Leben)
   hpScalePerMin: 0.35,   // Monster werden mit der Zeit stärker
@@ -276,39 +276,39 @@ const ITEM_LIST = [
   {id:'thornPlate', group:'fertig', name:'Dornenpanzerweste', parts:['strongArmor','thornShirt'], cost:200,
      desc:'+85 Rüstung. '+THORN_TXT, stats:{armor:85}, unique:['thorns']},
   {id:'stormBreaker', group:'fertig', name:'Sturmbrecher', parts:['rake','critCloak','windCloak'], cost:350,
-     desc:'+55 Angriffsschaden, +30 % Krit-Chance, +30 % Angriffstempo. Einmalig – kritische Treffer geben dir 3 s lang +40 % Angriffstempo.', stats:{dmg:55, crit:.30, as:.30}, unique:['stormCrit']},
+     desc:'+48 Angriffsschaden, +25 % Krit-Chance, +30 % Angriffstempo. Einmalig – kritische Treffer geben dir 3 s lang +40 % Angriffstempo.', stats:{dmg:48, crit:.25, as:.30}, unique:['stormCrit']},
   {id:'timeStaff', group:'fertig', name:'Zeitzauberstab', parts:['bigStaff','timeAmulet'], cost:350,
-     desc:'+64 Zauberkraft, −15 % Abklingzeit. Einmalig – Nach einer Fähigkeit macht die nächste innerhalb von 5 s 20 % mehr Schaden.', stats:{sp:64, cdr:.15}, unique:['comboAmp']},
+     desc:'+90 Zauberkraft, −20 % Abklingzeit. Einmalig – Nach einer Fähigkeit macht die nächste innerhalb von 5 s 30 % mehr Schaden.', stats:{sp:90, cdr:.20}, unique:['comboAmp']},
   {id:'titanPlate', group:'fertig', name:'Titanenpanzer', parts:['cloth','lifeStone','regenBand'], cost:300,
      desc:'+30 Rüstung, +420 Leben, +1,5 % Leben/s Regeneration. Einmalig – Gegner im Umkreis von 150 Pixeln sind 20 % langsamer.', stats:{armor:30, hp:420, regen:.015}, unique:['slowAura']},
   // Caster: Quälende Maske (Zwischenstufe: Maske der Erscheinung)
   {id:'guise', group:'zwischen', name:'Maske der Erscheinung', parts:['ruby','tome'], cost:150,
      desc:'+150 Leben, +30 Zauberkraft.', stats:{hp:150, sp:30}},
   {id:'tormentMask', group:'fertig', name:'Quälende Maske', parts:['wand','guise'], cost:250,
-     desc:'+85 Zauberkraft, +200 Leben. Einmalig – Qual: Fähigkeitsschaden verbrennt Gegner 3 s lang (alle 0,5 s ein Schaden aus festem Wert, Zauberkraft und maximalem Leben des Ziels). Ein Ziel kann nur alle 6 s erneut betroffen werden.', stats:{sp:85, hp:200}, unique:['torment']},
+     desc:'+75 Zauberkraft, +150 Leben. Einmalig – Qual: Fähigkeitsschaden verbrennt Gegner 3 s lang (alle 0,5 s ein Schaden aus festem Wert, Zauberkraft und maximalem Leben des Ziels). Ein Ziel kann nur alle 6 s erneut betroffen werden.', stats:{sp:75, hp:150}, unique:['torment']},
   // Damage: Schneide des gefallenen Monarchen (Zwischenstufe: Entersäbel)
   {id:'cutlass', group:'zwischen', name:'Entersäbel', parts:['rake','bloodGem'], cost:130,
      desc:'+35 Angriffsschaden, +10 % Lebensraub.', stats:{dmg:35, ls:.10}},
   {id:'ruinBlade', group:'fertig', name:'Schneide des gefallenen Monarchen', parts:['cutlass','windCloak'], cost:300,
-     desc:'+56 Angriffsschaden, +25 % Angriffstempo, +14 % Lebensraub. Einmalig – Angriffe verursachen zusätzlich 6 % des aktuellen Lebens des Ziels als Schaden (mindestens 12, höchstens 120).', stats:{dmg:56, as:.25, ls:.14}, unique:['ruin']},
+     desc:'+50 Angriffsschaden, +25 % Angriffstempo, +12 % Lebensraub. Einmalig – Angriffe verursachen zusätzlich 5 % des aktuellen Lebens des Ziels als Schaden (mindestens 12, höchstens 120).', stats:{dmg:50, as:.25, ls:.12}, unique:['ruin']},
   // Tank: Lebensquell-Harnisch
   {id:'lifeSpring', group:'fertig', name:'Lebensquell-Harnisch', parts:['lifeStone','ruby','regenBand'], cost:300,
-     desc:'+1200 Leben, +2 % Leben/s Regeneration. Einmalig – Lebensfluss: Hast du 5 s lang keinen Schaden erlitten, regenerierst du 8 % deines maximalen Lebens pro Sekunde.', stats:{hp:1200, regen:.02}, unique:['lifeflow']},
+     desc:'+1100 Leben, +2 % Leben/s Regeneration. Einmalig – Lebensfluss: Hast du 5 s lang keinen Schaden erlitten, regenerierst du 8 % deines maximalen Lebens pro Sekunde.', stats:{hp:1100, regen:.02}, unique:['lifeflow']},
   // Weitere fertige Items (klassenübergreifend kombinierbar)
   {id:'cleaver', group:'fertig', name:'Splitteraxt', parts:['bigSword','dagger'], cost:520,
      desc:'+60 Angriffsschaden, +25 % Angriffstempo. Einmalig – Basisangriffe treffen auch bis zu 3 Gegner im Umkreis von 80 Pixeln mit 40 % Schaden.', stats:{dmg:60, as:.25}, unique:['cleave']},
   {id:'sparkBlade', group:'fertig', name:'Funkenklinge', parts:['dagger','wand','windCloak'], cost:320,
      desc:'+45 % Angriffstempo, +60 Zauberkraft, +15 Angriffsschaden. Einmalig – Treffer-Zauber: Basisangriffe verursachen zusätzlich 12 + 35 % deiner Zauberkraft als magischen Schaden (ignoriert Rüstung).', stats:{as:.45, sp:60, dmg:15}, unique:['onHitMagic']},
   {id:'soulDrinker', group:'fertig', name:'Seelentrinker', parts:['bloodGem','spellGem','ruby'], cost:360,
-     desc:'+12 % Lebensraub, +22 % Zauberraub, +250 Leben, +40 Angriffsschaden, +45 Zauberkraft. Einmalig – Rachsucht: Unter 40 % Leben ist dein Lebens- und Zauberraub verdoppelt.', stats:{ls:.12, sv:.22, hp:250, dmg:40, sp:45}, unique:['vengeance']},
+     desc:'+12 % Lebensraub, +22 % Zauberraub, +250 Leben, +20 Rüstung, +40 Angriffsschaden, +45 Zauberkraft. Einmalig – Rachsucht: Unter 40 % Leben ist dein Lebens- und Zauberraub verdoppelt.', stats:{ls:.12, sv:.22, hp:250, armor:20, dmg:40, sp:45}, unique:['vengeance']},
   {id:'bulwark', group:'fertig', name:'Eisernes Bollwerk', parts:['strongArmor','ruby'], cost:450,
-     desc:'+70 Rüstung, +300 Leben, erlittener Schaden −12 %.', stats:{armor:70, hp:300, dr:.12}},
+     desc:'+90 Rüstung, +400 Leben, erlittener Schaden −15 %.', stats:{armor:90, hp:400, dr:.15}},
   {id:'giantsMight', group:'fertig', name:'Gigantenschlag', parts:['lifeStone','bigSword'], cost:350,
      desc:'+55 Angriffsschaden, +300 Leben. Einmalig – Basisangriffe verursachen zusätzlich 2,5 % deines maximalen Lebens als Schaden.', stats:{dmg:55, hp:300}, unique:['giants']},
   {id:'moonstone', group:'fertig', name:'Seelenreif', parts:['guise','regenBand'], cost:250,
      desc:'+500 Leben, +60 Zauberkraft, +1 % Leben/s. Einmalig – Lebenskraft: +12 % deiner zusätzlichen Leben als Zauberkraft.', stats:{hp:500, sp:60, regen:.01}, unique:['hpAp']},
   {id:'merchantChain', group:'fertig', name:'Händlerkette', parts:['coinPouch','coinPouch'], cost:300,
-     desc:'+0,9 Gold pro Sekunde, +100 Leben.', stats:{gps:.9, hp:100}},
+     desc:'+1,1 Gold pro Sekunde, +100 Leben.', stats:{gps:1.1, hp:100}},
   // Verbrauchsgegenstände (eigene Slots, zählen nicht zum Rucksack)
   {id:'potion', group:'verbrauch', name:'Heiltrank', cost:120, consumable:true, desc:'Heilt 40 % deines maximalen Lebens (Taste F, 15 s Abklingzeit zwischen zwei Tränken).'},
 ];
