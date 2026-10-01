@@ -1,0 +1,12 @@
+# Betriebssystem / Editor
+Thumbs.db
+Desktop.ini
+.DS_Store
+.vscode/
+.idea/
+
+# lokale Zwischenst?nde und Exporte
+*.zip
+*.log
+tmp/
+scratch/

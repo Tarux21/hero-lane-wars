@@ -1,0 +1,1713 @@
+﻿<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Lane Wars – Prototyp</title>
+<style>
+  body{margin:0;background:#14161c;color:#e6e6e6;font:14px system-ui,sans-serif;display:flex;justify-content:center}
+  #wrap{width:1000px;padding:8px 0}
+  #hud{display:flex;gap:18px;padding:6px 10px;background:#1e222b;border-radius:6px;margin-bottom:6px;flex-wrap:wrap}
+  #hud b{color:#ffd166}
+  canvas{display:block;background:#0e1014;border-radius:6px}
+  #game{cursor:crosshair}
+  #mini{margin-top:6px}
+  .panel{background:#1e222b;border-radius:6px;padding:8px 10px;margin-top:6px}
+  .row{display:flex;gap:8px;flex-wrap:wrap}
+  button{background:#2b3140;color:#e6e6e6;border:1px solid #3c4458;border-radius:5px;padding:6px 10px;cursor:pointer}
+  button:hover:not(:disabled){background:#38405a}
+  button:disabled{opacity:.4;cursor:not-allowed}
+  small{color:#9aa3b5}
+  #start{position:fixed;inset:0;background:#000c;display:flex;align-items:center;justify-content:center;z-index:5}
+  #start .box{background:#1e222b;padding:24px;border-radius:10px;max-width:640px}
+  #start .row button{flex:1;padding:12px}
+  #msg{position:fixed;top:40%;left:0;right:0;text-align:center;font-size:40px;font-weight:700;pointer-events:none;text-shadow:0 2px 8px #000}
+  #skills{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:6px}
+  .sk{background:#262b38;border-radius:6px;padding:8px;min-height:120px;border:1px solid #333a4d}
+  .sk.locked{opacity:.45}
+  .sk.ready{border-color:#6fbf73}
+  .sk .pips{letter-spacing:2px;color:#ffd166}
+  .sk .cd{float:right;color:#9ad}
+  .sk ul{margin:4px 0 6px 16px;padding:0;color:#9aa3b5;font-size:12px}
+  .sk li.on{color:#d8f0d8}
+  .shopsec{width:100%;margin-top:6px}
+  .shopsec .row{margin-top:4px}
+  .slot{min-width:120px;min-height:44px}
+  .slot.full{border-color:#6fbf73}
+  #shopPanel button.fertig{border-color:#c9a227}
+  #shopPanel button.ready{border:2px solid #4cd964;background:#1d3a26;box-shadow:0 0 10px #4cd96477}
+  #shopPanel button.partial{border:2px solid #e0b13a;background:#33301f}
+  #shopPanel button.owned{border:2px solid #6fbf73;background:#233328}
+  #shopPanel button.slot.hint{border:2px solid #4cd964;box-shadow:0 0 8px #4cd96488}
+  .itemwrap{position:relative;display:inline-block}
+  .itemwrap:hover{z-index:40}
+  .flyout{display:none;position:absolute;left:0;top:100%;z-index:50;width:320px;background:#171b25;border:1px solid #c9a227;border-radius:6px;padding:8px;box-shadow:0 8px 20px #000c}
+  .flyout.right{left:auto;right:0}
+  .itemwrap:hover .flyout{display:block}
+  .flyout .fhead{color:#e6e6e6;font-size:12px;margin-bottom:4px;white-space:normal}
+  .flyout .frow button{width:100%;text-align:left;margin:2px 0;font-size:12px}
+  #shopPanel button.blocked{opacity:.5}
+  #shopPanel .why{color:#ff8a7a;font-size:11px;font-weight:700}
+  #shopPanel .tag{font-size:11px;font-weight:600}
+  #shopPanel .tag.ok{color:#4cd964}
+  #shopPanel .tag.warn{color:#e0b13a}
+  #shopPanel button small{color:#9aa3b5;font-size:11px}
+  #dbg{position:fixed;top:10px;right:10px;width:250px;background:#1b1f2acc;border:1px solid #ffd166;border-radius:8px;padding:8px 10px;z-index:4;font-size:12px;display:none}
+  #dbg.open{display:block}
+  #dbg h4{margin:0 0 6px;color:#ffd166;cursor:move}
+  #dbg .r{display:flex;align-items:center;gap:4px;margin:3px 0}
+  #dbg .r span.l{flex:1}
+  #dbg button{padding:2px 8px}
+  #dbg b{min-width:22px;text-align:center;display:inline-block}
+  /* Bedienung: Werkzeugleiste, Pause, Hinweise, Skill-Leiste, Overlays */
+  #toolbar{display:flex;gap:6px;align-items:center;margin-bottom:6px;flex-wrap:wrap}
+  #toolbar .tsep{color:#9aa3b5;font-size:12px;margin-left:8px}
+  #toolbar button.on{background:#3d6aa0;border-color:#5b8fd0}
+  #pauseNote{display:none;background:#33301f;border:1px solid #e0b13a;border-radius:6px;padding:6px 10px;margin-bottom:6px;color:#ffd166}
+  #cvwrap{position:relative}
+  #alerts{position:absolute;top:8px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;gap:6px;align-items:center;pointer-events:none;z-index:3}
+  .alert{padding:6px 14px;border-radius:6px;font-weight:700;font-size:14px;background:#1e222bee;border:1px solid #3c4458;white-space:nowrap}
+  .alert.danger{border-color:#ff6b6b;color:#ff9a9a;background:#3a1d1fee}
+  .alert.good{border-color:#4cd964;color:#9af0a8;background:#1d3a26ee}
+  .alert.enemy{border-color:#b06cf0;color:#d9b3ff;background:#2b1f3aee}
+  #skillbar{display:flex;gap:6px;margin-top:6px}
+  .ssl{position:relative;flex:1;min-height:54px;background:#262b38;border:1px solid #3c4458;border-radius:6px;padding:4px 8px 4px 24px;display:flex;flex-direction:column;justify-content:center}
+  .ssl.small{flex:.55}
+  .ssl.locked{opacity:.5}
+  .ssl .cdfill{position:absolute;left:0;bottom:0;width:100%;height:0;background:#000000a0;border-radius:0 0 6px 6px;pointer-events:none}
+  .ssl .skey{position:absolute;top:4px;left:7px;font-weight:700;color:#ffd166}
+  .ssl .sname{font-size:12px;font-weight:600;z-index:1}
+  .ssl .srank{font-size:11px;color:#ffd166;letter-spacing:1px;z-index:1}
+  .ssl .scd{font-size:11px;color:#9ad;z-index:1}
+  .ssl .splus{position:absolute;top:2px;right:4px;padding:0 7px;background:#2e5d34;border-color:#4cd964;z-index:2}
+  #tip{position:fixed;display:none;z-index:20;max-width:360px;background:#171b25;border:1px solid #c9a227;border-radius:6px;padding:8px 10px;font-size:12px;pointer-events:none;box-shadow:0 6px 18px #000c}
+  #tip .cur{color:#ffd166;font-weight:700}
+  #tip ul{margin:4px 0 0 16px;padding:0;color:#9aa3b5}
+  .overlay{position:fixed;inset:0;background:#000b;display:flex;align-items:center;justify-content:center;z-index:8}
+  .overlay .box{background:#1e222b;padding:20px;border-radius:10px;max-width:720px;max-height:90vh;overflow:auto}
+  #endTable{border-collapse:collapse;width:100%;margin-top:10px;font-size:13px}
+  #endTable td,#endTable th{padding:4px 8px;border-bottom:1px solid #333a4d;text-align:left;vertical-align:top}
+  #endTable th{color:#9aa3b5;font-weight:600}
+  .krow{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:3px 0;border-bottom:1px solid #2b3140}
+  .krow button{min-width:110px}
+  .last{outline:2px solid #ffd166}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="toolbar">
+    <button id="btnPause"></button>
+    <span class="tsep">Tempo</span><button data-speed="1">×1</button><button data-speed="2">×2</button><button data-speed="3">×3</button>
+    <span class="tsep"></span><button id="btnRestart">↺ Neustart</button><button id="btnMenu">☰ Menü</button><button id="btnSettings">⚙ Einstellungen</button>
+  </div>
+  <div id="pauseNote">⏸ PAUSE – Shop und Skillpunkte bleiben bedienbar (der Held muss zum Kaufen in der Basis stehen).</div>
+  <div id="hud"></div>
+  <div id="cvwrap"><canvas id="game" width="1000" height="420"></canvas><div id="alerts"></div></div>
+  <div id="skillbar"></div>
+  <canvas id="mini" width="1000" height="110"></canvas>
+  <div class="panel"><b>Fähigkeiten</b> <small id="spNote"></small>
+    <div id="skills"></div></div>
+  <div class="panel"><b>Monster senden</b> <small>(kostet Gold, erhöht dein Einkommen, der Gegner bekommt XP)</small>
+    <div class="row" id="sendPanel" style="margin-top:6px"></div></div>
+  <div class="panel"><b>Shop</b> <small id="shopNote"></small>
+    <div class="row" id="shopPanel" style="margin-top:6px"></div></div>
+  <div class="panel"><small id="helpText"></small></div>
+</div>
+
+<div id="start"><div class="box">
+  <h2 style="margin-top:0">Lane Wars – wähle deinen Helden</h2>
+  <p><small>Du hast eine gerade Lane links von deiner Basis. Der Gegner hat seine eigene Lane mit eigenem Helden (unten im Minimap, mit <b>Tab</b> kannst du ihm zuschauen). Monster, die du sendest, laufen auf seine Basis zu – und umgekehrt. Wer zuerst alle Leben verliert, verliert.</small></p>
+  <div class="row" style="margin-bottom:12px;align-items:center">
+    <label>Schwierigkeit&nbsp;<select id="diffSel"><option value="easy">Leicht</option><option value="normal" selected>Normal</option><option value="hard">Schwer</option><option value="expert">Experte</option></select></label>
+    <label>Gegner-Held&nbsp;<select id="enemySel"><option value="random" selected>Zufall</option><option value="tank">Tank</option><option value="damage">Damage</option><option value="caster">Caster</option></select></label>
+  </div>
+  <div class="row" id="heroPick"></div>
+  <div class="row" style="margin-top:12px"><button id="btnStartSettings">⚙ Einstellungen (Tasten, Lautstärke)</button></div>
+</div></div>
+<div id="msg"></div>
+<div id="endScreen" class="overlay" style="display:none"><div class="box">
+  <h2 id="endTitle" style="margin-top:0"></h2><div id="endInfo"></div>
+  <table id="endTable"></table>
+  <div class="row" style="margin-top:14px"><button id="btnRematch">↺ Revanche</button><button id="btnEndMenu">☰ Zurück zum Menü</button></div>
+</div></div>
+<div id="settings" class="overlay" style="display:none"><div class="box" style="min-width:420px">
+  <h2 style="margin-top:0">Einstellungen</h2>
+  <div id="settingsBody"></div>
+  <div class="row" style="margin-top:14px"><button id="btnKeysReset">Tasten auf Standard</button><button id="btnSettingsClose">Schließen</button></div>
+</div></div>
+<div id="tip"></div>
+<div id="dbg">
+  <h4 id="dbgHead">Testfenster (F2) – ziehbar</h4>
+  <div class="r"><span class="l">Level</span><button onclick="dbg('lvl',-1)">−</button><b id="dLvl">1</b><button onclick="dbg('lvl',1)">+</button></div>
+  <div class="r"><span class="l">Freie Skillpunkte</span><button onclick="dbg('sp',-1)">−</button><b id="dSp">0</b><button onclick="dbg('sp',1)">+</button></div>
+  <div class="r"><span class="l">Rang Q</span><button onclick="dbg('rank',[0,-1])">−</button><b id="dR0">0</b><button onclick="dbg('rank',[0,1])">+</button></div>
+  <div class="r"><span class="l">Rang W</span><button onclick="dbg('rank',[1,-1])">−</button><b id="dR1">0</b><button onclick="dbg('rank',[1,1])">+</button></div>
+  <div class="r"><span class="l">Rang E</span><button onclick="dbg('rank',[2,-1])">−</button><b id="dR2">0</b><button onclick="dbg('rank',[2,1])">+</button></div>
+  <div class="r"><span class="l">Rang R</span><button onclick="dbg('rank',[3,-1])">−</button><b id="dR3">0</b><button onclick="dbg('rank',[3,1])">+</button></div>
+  <div class="r" style="flex-wrap:wrap">
+    <button onclick="dbg('allmax')">Alles max</button><button onclick="dbg('reset')">Skills zurücksetzen</button>
+    <button onclick="dbg('cd')">Cooldowns 0</button><button onclick="dbg('gold')">+1000 Gold</button>
+    <button onclick="dbg('wave')">Welle jetzt</button><button onclick="dbg('clear')">Monster löschen</button>
+    <button onclick="dbg('god')" id="dGod">Unsterblich: aus</button><button onclick="dbg('einf')" id="dInf">Gegner-Leben ∞: aus</button>
+  </div>
+  <small>Ränge werden ohne Level-Sperre gesetzt, damit du jeden Skill testen kannst.</small>
+</div>
+
+<script>
+'use strict';
+// ====== KONFIGURATION (hier Zahlen zum Balancen ändern) ======
+const CFG = {
+  laneLen: 3000, laneHalf: 90, baseX: 230, spawnX: 2950, leakX: 30,
+  speedMul: 1.0,              // Lauftempo aller Monster (zum Anpassen an die Lanelänge)
+  startGold: 300, baseIncome: 24, incomeTick: 10,   // Wirtschaft x3 (wegen der teureren Items)
+  startLives: 20,
+  bagSize: 6, consMax: 5, sellRatio: 0.7,           // Rucksack-Plätze / max. Verbrauchsgegenstände je Sorte / Verkaufserlös
+  potionHeal: 0.40, potionCd: 15,                   // Heiltrank
+  critDmgBase: 2.0, critDmgBonus: 0.25,             // Kritischer Schaden: Grundfaktor / Bonus der Mächtigen Klinge
+  spMulBonus: 0.30,                                 // Zauberkrone: Zauberkraft +30 %
+  stormCritAs: 0.40, stormCritTime: 3,              // Sturmbrecher: +40 % Angriffstempo für 3 s nach einem Krit
+  cdrCap: 0.40, comboAmp: 0.20, comboWindow: 5,     // Abklingzeit-Obergrenze / Zeitzauberstab: +20 % Schaden innerhalb von 5 s
+  auraSlow: 0.20, auraRadius: 150,                  // Titanenpanzer: Verlangsamung der Gegner im Umkreis
+  tormentTime: 3, tormentEvery: 0.5,                // Quälende Maske: Dauer / Abstand der Schadensinstanzen (Sek.)
+  tormentFlat: 8, tormentAp: 0.05, tormentPct: 0.006, // Schaden je Instanz: fest + Anteil der Zauberkraft + Anteil des max. Lebens des Ziels
+  tormentCd: 6,                                     // Abklingzeit je Ziel (Sek.) bis die Qual erneut wirken kann; 0 = keine Abklingzeit
+  ruinPct: 0.06, ruinMin: 12, ruinMax: 120,         // Schneide des gefallenen Monarchen: % des aktuellen Lebens (min/max Schaden)
+  drCap: 0.40,                                      // Obergrenze für verringerten Schaden durch Items
+  sparkFlat: 12, sparkAp: 0.35,                      // Funkenklinge: magischer Zusatzschaden je Angriff
+  giantsPct: 0.025, cleaveItemPct: 0.40, cleaveMax: 3,             // Gigantenschlag (% max. Leben) / Splitteraxt (Anteil des Schadens)
+  svFactor: 0.4,                                    // Zauberraub: Heilung je Treffer (abgeschwächt, weil Fähigkeiten mehrere Ziele treffen)
+  hpApRatio: 0.12,                                  // Seelenreif: Anteil der zusätzlichen Leben, der als Zauberkraft zählt
+  lifeflowDelay: 5, lifeflowPct: 0.08,              // Lebensquell-Harnisch: Sekunden ohne Schaden / Regeneration in % pro Sek.
+  thornFlat: 6, thornArmorPct: 0.10,                // Dornen-Items: fester Schaden + Anteil der zusätzlichen Rüstung
+  infiniteEnemyLives: false,  // Testmodus: Gegner kann nicht verlieren (auch im Testfenster umschaltbar)
+  waveEvery: 30, firstWave: 1,
+  earlyWaves: 4, earlyWaveEvery: 16,        // die ersten Wellen kommen enger hintereinander
+  rampStart: 850, rampStep: 250,            // Wellen spawnen anfangs nah an der Basis und Welle für Welle weiter weg (bis spawnX)
+  tankQBase: 25, tankQcd: 6.5,   // Tank Schockwelle: Grundschaden / Abklingzeit
+  innateReflect: 0.15,         // Tank: Dornen-Anteil schon ohne Skillpunkt in Eiserne Haut
+  xpBase: 30, xpPer: 18,      // XP bis zum nächsten Level = xpBase + xpPer × Level
+  whirlHeal: [0,.004,.006,.008,.010], // Wirbel-Heilung je Rang (Anteil des max. Lebens pro getroffenem Gegner)
+  whirlHealCap: 5,          // Damage-Wirbel: Heilung zählt höchstens so viele getroffene Gegner
+  waveBase: 3, wavePer: 1.2,    // Wellengröße = waveBase + wavePer × Wellennummer
+  waveSpeedMul: 0.85,          // Wellenmonster laufen langsamer als gesendete
+  backportCast: 4.5,         // Sekunden Cast-Zeit
+  backportCd: 75,
+  itemPower: {sword:.8, armor:1.3, heart:1.2, gloves:1.1, staff:1.6, boots:1},   // Stärke je Item (Balance-Regler; Beschreibungen im Shop passend halten)
+  incMul: 1, itemMul: 1,   // Balance-Regler: Einkommen pro gesendetem Monster / Stärke aller Items
+  power: {tank:2.10, damage:0.98, caster:1.17},
+  adEff: {tank:0.5, damage:1, caster:1},   // Wirkung von Angriffsschaden-Items je Klasse (Balance-Regler)   // Skillschaden-Faktor je Held (nur zum Balancen)
+  hpScalePerMin: 0.70,   // Monster werden mit der Zeit stärker
+  killGold: 6,                // Gold pro besiegtem normalem Gegner (Elite: eigener Wert in UNITS.gold)
+  bossWave: 20, bossIncome: 50,     // Bosswelle: einmalig mit der normalen Welle; Killer bekommt dauerhaft +50 Gold pro Welle
+  bossStompR: 150, bossStompMul: 1.5, bossStompEvery: [6,5,4], bossSummonEvery: [20,14,10], bossSpeedMul: [0.8,1.0,1.3],   // Boss-Phasen (bei 100/66/33 % Leben)
+  eliteEvery: 10, eliteCount: 2,   // Elite-Welle: alle 10 Wellen kommen zusätzlich 2 Elite-Gegner mit der normalen Welle
+  respawnBase: 5, respawnPerLevel: 2,
+  debug: true,               // Testmodus: Gegner-Leben unendlich + Testfenster (F2)
+  elemHp: 700, elemTime: 60, elemRange: 320,   // Caster-Elementar: Leben, Dauer (Sek.), Reichweite der Fähigkeit
+  shieldHeal: 0.10,          // Tank-Schildwurf: Heilung bei Rückkehr (Anteil des max. Llebens)
+  aggroRange: 350, aggroBehind: 110,   // Gegner (außer Läufer) jagen den Helden: Reichweite wenn er vor ihnen steht / wenn er hinter ihnen steht
+  maxLevel: 15,
+  maxRank: 5,             // Skillpunkte pro Skill (Q/W/E); Ultimate hat 1 Rang
+  unlock: [1, 2, 3, 10],     // Level, ab dem Q / W / E / R verfügbar sind (1 Skillpunkt pro Level, frei verteilbar)
+};
+const UNITS = {
+  grunt:  {name:'Grunt',   hp:60,  dmg:6,  spd:70,  range:26,  armor:0,  cost:90,  inc:1.9, xp:8,  lives:1, r:9,  col:'#c2c2c2', key:'Z'},
+  tank:   {name:'Brocken', hp:220, dmg:8,  spd:50,  range:28,  armor:6,  cost:225, inc:4.7, xp:20, lives:1, r:13, col:'#8a6d3b', key:'X'},
+  archer: {name:'Schütze', hp:45,  dmg:10, spd:65,  range:130, armor:0,  cost:180, inc:3.8, xp:14, lives:1, r:8,  col:'#6fbf73', key:'C'},
+  fast:   {name:'Läufer',  hp:35,  dmg:5,  spd:135, range:24,  armor:0,  cost:150, inc:2.8, xp:12, lives:1, r:7,  col:'#e0c341', key:'V'},
+  boss:   {name:'Boss',    hp:1200,dmg:28, spd:45,  range:46,  armor:20, cost:0,   inc:0,   xp:400,gold:300, lives:10, r:26, col:'#ff4d4d', key:'', noSend:true},
+  elite:  {name:'Elite',   hp:600, dmg:25, spd:55,  range:30,  armor:15, cost:720, inc:15,  xp:60, gold:40, lives:3, r:16, col:'#b04ad1', key:'N'},
+};
+const HEROES = {
+  tank:   {name:'Tank',   desc:'Viel Leben & Rüstung. Schockwelle, Eiserne Haut (Dornen), Schildwurf, Titanenstoß.', hp:520, hpl:75, dmg:22, dpl:3.5, armor:8, armorl:1.2, as:1.0, range:38, spd:175, col:'#4a90e2'},
+  damage: {name:'Damage', desc:'Hoher Nahkampfschaden. Wirbel (heilt), Kampfrausch, Sprung, Schwertregen.', hp:390, hpl:52, dmg:26, dpl:4.5, armor:4, armorl:0.8, as:1.1, range:38, spd:195, col:'#e2584a'},
+  caster: {name:'Caster', desc:'Fernkampf. Feuerfeld, Frostnova, Kettenblitz, Meteoritenregen.', hp:260, hpl:32, dmg:12, dpl:1.8, armor:1, armorl:0.4, as:0.9, range:230, spd:180, col:'#b06cf0'},
+};
+// ====== ITEMS (Rucksack-System wie in League of Legends) ======
+// group: 'basis' (alte Items, vorerst einfache Füller), 'teil' (Baustein), 'fertig' (aus Teilen kombiniert), 'verbrauch' (eigene Slots, max. CFG.consMax)
+// stats: Werte, solange das Item im Rucksack liegt. parts: benötigte Teile (werden beim Kombinieren verbraucht).
+// cost: bei Teilen/Basis der volle Preis, bei fertigen Items nur das Rezeptgeld (Teile werden extra bezahlt oder aus dem Rucksack genommen).
+// unique: einmalige Effekte – derselbe Effekt mehrerer Items stapelt nicht.
+const THORN_TXT = 'Einmalig – Dornen: Wirst du von einem normalen Angriff getroffen, wird 6 (+10 % der zusätzlichen Rüstung) Schaden zurückgeworfen.';
+const ITEM_LIST = [
+  // Alte Basis-Items (vorerst behalten, billige Füller für den Anfang)
+  {id:'sword',  group:'basis', name:'Schwert',    cost:80,  desc:'+8 Schaden',          stats:()=>({dmg:10*CFG.itemMul*CFG.itemPower.sword})},
+  {id:'armor',  group:'basis', name:'Rüstung',    cost:80,  desc:'+6,5 Rüstung',        stats:()=>({armor:5*CFG.itemMul*CFG.itemPower.armor})},
+  {id:'heart',  group:'basis', name:'Herz',       cost:100, desc:'+180 Leben',          stats:()=>({hp:150*CFG.itemMul*CFG.itemPower.heart})},
+  {id:'gloves', group:'basis', name:'Handschuhe', cost:90,  desc:'+27,5% Angriffstempo',stats:()=>({as:0.25*CFG.itemMul*CFG.itemPower.gloves})},
+  {id:'staff',  group:'basis', name:'Stab',       cost:110, desc:'+48 Zauberkraft',     stats:()=>({sp:30*CFG.itemMul*CFG.itemPower.staff})},
+  // Teile
+  {id:'bigSword',   group:'teil', name:'Großes Schwert', cost:300, desc:'+50 Angriffsschaden',             stats:{dmg:50}},
+  {id:'rake',       group:'teil', name:'Harke',          cost:200, desc:'+30 Angriffsschaden',             stats:{dmg:30}},
+  {id:'critCloak',  group:'teil', name:'Crit-Mantel',    cost:200, desc:'+25 % Chance auf kritische Treffer', stats:{crit:.25}},
+  {id:'bigStaff',   group:'teil', name:'Großer Stab',    cost:350, desc:'+64 Zauberkraft',                 stats:{sp:64}},
+  {id:'cloth',      group:'teil', name:'Stoffrüstung',   cost:100, desc:'+15 Rüstung',                     stats:{armor:15}},
+  {id:'thornArmor', group:'teil', name:'Dornenrüstung',  cost:300, desc:'+20 Rüstung. '+THORN_TXT,          stats:{armor:20}, unique:['thorns']},
+  {id:'windCloak',  group:'teil', name:'Windumhang',     cost:250, desc:'+25 % Angriffstempo',             stats:{as:.25}},
+  {id:'timeAmulet', group:'teil', name:'Zeitamulett',    cost:300, desc:'−15 % Abklingzeit auf alle Skills', stats:{cdr:.15}},
+  {id:'lifeStone',  group:'teil', name:'Lebensstein',    cost:350, desc:'+250 Leben',                      stats:{hp:250}},
+  {id:'regenBand',  group:'teil', name:'Regenerationsband', cost:250, desc:'+1 % maximales Leben pro Sekunde', stats:{regen:.01}},
+  {id:'ruby',       group:'teil', name:'Rubinkristall',  cost:200, desc:'+150 Leben',                      stats:{hp:150}},
+  {id:'tome',       group:'teil', name:'Wälzer',         cost:200, desc:'+30 Zauberkraft',                 stats:{sp:30}},
+  {id:'wand',       group:'teil', name:'Zauberstab',     cost:250, desc:'+45 Zauberkraft',                 stats:{sp:45}},
+  {id:'bloodGem',   group:'teil', name:'Blutkristall',   cost:220, desc:'+10 % Lebensraub',                stats:{ls:.10}},
+  {id:'dagger',     group:'teil', name:'Dolch',          cost:180, desc:'+20 % Angriffstempo',             stats:{as:.20}},
+  {id:'spellGem',   group:'teil', name:'Zauberblut-Kristall', cost:220, desc:'+10 % Zauberraub (ein Teil deines Fähigkeitsschadens heilt dich)', stats:{sv:.10}},
+  {id:'coinPouch',  group:'teil', name:'Münzbeutel',     cost:250, desc:'+0,4 Gold pro Sekunde',           stats:{gps:.4}},
+  // Hüte (wie Schuhe in League of Legends): Basis-Hut → Spezialhut. Es passt nur ein Hut gleichzeitig in den Rucksack.
+  {id:'hat',        group:'hut', slot:'hat', name:'Lederhut', cost:150, desc:'+35 Lauftempo. Wird zu einem Spezialhut aufgewertet.', stats:{spd:35}},
+  {id:'hatWind',    group:'hut', slot:'hat', name:'Hut des Wirbelwinds', parts:['hat'], cost:450, desc:'+50 Lauftempo, +35 % Angriffstempo.', stats:{spd:50, as:.35}},
+  {id:'hatSage',    group:'hut', slot:'hat', name:'Hut des Weisen',      parts:['hat'], cost:450, desc:'+45 Lauftempo, −10 % Abklingzeit, +25 Zauberkraft.', stats:{spd:45, cdr:.10, sp:25}},
+  {id:'hatGuard',   group:'hut', slot:'hat', name:'Wächterhut',          parts:['hat'], cost:450, desc:'+45 Lauftempo, +25 Rüstung, erlittener Schaden −8 %.', stats:{spd:45, armor:25, dr:.08}},
+  {id:'hatBlood',   group:'hut', slot:'hat', name:'Blutroter Hut',       parts:['hat'], cost:450, desc:'+45 Lauftempo, +8 % Lebensraub, +10 % Zauberraub.', stats:{spd:45, ls:.08, sv:.10}},
+  {id:'hatTravel',  group:'hut', slot:'hat', name:'Hut des Reisenden',   parts:['hat'], cost:450, desc:'+70 Lauftempo. Der Backport wirkt 40 % schneller.', stats:{spd:70, bpRed:.40}},
+  // Fertige Items
+  {id:'mightyBlade', group:'fertig', name:'Mächtige Klinge', parts:['bigSword','rake','critCloak'], cost:300,
+     desc:'+80 Angriffsschaden, +25 % kritische Trefferchance. Einmalig – kritische Treffer verursachen 25 % mehr Schaden.', stats:{dmg:80, crit:.25}, unique:['critDmg']},
+  {id:'arcaneCrown', group:'fertig', name:'Zauberkrone', parts:['bigStaff','bigStaff'], cost:300,
+     desc:'+128 Zauberkraft. Einmalig – erhöht deine gesamte Zauberkraft um 30 %.', stats:{sp:128}, unique:['spMul']},
+  {id:'strongArmor', group:'zwischen', name:'Starke Rüstung', parts:['cloth','cloth'], cost:100,
+     desc:'+40 Rüstung.', stats:{armor:40}},
+  {id:'thornShirt', group:'zwischen', name:'Dornenhemd', parts:['cloth','thornArmor'], cost:150,
+     desc:'+35 Rüstung. '+THORN_TXT, stats:{armor:35}, unique:['thorns']},
+  {id:'thornPlate', group:'fertig', name:'Dornenpanzerweste', parts:['strongArmor','thornShirt'], cost:200,
+     desc:'+85 Rüstung. '+THORN_TXT, stats:{armor:85}, unique:['thorns']},
+  {id:'stormBreaker', group:'fertig', name:'Sturmbrecher', parts:['rake','critCloak','windCloak'], cost:350,
+     desc:'+55 Angriffsschaden, +30 % Krit-Chance, +30 % Angriffstempo. Einmalig – kritische Treffer geben dir 3 s lang +40 % Angriffstempo.', stats:{dmg:55, crit:.30, as:.30}, unique:['stormCrit']},
+  {id:'timeStaff', group:'fertig', name:'Zeitzauberstab', parts:['bigStaff','timeAmulet'], cost:350,
+     desc:'+64 Zauberkraft, −15 % Abklingzeit. Einmalig – Nach einer Fähigkeit macht die nächste innerhalb von 5 s 20 % mehr Schaden.', stats:{sp:64, cdr:.15}, unique:['comboAmp']},
+  {id:'titanPlate', group:'fertig', name:'Titanenpanzer', parts:['cloth','lifeStone','regenBand'], cost:300,
+     desc:'+30 Rüstung, +420 Leben, +1,5 % Leben/s Regeneration. Einmalig – Gegner im Umkreis von 150 Pixeln sind 20 % langsamer.', stats:{armor:30, hp:420, regen:.015}, unique:['slowAura']},
+  // Caster: Quälende Maske (Zwischenstufe: Maske der Erscheinung)
+  {id:'guise', group:'zwischen', name:'Maske der Erscheinung', parts:['ruby','tome'], cost:150,
+     desc:'+150 Leben, +30 Zauberkraft.', stats:{hp:150, sp:30}},
+  {id:'tormentMask', group:'fertig', name:'Quälende Maske', parts:['wand','guise'], cost:250,
+     desc:'+85 Zauberkraft, +200 Leben. Einmalig – Qual: Fähigkeitsschaden verbrennt Gegner 3 s lang (alle 0,5 s ein Schaden aus festem Wert, Zauberkraft und maximalem Leben des Ziels). Ein Ziel kann nur alle 6 s erneut betroffen werden.', stats:{sp:85, hp:200}, unique:['torment']},
+  // Damage: Schneide des gefallenen Monarchen (Zwischenstufe: Entersäbel)
+  {id:'cutlass', group:'zwischen', name:'Entersäbel', parts:['rake','bloodGem'], cost:130,
+     desc:'+35 Angriffsschaden, +10 % Lebensraub.', stats:{dmg:35, ls:.10}},
+  {id:'ruinBlade', group:'fertig', name:'Schneide des gefallenen Monarchen', parts:['cutlass','windCloak'], cost:300,
+     desc:'+56 Angriffsschaden, +25 % Angriffstempo, +14 % Lebensraub. Einmalig – Angriffe verursachen zusätzlich 6 % des aktuellen Lebens des Ziels als Schaden (mindestens 12, höchstens 120).', stats:{dmg:56, as:.25, ls:.14}, unique:['ruin']},
+  // Tank: Lebensquell-Harnisch
+  {id:'lifeSpring', group:'fertig', name:'Lebensquell-Harnisch', parts:['lifeStone','ruby','regenBand'], cost:300,
+     desc:'+1200 Leben, +2 % Leben/s Regeneration. Einmalig – Lebensfluss: Hast du 5 s lang keinen Schaden erlitten, regenerierst du 8 % deines maximalen Lebens pro Sekunde.', stats:{hp:1200, regen:.02}, unique:['lifeflow']},
+  // Weitere fertige Items (klassenübergreifend kombinierbar)
+  {id:'cleaver', group:'fertig', name:'Splitteraxt', parts:['bigSword','dagger'], cost:520,
+     desc:'+60 Angriffsschaden, +25 % Angriffstempo. Einmalig – Basisangriffe treffen auch bis zu 3 Gegner im Umkreis von 80 Pixeln mit 40 % Schaden.', stats:{dmg:60, as:.25}, unique:['cleave']},
+  {id:'sparkBlade', group:'fertig', name:'Funkenklinge', parts:['dagger','wand','windCloak'], cost:320,
+     desc:'+45 % Angriffstempo, +60 Zauberkraft, +15 Angriffsschaden. Einmalig – Treffer-Zauber: Basisangriffe verursachen zusätzlich 12 + 35 % deiner Zauberkraft als magischen Schaden (ignoriert Rüstung).', stats:{as:.45, sp:60, dmg:15}, unique:['onHitMagic']},
+  {id:'soulDrinker', group:'fertig', name:'Seelentrinker', parts:['bloodGem','spellGem','ruby'], cost:360,
+     desc:'+12 % Lebensraub, +22 % Zauberraub, +250 Leben, +40 Angriffsschaden, +45 Zauberkraft. Einmalig – Rachsucht: Unter 40 % Leben ist dein Lebens- und Zauberraub verdoppelt.', stats:{ls:.12, sv:.22, hp:250, dmg:40, sp:45}, unique:['vengeance']},
+  {id:'bulwark', group:'fertig', name:'Eisernes Bollwerk', parts:['strongArmor','ruby'], cost:450,
+     desc:'+70 Rüstung, +300 Leben, erlittener Schaden −12 %.', stats:{armor:70, hp:300, dr:.12}},
+  {id:'giantsMight', group:'fertig', name:'Gigantenschlag', parts:['lifeStone','bigSword'], cost:350,
+     desc:'+55 Angriffsschaden, +300 Leben. Einmalig – Basisangriffe verursachen zusätzlich 2,5 % deines maximalen Lebens als Schaden.', stats:{dmg:55, hp:300}, unique:['giants']},
+  {id:'moonstone', group:'fertig', name:'Seelenreif', parts:['guise','regenBand'], cost:250,
+     desc:'+500 Leben, +60 Zauberkraft, +1 % Leben/s. Einmalig – Lebenskraft: +12 % deiner zusätzlichen Leben als Zauberkraft.', stats:{hp:500, sp:60, regen:.01}, unique:['hpAp']},
+  {id:'merchantChain', group:'fertig', name:'Händlerkette', parts:['coinPouch','coinPouch'], cost:300,
+     desc:'+0,9 Gold pro Sekunde, +100 Leben.', stats:{gps:.9, hp:100}},
+  // Verbrauchsgegenstände (eigene Slots, zählen nicht zum Rucksack)
+  {id:'potion', group:'verbrauch', name:'Heiltrank', cost:120, consumable:true, desc:'Heilt 40 % deines maximalen Lebens (Taste F, 15 s Abklingzeit zwischen zwei Tränken).'},
+];
+const ITEM = Object.fromEntries(ITEM_LIST.map(i=>[i.id,i]));
+// Einordnung der fertigen Items im Shop und Hinweis, für wen sie gut passen (nur Anzeige – jeder Held kann jedes Item kaufen)
+const CAT = {mightyBlade:'damage', stormBreaker:'damage', ruinBlade:'damage', cleaver:'damage',
+  arcaneCrown:'caster', timeStaff:'caster', tormentMask:'caster', moonstone:'caster',
+  thornPlate:'tank', titanPlate:'tank', lifeSpring:'tank', bulwark:'tank',
+  sparkBlade:'mix', soulDrinker:'mix', giantsMight:'mix', merchantChain:'gold'};
+const FIT = {mightyBlade:'Damage', stormBreaker:'Damage', ruinBlade:'Damage · Tank', cleaver:'Damage · Tank',
+  arcaneCrown:'Caster', timeStaff:'Caster', tormentMask:'Caster', moonstone:'Caster · Tank',
+  thornPlate:'Tank', titanPlate:'Tank', lifeSpring:'Tank', bulwark:'Tank',
+  sparkBlade:'Caster-Angriffstempo · Damage', soulDrinker:'alle (Lebensraub-Builds)', giantsMight:'Tank · Damage', merchantChain:'alle',
+  hatWind:'Damage · Angriffstempo', hatSage:'Caster', hatGuard:'Tank', hatBlood:'alle (Lebensraub)', hatTravel:'alle (Laufen/Backport)'};
+const ITEMS = ITEM_LIST;   // Kompatibilität für ältere Stellen
+
+// Gesamtpreis eines Items inklusive aller Teile (für den Verkauf)
+const totalCost = id => { const it = ITEM[id]; return it.parts ? it.cost + it.parts.reduce((a,p)=>a+totalCost(p),0) : it.cost; };
+// Was kostet der Kauf JETZT? Teile im Rucksack werden verbraucht, fehlende Teile werden zum Teilepreis (bei Zwischenstufen inkl. Rezept) mitgekauft.
+function resolveBuy(id, bag){
+  const used = new Set();
+  const rec = id => {
+    const it = ITEM[id]; if(!it.parts) return it.cost;
+    let cost = it.cost;
+    for(const p of it.parts){
+      const idx = bag.findIndex((x,i)=>x===p && !used.has(i));
+      if(idx>=0) used.add(idx); else cost += rec(p);
+    }
+    return cost;
+  };
+  const cost = rec(id);
+  return {cost, consumed:[...used]};
+}
+
+// ====== ZUSTAND ======
+const cv = document.getElementById('game'), ctx = cv.getContext('2d');
+const mv = document.getElementById('mini'), mctx = mv.getContext('2d');
+const CY = 215; // y-Mitte der Lane auf dem Hauptcanvas
+let G, H, cam, mouse = {x:0,y:0,wx:0,wy:0}, running = false, last = 0;
+let P = null, E = null, viewEnemy = false;   // P = du (Spieler), E = Gegner-Bot; jeder hat eigenes G (Lane), H (Held), cam
+
+// Gegner-Schwierigkeit: Reaktionszeit, Fehlerquote, Sende-Anteil (früh/Mitte/spät), Heldenkraft, Goldbonus
+const DIFF = {
+  easy:   {name:'Leicht', react:[.7,1.1],  miss:.35, strat:[.25,.20,.22], heroMul:.75, goldMul:.85, sendEvery:9, retreat:.45, shopGold:3},
+  normal: {name:'Normal', react:[.2,.35],  miss:.05, strat:[.60,.55,.60], heroMul:1.12,goldMul:1.12,sendEvery:4, retreat:.30, shopGold:1.5},
+  hard:   {name:'Schwer', react:[.14,.24], miss:.02, strat:[.65,.60,.65], heroMul:1.30,goldMul:1.30,sendEvery:3, retreat:.28, shopGold:1.3},
+  expert: {name:'Experte',react:[.10,.18], miss:0,   strat:[.70,.65,.70], heroMul:1.50,goldMul:1.50,sendEvery:2.5,retreat:.25, shopGold:1.2},
+};
+
+function makeState(heroKey){
+  const d = HEROES[heroKey];
+  return {
+    G: {zones:[], elems:[], timers:[], wave:0, waveT:CFG.firstWave, t:0, gold:CFG.startGold, income:CFG.baseIncome, lives:CFG.startLives, goldMul:1,
+        units:[], fx:[], incomeT:0, over:false, bossIncome:0, bossSpawned:false, stats:{kills:0, gold:0, sent:{}}},
+    H: {key:heroKey, d, x:120, y:0, lvl:1, xp:0, hp:d.hp, dead:0, moveTo:null, target:null, atkT:0,
+        sp:1, ranks:[0,0,0,0], cds:[0,0,0,0], buffs:{}, mul:1, deaths:0,
+        bp:0, bpCd:0, bonusDmg:0, bonusArmor:0, bonusHp:0, bonusAs:0, bonusSp:0, bonusSpd:0, bag:[], cons:{potion:0}, potCd:0, critCh:0, uniq:new Set(), cdr:0, bonusRegen:0, comboT:0, ampNow:false, lifesteal:0, dmgT:99, spellVamp:0, dr:0, goldPS:0, bpRed:0, bpMax:0},
+    cam: {x:0}, mouse: {x:0,y:0,wx:0,wy:0}
+  };
+}
+const useInst = I => { G = I.G; H = I.H; cam = I.cam; };
+const isMainG = ()=> !P || G===P.G;
+
+function newGame(heroKey){
+  const diff = DIFF[document.getElementById('diffSel').value] || DIFF.normal;
+  const ek = document.getElementById('enemySel').value;
+  const enemyKey = ek==='random' ? Object.keys(HEROES)[Math.floor(Math.random()*Object.keys(HEROES).length)] : ek;
+  P = makeState(heroKey); E = makeState(enemyKey);
+  E.diff = diff; E.G.goldMul = diff.goldMul; E.H.mul = diff.heroMul;
+  E.build = pickBotBuild(enemyKey);   // der Gegner wählt zufällig einen klassenpassenden Build
+  E.b = {mode:'fight', step:0, trips:0, deaths:0, deathTimes:[], wasDead:false, clock:0, lastSend:0};
+  if(CFG.infiniteEnemyLives) E.G.lives = 1e9;
+  useInst(P); mouse = P.mouse; viewEnemy = false;
+  document.getElementById('msg').textContent = '';
+  running = true; last = performance.now();
+  document.getElementById('start').style.display='none';
+  paused = false; settingsPaused = false; gameSpeed = 1; endShown = false; uiT.base = 0; uiT.sp = 0; uiT.lives = null; uiT.warnWave = 0;
+  closeOverlays(); clearAlerts(); hideTip(); syncToolbar();
+  settings.lastHero = heroKey; settings.lastDiff = document.getElementById('diffSel').value; settings.lastEnemy = ek; saveSettings();   // Auswahl merken
+  buildShop(); buildSend(); buildSkills(); buildHelp();
+}
+const buff = n => (H.buffs[n] && H.buffs[n].t>0) ? H.buffs[n] : null;
+const hMaxHp = ()=>H.d.hp + H.d.hpl*(H.lvl-1) + H.bonusHp;
+const hDmg   = ()=>H.d.dmg + H.d.dpl*(H.lvl-1) + H.bonusDmg*(CFG.adEff[H.key]||1);   // adEff: wie stark Angriffsschaden-Items bei der Klasse wirken
+// Tank-Passive „Eiserne Haut“ je Rang: Rüstung, reflektierter Schaden-Anteil, Regeneration (% max. Leben/Sek.)
+const IRON = [{armor:6,reflect:.20,regen:0},{armor:10,reflect:.30,regen:0},{armor:20,reflect:.40,regen:.01},{armor:24,reflect:.50,regen:.01},{armor:40,reflect:.60,regen:.025}];
+const ironPassive = ()=> (H.key==='tank' && H.ranks[1]>0) ? IRON[H.ranks[1]-1] : {armor:0,reflect:H.key==='tank'?CFG.innateReflect:0,regen:0};
+const hArmor = ()=>H.d.armor + H.d.armorl*(H.lvl-1) + H.bonusArmor + ironPassive().armor;
+const hAs    = ()=>H.d.as * (1 + H.bonusAs + (buff('rage')?buff('rage').as:0) + (buff('storm')?buff('storm').as:0) + (buff('critAs')?buff('critAs').as:0));
+const hSpd  = ()=>H.d.spd + H.bonusSpd + (buff('rage')?buff('rage').spd:0);
+const hSp    = ()=>(H.bonusSp + (H.uniq.has('hpAp') ? H.bonusHp*CFG.hpApRatio : 0)) * (1 + (H.uniq.has('spMul') ? CFG.spMulBonus : 0));   // Zauberkrone: +30 % auf die gesamte Zauberkraft
+const inBase = ()=>H.x < CFG.baseX && !H.dead;
+const reduce = (dmg,armor)=>dmg*(1-armor/(armor+50));
+const xpNeed = l=>CFG.xpBase + CFG.xpPer*l;
+const hpMult = ()=>1 + (G.t/60)*CFG.hpScalePerMin;
+const clampY = y=>Math.max(-CFG.laneHalf+10, Math.min(CFG.laneHalf-10, y));
+
+// ====== EINHEITEN ======
+function spawn(type, lane, offX=0, spdMul=1){   // lane 0 = deine Lane (Gegner laufen auf deine Basis), 1 = Gegnerlane
+  const u = UNITS[type], m = hpMult();
+  G.units.push({type, lane, x:CFG.spawnX + offX + Math.random()*30, y:(Math.random()*2-1)*(CFG.laneHalf-16),
+    hp:u.hp*m, max:u.hp*m, dmg:u.dmg*(1+0.5*(m-1)), spd:u.spd*spdMul*CFG.speedMul, range:u.range, armor:u.armor, r:u.r,
+    atkT:0, stun:0, slow:0, ...(type==='boss' ? {boss:true, phase:1, base:u.spd*spdMul*CFG.speedMul, stompT:5, summonT:12} : {})});
+}
+// Wellenarten und Vorschau auf die nächste Welle
+const waveKind = n => (n === CFG.bossWave && !G.bossSpawned) ? 'boss' : n % CFG.eliteEvery === 0 ? 'elite' : 'normal';
+const WAVE_NAME = {normal:'Normale Welle', elite:'ELITE-WELLE', boss:'BOSSWELLE'};
+const WAVE_COL = {normal:'#9aa3b5', elite:'#d9b3ff', boss:'#ff7a7a'};
+function waveInfoHtml(){
+  const nxt = G.wave+1, k = waveKind(nxt);
+  const nextElite = (Math.floor(G.wave/CFG.eliteEvery)+1)*CFG.eliteEvery;
+  const boss = (!G.bossSpawned && CFG.bossWave > G.wave) ? ` · Boss: Welle ${CFG.bossWave}` : '';
+  return `Welle ${G.wave} · nächste (Welle ${nxt}) in ${Math.ceil(G.waveT)} s: <b style="color:${WAVE_COL[k]}">${WAVE_NAME[k]}</b> <small>(Elite: Welle ${nextElite}${boss})</small>`;
+}
+function spawnWave(){
+  G.wave++;
+  const n = G.wave;
+  const list = [];
+  for(let i=0;i<Math.round(CFG.waveBase+CFG.wavePer*n);i++) list.push('grunt');
+  // Die ersten Wellen spawnen näher an deiner Basis, damit am Anfang keine Leerlaufzeit entsteht
+  const from = Math.min(CFG.spawnX, CFG.rampStart + CFG.rampStep*(n-1));
+  list.forEach((t,i)=>spawn(t, 0, (from-CFG.spawnX)+i*4, CFG.waveSpeedMul));
+  const isElite = n % CFG.eliteEvery === 0;   // Elite-Welle: normale Welle + Elite-Gegner (mehr Leben/Schaden, bringen deutlich mehr XP und Gold)
+  if(isElite) for(let k=0;k<CFG.eliteCount;k++) spawn('elite', 0, (from-CFG.spawnX)+list.length*4+30+k*40, CFG.waveSpeedMul);
+  if(G.bossIncome){ G.gold += G.bossIncome; G.stats.gold += G.bossIncome; }   // Boss-Einkommen: dauerhaft pro Welle für den Killer
+  const isBoss = n === CFG.bossWave && !G.bossSpawned;                        // Bosswelle: einmalig, Boss kommt mit der normalen Welle
+  if(isBoss){ G.bossSpawned = true; spawn('boss', 0, (from-CFG.spawnX)+list.length*4+160, CFG.waveSpeedMul); }
+  if(isMainG()){
+    showWave(n, isElite, isBoss);
+    if(isBoss) uiAlert('BOSSWELLE! Ein Boss kommt mit der Welle. Wer ihn besiegt, bekommt dauerhaft +'+CFG.bossIncome+' Gold pro Welle', 'danger', 7000);
+    else if(isElite) uiAlert('ELITE-WELLE! '+CFG.eliteCount+' Elite-Gegner kommen mit der Welle (mehr XP und Gold)', 'danger', 5000);
+  }
+}
+function showWave(n, elite, boss){ const m=document.getElementById('msg'); m.textContent=(boss?'BOSSWELLE ':elite?'ELITE-WELLE ':'Welle ')+n; m.style.color=boss?'#ff7a7a':elite?'#d9b3ff':'#ffd166'; setTimeout(()=>{ if(!G.over) m.textContent=''; },1500); }
+// Gesendetes Monster erscheint auf der Lane des Gegenübers (target = P oder E)
+function sendTo(target, type){ const keep = G; G = target.G; spawn(type, 0, 0, 1); G = keep; }
+function send(type){
+  const u = UNITS[type];
+  if(G.gold < u.cost || G.over || !E) return;
+  G.gold -= u.cost; G.income += u.inc*CFG.incMul; G.stats.sent[type] = (G.stats.sent[type]||0)+1;
+  sendTo(E, type);
+  buildSend();
+}
+
+// ====== HELD ======
+function damageHero(dmg, src){
+  if(H.dead || H.god) return;
+  const raw = dmg;     // Dornen/Reflexion rechnen mit dem ungekürzten Schaden
+  dmg *= (1 - H.dr);   // verringerter Schaden durch Items (Bollwerk, Wächterhut)
+  const eff = reduce(dmg, hArmor());
+  H.hp -= eff; H.dmgT = 0;   // Lebensfluss: Zeit seit dem letzten Schaden zurücksetzen
+  const ir = ironPassive();   // Dornen: Anteil des eingehenden Schadens (vor Rüstung) geht an den Angreifer
+  if(ir.reflect && src && G.units.includes(src)) hitUnit(src, raw*ir.reflect);
+  // Item-Dornen (einmalig): fester Schaden + Anteil der zusätzlichen Rüstung aus Items an jeden Angreifer
+  if(src && G.units.includes(src) && H.uniq.has('thorns')) hitUnit(src, CFG.thornFlat + CFG.thornArmorPct*H.bonusArmor);
+  if(H.bp>0) cancelBackport();
+  if(H.hp <= 0){
+    H.hp = 0; H.deaths++; H.dead = CFG.respawnBase + CFG.respawnPerLevel*H.lvl;
+    H.target = null; H.moveTo = null; H.buffs = {}; H.leap = null; cancelBackport();
+  }
+}
+function gainXp(n){
+  H.xp += n;
+  let up = false; const before = H.lvl;
+  while(H.lvl < CFG.maxLevel && H.xp >= xpNeed(H.lvl)){
+    H.xp -= xpNeed(H.lvl); H.lvl++; H.sp++; up = true;
+    H.hp += H.d.hpl;
+    G.fx.push({k:'text', x:H.x, y:H.y-30, t:1.2, s:'LEVEL '+H.lvl, c:'#ffd166'});
+  }
+  if(up){
+    buildSkills();
+    if(isMainG()){   // Hinweise für den Spieler
+      uiAlert(`LEVEL ${H.lvl}! Skillpunkte frei: ${H.sp}`, 'good');
+      CFG.unlock.forEach((u,i)=>{ if(i>0 && u>before && u<=H.lvl) uiAlert(`Neue Fähigkeit ${SK[H.key][i].name} [${keyName(settings.keys['skill'+i])}] freigeschaltet!`, 'good', 4500); });
+    } else if(before < CFG.unlock[3] && H.lvl >= CFG.unlock[3]) uiAlert('Gegner-Held hat die Ultimate (Level '+CFG.unlock[3]+')!', 'enemy', 4500);
+  }
+}
+function killUnit(u){
+  const i = G.units.indexOf(u); if(i<0) return;
+  G.units.splice(i,1);
+  if(u.lane===0){ if(u.boss){ G.bossIncome += CFG.bossIncome; uiAlert(isMainG() ? 'BOSS BESIEGT! Ab jetzt +'+G.bossIncome+' Gold pro Welle' : 'Gegner hat seinen Boss besiegt (+'+G.bossIncome+' Gold pro Welle für ihn)', isMainG()?'good':'enemy', 6000); }
+  const gd = UNITS[u.type].gold ?? CFG.killGold; G.gold += gd; G.stats.gold += gd; G.stats.kills++; gainXp(UNITS[u.type].xp); }
+}
+function hitUnit(u, dmg){
+  if(!G.units.includes(u)) return 0;
+  const d = reduce(dmg, u.armor);
+  u.hp -= d;
+  G.fx.push({k:'text', x:u.x, y:u.y-14, t:.5, s:Math.round(d), c:'#fff'});
+  if(u.hp <= 0) killUnit(u);
+  return d;
+}
+
+// ====== SKILLS ======
+const enemies = ()=>G.units.filter(u=>u.lane===0);
+const later = (t,fn)=>{ if(t<=0) fn(); else G.timers.push({t, fn}); };
+const dmgOf = (base, per, r, sc, k)=> (base + per*(r-1) + sc*hSp() + k*hDmg()) * (CFG.power[H.key]||1) * (H.mul||1) * (H.ampNow ? 1+CFG.comboAmp : 1);   // CFG.power: Balance-Regler je Held; H.mul: Gegner-Schwierigkeit
+function knock(u, d){ u.x = Math.min(CFG.spawnX+80, u.x+d); }
+// Quälende Maske: Fähigkeitstreffer starten einen Schaden-über-Zeit-Effekt (pro Ziel mit Abklingzeit)
+function applyTorment(u){
+  if(!H.uniq.has('torment') || !G.units.includes(u) || u.tormCd>0) return;
+  u.tormT = CFG.tormentTime; u.tormTick = CFG.tormentEvery;
+  u.tormDmg = CFG.tormentFlat + CFG.tormentAp*hSp() + CFG.tormentPct*u.max;
+  u.tormCd = CFG.tormentCd;
+}
+function affect(u, dmg, o){
+  const dealt = hitUnit(u, dmg);
+  if(H.spellVamp>0 && dealt>0){                       // Zauberraub: Fähigkeitsschaden heilt (abgeschwächt, da Fähigkeiten mehrere Ziele treffen)
+    const vf = H.uniq.has('vengeance') && H.hp < .4*hMaxHp() ? 2 : 1;
+    H.hp = Math.min(hMaxHp(), H.hp + dealt*H.spellVamp*vf*CFG.svFactor);
+  }
+  if(!G.units.includes(u)) return;
+  applyTorment(u);
+  if(o.stun) u.stun = Math.max(u.stun, o.stun*(u.boss ? 0.3 : 1));   // Bosse sind kaum betäubbar
+  if(o.slow) u.slow = Math.max(u.slow, o.slow);
+  if(o.knock) knock(u, o.knock);
+  if(o.bleed){ u.bleed = Math.max(u.bleed||0, o.bleed); u.bleedPct = Math.max(u.bleedPct||0, o.bleedPct); }
+  if(o.burn){ u.burn = Math.max(u.burn||0, o.burn); u.burnDps = Math.max(u.burnDps||0, o.burnDps); }
+}
+function circleHit(cx, cy, radius, dmg, o={}, fxCol){   // gibt die Anzahl getroffener Gegner zurück
+  let n = 0;
+  for(const u of enemies()) if(Math.hypot(u.x-cx, u.y-cy) <= radius + u.r){ affect(u, dmg, o); n++; }
+  G.fx.push({k:'ring', x:cx, y:cy, r:radius, t:.45, c:fxCol||H.d.col});
+  return n;
+}
+function coneHit(ox, oy, ang, range, half, dmg, o={}, col){
+  const ux = Math.cos(ang), uy = Math.sin(ang);
+  for(const u of enemies()){
+    const vx = u.x-ox, vy = u.y-oy, d = Math.hypot(vx,vy);
+    if(d > range + u.r) continue;
+    if(d < 1 || Math.acos(Math.max(-1,Math.min(1,(vx*ux+vy*uy)/d))) <= half) affect(u, dmg, o);
+  }
+  G.fx.push({k:'cone', x:ox, y:oy, a:ang, r:range, half, t:.4, c:col||H.d.col});
+}
+function lineHit(ox, oy, ang, range, width, dmg, o={}){
+  const ux = Math.cos(ang), uy = Math.sin(ang);
+  for(const u of enemies()){
+    const vx = u.x-ox, vy = u.y-oy, p = vx*ux+vy*uy, perp = Math.abs(-vx*uy+vy*ux);
+    if(p >= 0 && p <= range + u.r && perp <= width/2 + u.r) affect(u, dmg, o);
+  }
+  G.fx.push({k:'line', x:ox, y:oy, x2:ox+ux*range, y2:oy+uy*range, t:.3, c:H.d.col, w:width/3});
+}
+// Kettenblitz: springt ab `first` von Gegner zu Gegner. Krit = doppelter Schaden + 0,5 Sek. Betäubung.
+const CRIT_BY_RANK = [.10,.125,.15,.225,.30];
+function chainLightning(from, first, count, dmg, crit, falloff, jump=170){
+  let cur = first; const hit = new Set(); from = {x:from.x, y:from.y};
+  while(cur && count-- > 0){
+    const isCrit = Math.random() < crit;
+    hit.add(cur); G.fx.push({k:'line', x:from.x, y:from.y, x2:cur.x, y2:cur.y, t:.25, c:isCrit?'#ffe066':'#9fe0ff', w:isCrit?4:2});
+    from = {x:cur.x, y:cur.y};
+    if(isCrit) G.fx.push({k:'text', x:cur.x, y:cur.y-28, t:.7, s:'KRIT!', c:'#ffe066'});
+    affect(cur, isCrit ? dmg*2 : dmg, {stun:isCrit?.5:0});
+    dmg *= falloff;
+    cur = enemies().filter(u=>!hit.has(u) && Math.hypot(u.x-from.x,u.y-from.y)<=jump)
+                   .sort((a,b)=>Math.hypot(a.x-from.x,a.y-from.y)-Math.hypot(b.x-from.x,b.y-from.y))[0];
+  }
+}
+function groundPoint(m, range){ const k = Math.min(m.dist, range)/m.dist; return {x:H.x+m.dx*k, y:clampY(H.y+m.dy*k)}; }
+
+// ====== ELEMENTARE (Caster-Ultimate) ======
+const ELEM = {
+  fire:      {name:'Feuer-Elementar',  col:'#ff6a2a', label:'Feuer'},
+  frost:     {name:'Frost-Elementar',  col:'#8fd8ff', label:'Frost'},
+  lightning: {name:'Blitz-Elementar',  col:'#ffe066', label:'Blitz'},
+};
+function nearestEnemy(x, y, maxD){
+  let best = null, bd = maxD;
+  for(const u of enemies()){ const d = Math.hypot(u.x-x, u.y-y); if(d<bd){ bd=d; best=u; } }
+  return best;
+}
+function elemAbility(e){
+  const tgt = nearestEnemy(e.x, e.y, CFG.elemRange);
+  if(!tgt) return false;                        // kein Ziel: bald nochmal versuchen
+  const sp = e.sp;
+  if(e.type==='fire'){
+    const ang = Math.atan2(tgt.y-e.y, tgt.x-e.x);
+    coneHit(e.x, e.y, ang, 260, .6, 45+.5*sp, {burn:6, burnDps:16+.3*sp}, '#ff6a2a');
+  } else if(e.type==='frost'){
+    const pool = enemies().filter(u=>Math.hypot(u.x-e.x,u.y-e.y)<=CFG.elemRange).sort(()=>Math.random()-.5).slice(0,3);
+    for(const u of pool) G.zones.push({x:u.x, y:u.y, r:75, t:5, tick:0, every:1, dmg:7+.2*sp, c:'#8fd8ff', o:{slow:1.5}});
+  } else {
+    // Blitz: mehr Sprünge als der Skill, Krit-Chance je nach Kettenblitz-Rang
+    chainLightning(e, tgt, 3+e.eRank+3, dmgOf(40,18,e.eRank,.6,0)*.8, CRIT_BY_RANK[e.eRank-1], e.eRank>=5 ? 1 : .9, 210);
+  }
+  return true;
+}
+function updateElems(dt){
+  for(const e of G.elems.slice()){
+    e.t -= dt;
+    if(e.hp<=0 || e.t<=0){ G.elems.splice(G.elems.indexOf(e),1); G.fx.push({k:'ring', x:e.x, y:e.y, r:35, t:.5, c:ELEM[e.type].col}); continue; }
+    // Normaler Angriff
+    e.atkT -= dt;
+    if(e.atkT<=0){ const t = nearestEnemy(e.x,e.y,170);
+      if(t){ e.atkT = 1.2; G.fx.push({k:'line', x:e.x, y:e.y, x2:t.x, y2:t.y, t:.12, c:ELEM[e.type].col, w:2}); hitUnit(t, 8+.15*e.sp); } else e.atkT = .3; }
+    // Spezialfähigkeit alle 6–10 Sek.
+    e.abT -= dt;
+    if(e.abT<=0) e.abT = elemAbility(e) ? 6 + Math.random()*4 : 1;
+  }
+}
+
+const SK = {
+  tank: [
+    {name:'Schockwelle', cd:CFG.tankQcd, max:5, info:['Kegel nach vorne: Schaden + Betäubung','Rang 3: schleudert Gegner zurück','Rang 5: zweite, stärkere Welle'],
+     cast(r,m){ const range = 200+15*(r-1), half = .62, dmg = dmgOf(CFG.tankQBase,8,r,0,.5), o = {stun:.8+.12*(r-1), knock:r>=3?80:0};
+       coneHit(H.x,H.y,m.ang,range,half,dmg,o);
+       if(r>=5) later(.6,()=>{ o.stun += .4; coneHit(H.x,H.y,m.ang,range+40,half,dmg*1.25,o); }); }},
+    {name:'Eiserne Haut', passive:true, max:5, info:['Passiv, immer aktiv: Rüstung + Dornen. Reflektiert 20% (Rang 1) bis 60% (Rang 5) des erlittenen Schadens an jeden Angreifer','Rang 3: viel mehr Rüstung, Regeneration 1% Leben/Sek.','Rang 5: sehr viel Rüstung, Regeneration 2,5% Leben/Sek.'],
+     cast(){ return false; }},
+    {name:'Schildwurf', cd:10, max:5, info:['Schild prallt von Gegner zu Gegner (3 Ziele) und heilt dich 10%, wenn er zurückkehrt','Rang 3: prallt von 5 Gegnern ab','Rang 5: Getroffene bluten 3 Sek. (5% ihres Lebens/Sek.)'],
+     cast(r,m){
+       const dmg = dmgOf(35,14,r,0,.8), targets = r>=3 ? 5 : 3, bleed = r>=5;
+       const first = enemies().filter(u=>Math.hypot(u.x-H.x,u.y-H.y)<=450)
+                              .sort((a,b)=>Math.hypot(a.x-m.wx,a.y-m.wy)-Math.hypot(b.x-m.wx,b.y-m.wy))[0];
+       if(!first){ G.fx.push({k:'text', x:H.x-30, y:H.y-40, t:1.2, s:'Keine Ziele!', c:'#ff9a8a'}); return false; }
+       const hit = new Set();
+       const hop = (from, u, left)=>{
+         if(!G.units.includes(u)){ u = enemies().filter(e=>!hit.has(e)).sort((a,b)=>Math.hypot(a.x-from.x,a.y-from.y)-Math.hypot(b.x-from.x,b.y-from.y))[0]; }
+         if(!u || left<=0) return comeBack(from);
+         hit.add(u);
+         G.fx.push({k:'line', x:from.x, y:from.y, x2:u.x, y2:u.y, t:.2, c:'#cfd8e8', w:6});
+         const pos = {x:u.x, y:u.y};
+         affect(u, dmg, {bleed: bleed?3:0, bleedPct:.05});
+         const nxt = enemies().filter(e=>!hit.has(e) && Math.hypot(e.x-pos.x,e.y-pos.y)<=220)
+                              .sort((a,b)=>Math.hypot(a.x-pos.x,a.y-pos.y)-Math.hypot(b.x-pos.x,b.y-pos.y))[0];
+         later(.15, ()=> nxt && left>1 ? hop(pos, nxt, left-1) : comeBack(pos));
+       };
+       const comeBack = from=>{
+         const d = Math.hypot(from.x-H.x, from.y-H.y);
+         later(Math.min(.6, .1 + d/900), ()=>{
+           G.fx.push({k:'line', x:from.x, y:from.y, x2:H.x, y2:H.y, t:.2, c:'#7be07b', w:5});
+           if(!H.dead){ const heal = CFG.shieldHeal*hMaxHp(); H.hp = Math.min(hMaxHp(), H.hp+heal);
+             G.fx.push({k:'text', x:H.x-10, y:H.y-34, t:.8, s:'+'+Math.round(heal), c:'#7be07b'}); } });
+       };
+       hop({x:H.x, y:H.y}, first, targets); }},
+    {name:'Titanenstoß', cd:50, max:1, info:['Gewaltiger Schlag: hoher Schaden, 3 Sek. Betäubung, Rückstoß'],
+     cast(r){ circleHit(H.x,H.y,190,dmgOf(200,0,1,0,1),{stun:3, knock:120}); }},
+  ],
+  damage: [
+    {name:'Wirbel', cd:5, max:5, at:[1,2], info:['Kreisschaden um den Helden','Ab Rang 2: heilt pro getroffenem Gegner, bis zu 5 (0,4% → 1% des max. Lebens)'],
+     cast(r){ const radius = 95+5*(r-1), dmg = dmgOf(30,10,r,0,.7);
+       const n = circleHit(H.x,H.y,radius,dmg);
+       const pct = CFG.whirlHeal[r-1];
+       if(pct && n){ const heal = Math.min(n, CFG.whirlHealCap)*pct*hMaxHp(); H.hp = Math.min(hMaxHp(), H.hp+heal);
+         G.fx.push({k:'text', x:H.x-10, y:H.y-34, t:.8, s:'+'+Math.round(heal), c:'#7be07b'}); } }},
+    {name:'Kampfrausch', cd:20, max:5, at:[1,3,5], info:['Mehr Angriffs- und Lauftempo für 6 Sek.','Rang 3: hält 10 Sek.','Rang 5: Angriffe treffen Gegner im Umkreis'],
+     cast(r){ H.buffs.rage = {t:r>=3?10:6, as:.4+.12*(r-1), spd:40, cleave:r>=5};
+       G.fx.push({k:'ring', x:H.x, y:H.y, r:35, t:.5, c:'#ff8a7a'}); }},
+    {name:'Sprung', cd:10, max:5, info:['Springt zur Maus (Reichweite 420), Aufprall macht Schaden','Rang 3: Landung hinterlässt ein Schadensfeld','Rang 5: Aufprall betäubt Gegner im Umkreis'],
+     cast(r,m){ const p = groundPoint(m,420), sx = H.x, sy = H.y;
+       if(Math.hypot(p.x-sx,p.y-sy) < 30) return false;
+       cancelBackport(); H.moveTo = null; H.target = null;
+       const dmg = dmgOf(20,8,r,0,.4), fdmg = dmgOf(10,4,r,0,.15);
+       G.fx.push({k:'line', x:sx, y:sy, x2:p.x, y2:p.y, t:.25, c:'#ffb36b', w:6});
+       H.leap = {sx, sy, tx:p.x, ty:p.y, t:.22, T:.22, land(){
+         circleHit(H.x,H.y,80+4*(r-1),dmg,{stun:r>=5?1.5:0},'#ffb36b');
+         if(r>=3) G.zones.push({x:H.x, y:H.y, r:100, t:4, tick:0, every:1, dmg:fdmg, c:'#ff9a4a'});
+       }}; }},
+    {name:'Schwertregen', cd:50, max:1, info:['5 Schwerter stürzen auf Gegner, jeder Einschlag hinterlässt 8 Sek. ein Blitzfeld'],
+     cast(r){
+       const pool = enemies().filter(u=>Math.hypot(u.x-H.x,u.y-H.y)<=650).sort(()=>Math.random()-.5).slice(0,5);
+       if(!pool.length){ G.fx.push({k:'text', x:H.x-30, y:H.y-40, t:1.2, s:'Keine Ziele!', c:'#ff9a8a'}); return false; }
+       const dmg = dmgOf(60,0,1,0,.8), fdmg = dmgOf(18,0,1,0,.3);
+       pool.forEach((u,i)=>{ const x = u.x, y = u.y;
+         G.fx.push({k:'ring', x, y, r:55, t:.5, c:'#fff3a0'});
+         later(.3+.25*i,()=>{
+           G.fx.push({k:'line', x, y:y-320, x2:x, y2:y, t:.2, c:'#dfe6f0', w:6});
+           circleHit(x,y,60,dmg,{},'#ffe066');
+           G.zones.push({x, y, r:70, t:8, tick:0, every:1, dmg:fdmg, c:'#ffe066'}); }); }); }},
+  ],
+  caster: [
+    {name:'Feuerfeld', cd:10, max:5, info:['Feld macht jede Sek. Schaden (5 Sek.)','Rang 3: Feld jagt die Gegner','Rang 5: erst Meteor, danach jagt das Feld in voller Stärke'],
+     cast(r,m){ const p = groundPoint(m,380), radius = 90+6*(r-1), tick = dmgOf(9,5,r,.2,.08);
+       const field = (x,y,t)=>G.zones.push({x, y, r:radius, t, tick:0, every:1, dmg:tick, c:'#ff7a2a', follow:r>=3?'enemy':null});
+       if(r>=5){   // nur ein Feld: es entsteht erst nach dem Meteoreinschlag
+         G.fx.push({k:'ring', x:p.x, y:p.y, r:100, t:.9, c:'#ffcc66'});
+         later(.9,()=>{ circleHit(p.x,p.y,100,dmgOf(120,0,1,.8,.3),{},'#ff5a2a'); field(p.x,p.y,6); });
+       } else field(p.x, p.y, 5); }},
+    {name:'Frostnova', cd:12, max:5, info:['Frostkegel nach vorne: Schaden + Verlangsamung','Rang 3: betäubt kurz (0,8 Sek.)','Rang 5: Frostbann 1,6 Sek.'],
+     cast(r,m){ coneHit(H.x,H.y,m.ang,200+15*(r-1),.62,dmgOf(20,10,r,.3,0),{slow:3+.5*(r-1), stun:r>=5?1.6:r>=3?.8:0}); }},
+    {name:'Kettenblitz', cd:8, max:5, info:['Springt von Gegner zu Gegner (4–8 Ziele). Krit 10%: doppelter Schaden + 0,5 Sek. Betäubung','Rang 3: Krit-Chance 15%','Rang 5: Krit-Chance 30%, kein Schadensverlust pro Sprung'],
+     cast(r,m){
+       const pool = enemies().filter(u=>Math.hypot(u.x-H.x,u.y-H.y)<=520);
+       if(!pool.length) return;
+       pool.sort((a,b)=>Math.hypot(a.x-m.wx,a.y-m.wy)-Math.hypot(b.x-m.wx,b.y-m.wy));
+       chainLightning(H, pool[0], 3+r, dmgOf(40,18,r,.6,0), CRIT_BY_RANK[r-1], r>=5 ? 1 : .9); }},
+    {name:'Elementar', cd:90, max:1, info:['Beschwört einen Elementar passend zum zuletzt benutzten Skill (Q Feuer · W Frost · E Blitz)','Kämpft 60 Sek. an der Beschwörungsstelle und wirkt alle 6–10 Sek. seine Fähigkeit'],
+     cast(r,m){
+       if(!H.lastElem){ G.fx.push({k:'text', x:H.x-40, y:H.y-40, t:1.5, s:'Erst Q, W oder E benutzen!', c:'#ff9a8a'}); return false; }
+       const t = H.lastElem, col = ELEM[t].col;
+       G.elems = [{type:t, x:H.x+35, y:H.y, hp:CFG.elemHp, max:CFG.elemHp, t:CFG.elemTime, atkT:1, abT:2, eRank:Math.max(1,H.ranks[2]), sp:hSp()}];  // nur ein Elementar gleichzeitig
+       G.fx.push({k:'ring', x:H.x+35, y:H.y, r:45, t:.7, c:col}); }},
+  ],
+};
+function castSlot(i){
+  if(H.dead || G.over) return;
+  const s = SK[H.key][i], r = H.ranks[i];
+  if(r<1 || H.cds[i]>0 || s.passive) return;
+  const dx = mouse.wx-H.x, dy = mouse.wy-H.y, dist = Math.hypot(dx,dy)||1;
+  // Zeitzauberstab: innerhalb des Zeitfensters nach einer Fähigkeit macht die nächste mehr Schaden
+  const amp = H.uniq.has('comboAmp') && H.comboT>0; H.ampNow = amp;
+  const res = s.cast(r, {dx, dy, dist, ang:Math.atan2(dy,dx), wx:mouse.wx, wy:mouse.wy});
+  H.ampNow = false;
+  if(res === false) return;   // false = nicht gewirkt, kein Cooldown
+  if(H.key==='caster' && i<3) H.lastElem = ['fire','frost','lightning'][i];
+  H.cds[i] = s.cd * (1 - H.cdr);   // Abklingzeitverkürzung durch Items
+  if(H.uniq.has('comboAmp')){ H.comboT = amp ? 0 : CFG.comboWindow; if(amp) G.fx.push({k:'text', x:H.x-10, y:H.y-50, t:.7, s:'KOMBO +'+Math.round(CFG.comboAmp*100)+'%', c:'#9fe0ff'}); }
+}
+function learn(i){
+  const s = SK[H.key][i];
+  if(H.sp<1 || H.ranks[i]>=s.max || H.lvl<CFG.unlock[i]) return;
+  H.ranks[i]++; H.sp--; buildSkills();
+}
+
+// ====== BACKPORT / SHOP ======
+function startBackport(){
+  if(H.dead || H.bp>0 || H.bpCd>0 || inBase()) return;
+  H.bpMax = CFG.backportCast*(1-H.bpRed); H.bp = H.bpMax; H.moveTo = null; H.target = null;   // Hut des Reisenden verkürzt den Cast
+}
+function cancelBackport(){ H.bp = 0; }
+// Werte aus dem Rucksack neu berechnen (nach jedem Kauf/Verkauf)
+function recalcItems(){
+  const oldMax = hMaxHp();
+  const t = {dmg:0, armor:0, hp:0, as:0, sp:0, spd:0, crit:0, cdr:0, regen:0, ls:0, sv:0, dr:0, gps:0, bpRed:0}, un = new Set();
+  for(const id of H.bag){
+    const it = ITEM[id], s = typeof it.stats==='function' ? it.stats() : (it.stats||{});
+    for(const k in s) t[k] += s[k];
+    for(const u of it.unique||[]) un.add(u);
+  }
+  H.bonusDmg = t.dmg; H.bonusArmor = t.armor; H.bonusHp = t.hp; H.bonusAs = t.as; H.bonusSp = t.sp; H.bonusSpd = t.spd;
+  H.critCh = Math.min(1, t.crit); H.uniq = un;
+  H.cdr = Math.min(CFG.cdrCap, t.cdr); H.bonusRegen = t.regen; H.lifesteal = Math.min(0.5, t.ls);
+  H.spellVamp = Math.min(0.5, t.sv); H.dr = Math.min(CFG.drCap, t.dr); H.goldPS = t.gps; H.bpRed = Math.min(0.8, t.bpRed);
+  const nm = hMaxHp(); H.hp = Math.min(nm, H.hp + Math.max(0, nm-oldMax));
+}
+// Warum geht der Kauf nicht? ('' = er geht)
+function buyReason(id){
+  const it = ITEM[id]; if(!it) return 'unbekannt';
+  if(!inBase()) return 'nur in der Basis (Backport: B)';
+  if(it.consumable) return H.cons[id] >= CFG.consMax ? 'Vorrat voll' : G.gold >= it.cost ? '' : 'noch '+Math.ceil(it.cost-G.gold)+' g';
+  const r = resolveBuy(id, H.bag);
+  if(H.bag.length - r.consumed.length + 1 > CFG.bagSize) return 'Rucksack voll – erst ein Item verkaufen';
+  // Hüte: nur ein Hut gleichzeitig (der Basis-Hut wird beim Aufwerten verbraucht)
+  if(it.slot==='hat' && H.bag.some((x,i)=>ITEM[x].slot==='hat' && !r.consumed.includes(i))) return 'du trägst schon einen Hut';
+  return G.gold >= r.cost ? '' : 'noch '+Math.ceil(r.cost-G.gold)+' g';
+}
+const canBuy = id => !G.over && !!ITEM[id] && buyReason(id)==='';
+let toastT = null;
+function toast(t){   // kurze Meldung in der Bildmitte (nur für den Spieler)
+  if(!isMainG() || G.over) return;
+  const m = document.getElementById('msg'); m.textContent = t; m.style.color = '#ffb36b'; m.style.fontSize = '26px';
+  clearTimeout(toastT); toastT = setTimeout(()=>{ if(!G.over){ m.textContent = ''; m.style.fontSize = ''; } }, 1800);
+}
+function buy(id){
+  if(!canBuy(id)){ const w = buyReason(id); if(w) toast(w); return false; }
+  const it = ITEM[id];
+  if(it.consumable){ G.gold -= it.cost; H.cons[id]++; buildShop(); return true; }
+  const r = resolveBuy(id, H.bag);
+  G.gold -= r.cost;
+  H.bag = H.bag.filter((x,i)=>!r.consumed.includes(i)); H.bag.push(id);
+  recalcItems(); buildShop();
+  if(!isMainG() && it.group==='fertig') uiAlert(`Gegner hat ${it.name} gebaut`, 'enemy', 4000);   // Hinweis auf große Gegner-Items
+  return true;
+}
+function sell(i){
+  if(!H.bag[i]) return;
+  if(!inBase()){ toast('Verkaufen nur in der Basis (Backport: B)'); return; }
+  G.gold += Math.floor(totalCost(H.bag[i]) * CFG.sellRatio);
+  H.bag.splice(i,1); recalcItems(); buildShop();
+}
+function drinkPotion(){
+  if(H.dead || H.cons.potion<1 || H.potCd>0 || H.hp>=hMaxHp()) return false;
+  H.cons.potion--; H.potCd = CFG.potionCd;
+  const heal = CFG.potionHeal * hMaxHp(); H.hp = Math.min(hMaxHp(), H.hp + heal);
+  G.fx.push({k:'text', x:H.x-10, y:H.y-34, t:.8, s:'+'+Math.round(heal), c:'#7be07b'});
+  buildShop(); return true;
+}
+
+// ====== BOSS ======
+// Großes Monster mit Phasen (bei 66 % und 33 % Leben): Stampfen im Umkreis + ruft Verstärkung; wird mit sinkendem Leben schneller.
+function bossThink(u, dt){
+  const f = u.hp/u.max, ph = f>.66 ? 1 : f>.33 ? 2 : 3;
+  if(ph !== u.phase){
+    u.phase = ph; u.summonT = Math.min(u.summonT, 2);
+    if(isMainG()) uiAlert(ph===2 ? 'Der Boss wird schneller!' : 'BOSS-RASEREI: noch schneller, ruft öfter Verstärkung!', 'danger', 4500);
+  }
+  u.spd = u.base * CFG.bossSpeedMul[ph-1];
+  u.stompT -= dt;
+  if(u.stompT <= 0){                                   // Stampfen: Schaden an allem im Umkreis
+    u.stompT = CFG.bossStompEvery[ph-1];
+    G.fx.push({k:'ring', x:u.x, y:u.y, r:CFG.bossStompR, t:.5, c:'#ff4d4d'});
+    if(!H.dead && Math.hypot(H.x-u.x, H.y-u.y) <= CFG.bossStompR + 14) damageHero(u.dmg*CFG.bossStompMul, u);
+  }
+  u.summonT -= dt;
+  if(u.summonT <= 0){                                  // Verstärkung rufen
+    u.summonT = CFG.bossSummonEvery[ph-1];
+    const n = 2 + ph;
+    for(let i=0;i<n;i++){ spawn('grunt', 0, 0, 1); const g = G.units[G.units.length-1]; g.x = u.x + 30 + i*14; g.y = (Math.random()*2-1)*(CFG.laneHalf-16); }
+    G.fx.push({k:'text', x:u.x-30, y:u.y-40, t:1.2, s:'Verstärkung!', c:'#ff9a9a'});
+  }
+}
+
+// ====== UPDATE ======
+function update(dt){
+  if(G.over) return;
+  G.t += dt; G.gold += H.goldPS*dt; G.stats.gold += H.goldPS*dt;   // Gold-Items: zusätzliches Einkommen pro Sekunde
+  // Einkommen
+  G.incomeT += dt;
+  if(G.incomeT >= CFG.incomeTick){ G.incomeT -= CFG.incomeTick; const inc = G.income * (G.goldMul||1); G.gold += inc; G.stats.gold += inc; }
+  // Wellen
+  G.waveT -= dt;
+  if(G.waveT <= 0){ spawnWave(); G.waveT = G.wave<=CFG.earlyWaves ? CFG.earlyWaveEvery : CFG.waveEvery; }
+  // Zeitverzögerte Skill-Effekte
+  for(const t of G.timers.slice()){ t.t -= dt; if(t.t<=0){ G.timers.splice(G.timers.indexOf(t),1); t.fn(); } }
+  // Schadensfelder
+  for(const z of G.zones){
+    z.t -= dt; z.tick -= dt;
+    if(z.follow==='hero' && !H.dead){ z.x = H.x+z.off.x; z.y = H.y+z.off.y; }
+    else if(z.follow==='enemy'){
+      let best = null, bd = 1e9;
+      for(const u of enemies()){ const d = Math.hypot(u.x-z.x,u.y-z.y); if(d<bd){bd=d;best=u;} }
+      if(best && bd>4){ const st = Math.min(bd, 75*dt); z.x += (best.x-z.x)/bd*st; z.y += (best.y-z.y)/bd*st; }
+      z.y = clampY(z.y);
+    }
+    if(z.tick <= 0){ z.tick += z.every;
+      for(const u of enemies()) if(Math.hypot(u.x-z.x,u.y-z.y) <= z.r + u.r) affect(u, z.dmg, z.o||{}); }
+  }
+  G.zones = G.zones.filter(z=>z.t>0);
+  // Held
+  for(let i=0;i<4;i++) H.cds[i] = Math.max(0, H.cds[i]-dt);
+  H.bpCd = Math.max(0, H.bpCd-dt); H.potCd = Math.max(0, H.potCd-dt); H.comboT = Math.max(0, H.comboT-dt);
+  for(const k of Object.keys(H.buffs)){ H.buffs[k].t -= dt; if(H.buffs[k].t<=0) delete H.buffs[k]; }
+  if(H.dead > 0){
+    H.dead -= dt;
+    if(H.dead <= 0){ H.dead = 0; H.hp = hMaxHp(); H.x = 120; H.y = 0; }
+  } else {
+    const ir = ironPassive(), st = buff('storm');
+    H.dmgT += dt;
+    if(H.uniq.has('lifeflow') && H.dmgT >= CFG.lifeflowDelay) H.hp = Math.min(hMaxHp(), H.hp + hMaxHp()*CFG.lifeflowPct*dt);   // Lebensquell-Harnisch
+    H.hp = Math.min(hMaxHp(), H.hp + (inBase()? hMaxHp()*0.12 : 1.5 + H.lvl*0.3)*dt + (ir&&ir.regen? hMaxHp()*ir.regen*dt : 0) + hMaxHp()*H.bonusRegen*dt);
+    if(st){ st.tick -= dt; if(st.tick<=0){ st.tick += .25; circleHit(H.x,H.y,130,st.dmg,{},'#ff9a8a'); } }
+    // Sprung
+    if(H.leap){ const L = H.leap; L.t -= dt; const k = 1-Math.max(0,L.t)/L.T;
+      H.x = L.sx+(L.tx-L.sx)*k; H.y = L.sy+(L.ty-L.sy)*k;
+      if(L.t<=0){ H.leap = null; L.land(); } }
+    // Backport
+    if(H.bp > 0){ H.bp -= dt; if(H.bp <= 0){ H.bp = 0; H.x = 120; H.y = 0; H.bpCd = CFG.backportCd; H.moveTo=null; H.target=null;
+        G.fx.push({k:'ring', x:H.x, y:H.y, r:60, t:.6, c:'#7fd6ff'}); } }
+    else if(!H.leap){
+      // Ziel gültig?
+      if(H.target && !G.units.includes(H.target)) H.target = null;
+      let goal = null;
+      if(H.target){
+        const d = Math.hypot(H.target.x-H.x, H.target.y-H.y);
+        if(d > H.d.range + H.target.r){ goal = {x:H.target.x, y:H.target.y}; }
+      } else if(H.moveTo){ goal = H.moveTo; }
+      if(goal){
+        const dx = goal.x-H.x, dy = goal.y-H.y, d = Math.hypot(dx,dy);
+        if(d < 4){ if(!H.target) H.moveTo = null; }
+        else { const step = Math.min(d, hSpd()*dt); H.x += dx/d*step; H.y += dy/d*step; }
+      }
+      H.x = Math.max(20, Math.min(CFG.laneLen, H.x));
+      H.y = clampY(H.y);
+      // Auto-Angriff: auch im Laufen, sobald ein Gegner in Reichweite ist
+      H.atkT -= dt;
+      let tgt = H.target;
+      if(!tgt){
+        let best = 1e9;
+        for(const u of G.units){ if(u.lane!==0) continue; const d = Math.hypot(u.x-H.x,u.y-H.y);
+          if(d <= H.d.range + u.r && d < best){ best = d; tgt = u; } }
+      }
+      if(tgt && Math.hypot(tgt.x-H.x,tgt.y-H.y) <= H.d.range + tgt.r && H.atkT <= 0){
+        H.atkT = 1/hAs();
+        let dmg = hDmg(); const rg = buff('rage'), tx = tgt.x, ty = tgt.y;
+        if(H.critCh>0 && Math.random() < H.critCh){      // kritischer Treffer (Crit-Mantel / Mächtige Klinge)
+          dmg *= CFG.critDmgBase + (H.uniq.has('critDmg') ? CFG.critDmgBonus : 0);
+          G.fx.push({k:'text', x:tx, y:ty-28, t:.6, s:'KRIT!', c:'#ffe066'});
+          if(H.uniq.has('stormCrit')) H.buffs.critAs = {t:CFG.stormCritTime, as:CFG.stormCritAs};   // Sturmbrecher
+        }
+        const dealt = hitUnit(tgt, dmg);
+        if(H.lifesteal>0) H.hp = Math.min(hMaxHp(), H.hp + dealt*H.lifesteal*(H.uniq.has('vengeance') && H.hp<.4*hMaxHp() ? 2 : 1));   // Lebensraub (inkl. Rachsucht)
+        if(H.uniq.has('onHitMagic') && G.units.includes(tgt)){                   // Funkenklinge: magischer Zusatzschaden, ignoriert Rüstung
+          const md = CFG.sparkFlat + CFG.sparkAp*hSp(); tgt.hp -= md;
+          G.fx.push({k:'text', x:tx, y:ty-14, t:.4, s:Math.round(md), c:'#9fe0ff'}); if(tgt.hp<=0) killUnit(tgt);
+        }
+        if(H.uniq.has('giants') && G.units.includes(tgt)) hitUnit(tgt, CFG.giantsPct*hMaxHp());   // Gigantenschlag: % deines max. Lebens
+        if(H.uniq.has('cleave')){   // Splitteraxt: trifft die nächsten Gegner im Umkreis (höchstens cleaveMax)
+          enemies().filter(u=>u!==tgt && Math.hypot(u.x-tx,u.y-ty)<=80)
+                   .sort((a,b)=>Math.hypot(a.x-tx,a.y-ty)-Math.hypot(b.x-tx,b.y-ty)).slice(0,CFG.cleaveMax)
+                   .forEach(u=>hitUnit(u, dmg*CFG.cleaveItemPct));
+        }
+        if(H.uniq.has('ruin') && G.units.includes(tgt)){                         // Schneide des gefallenen Monarchen: % des aktuellen Lebens
+          hitUnit(tgt, Math.min(CFG.ruinMax, Math.max(CFG.ruinMin, CFG.ruinPct*tgt.hp)));
+        }
+        if(rg){
+          if(rg.ls) H.hp = Math.min(hMaxHp(), H.hp + dealt*rg.ls);
+          if(rg.cleave) for(const u of enemies()) if(u!==tgt && Math.hypot(u.x-tx,u.y-ty)<=75) hitUnit(u, dmg*.5);
+        }
+        if(H.d.range > 100) G.fx.push({k:'line', x:H.x, y:H.y, x2:tx, y2:ty, t:.12, c:H.d.col, w:2});
+      }
+    }
+  }
+
+  updateElems(dt);
+
+  // Einheiten
+  for(const u of G.units.slice()){
+    if(!G.units.includes(u)) continue;
+    if(u.slow>0) u.slow -= dt;
+    if(u.burn>0){ u.burn -= dt; u.burnT = (u.burnT||0)+dt;
+      if(u.burnT>=1){ u.burnT -= 1; hitUnit(u, u.burnDps); if(!G.units.includes(u)) continue; } }
+    if(u.tormCd>0) u.tormCd -= dt;
+    if(u.tormT>0){ u.tormT -= dt; u.tormTick -= dt;                // Qual: alle 0,5 s eine Schadensinstanz, ignoriert Rüstung
+      if(u.tormTick<=0){ u.tormTick += CFG.tormentEvery; u.hp -= u.tormDmg;
+        G.fx.push({k:'text', x:u.x, y:u.y-14, t:.4, s:Math.round(u.tormDmg), c:'#c77dff'}); if(u.hp<=0){ killUnit(u); continue; } } }
+    if(u.bleed>0){ u.bleed -= dt; u.bleedT = (u.bleedT||0)+dt;   // Blutung: % des Lebens pro Sek., ignoriert Rüstung
+      if(u.bleedT>=1){ u.bleedT -= 1; const d = u.max*u.bleedPct; u.hp -= d;
+        G.fx.push({k:'text', x:u.x, y:u.y-14, t:.5, s:Math.round(d), c:'#ff6b6b'}); if(u.hp<=0){ killUnit(u); continue; } } }
+    if(u.stun>0){ u.stun -= dt; continue; }
+    if(u.boss) bossThink(u, dt);
+    u.atkT -= dt;
+    let engaged = false;
+    if(u.lane===0){
+      // Ziel: Held, sonst Elementar in Reichweite
+      let el = null;
+      const heroIn = !H.dead && Math.hypot(u.x-H.x, u.y-H.y) <= u.range + 14;
+      if(!heroIn) el = G.elems.find(e=>Math.hypot(u.x-e.x, u.y-e.y) <= u.range + 18);
+      if(heroIn || el){ engaged = true;
+        if(u.atkT <= 0){ u.atkT = 1;
+          const tx = heroIn ? H.x : el.x, ty = heroIn ? H.y : el.y;
+          if(heroIn) damageHero(u.dmg, u); else el.hp -= reduce(u.dmg, 10);
+          if(u.range>60) G.fx.push({k:'line', x:u.x, y:u.y, x2:tx, y2:ty, t:.1, c:'#ff8', w:2}); } }
+    }
+    if(!G.units.includes(u)) continue;
+    if(!engaged){
+      // Titanenpanzer-Aura: Gegner nahe am Helden sind langsamer
+      const aura = !H.dead && H.uniq.has('slowAura') && Math.hypot(u.x-H.x,u.y-H.y) <= CFG.auraRadius ? 1-CFG.auraSlow : 1;
+      const step = u.spd*(u.slow>0?0.5:1)*aura*dt;
+      let dx = -1, dy = 0;   // Standard: Richtung Basis
+      // Gegner (außer Läufer) jagen den Helden: ist er vor ihnen in Reichweite, laufen sie auf ihn zu und greifen an;
+      // steht er hinter ihnen, drehen sie nur um, wenn er ganz nah ist (verhindert endloses Kiten)
+      if(!H.dead && u.type!=='fast'){
+        const hx = H.x-u.x, hy = H.y-u.y, d = Math.hypot(hx,hy) || 1;
+        if(d <= (hx<=40 ? CFG.aggroRange : CFG.aggroBehind)){ dx = hx/d; dy = hy/d; }
+      }
+      u.x += dx*step;
+      u.y = Math.max(-CFG.laneHalf+16, Math.min(CFG.laneHalf-16, u.y + dy*step));
+    }
+    // Leak
+    if(u.x <= CFG.leakX){
+      const l = UNITS[u.type].lives;
+      G.lives -= l;
+      G.units.splice(G.units.indexOf(u),1);
+    }
+  }
+  // Effekte
+  for(const f of G.fx){ f.t -= dt; if(f.k==='text') f.y -= 25*dt; }
+  G.fx = G.fx.filter(f=>f.t>0);
+
+  // Kamera
+  cam.x += (Math.max(0, Math.min(CFG.laneLen-1000+100, H.x-500)) - cam.x)*Math.min(1, dt*6);
+
+  if(G.lives <= 0){ G.over = true; if(isMainG()) showMsg('NIEDERLAGE', '#ff6b6b'); }   // Sieg des Spielers wird in loop() erkannt
+  updateHud();
+}
+
+// ====== ZEICHNEN ======
+function draw(){
+  ctx.clearRect(0,0,1000,420);
+  const ox = -cam.x;
+  // Lane
+  ctx.fillStyle = '#2a2f3a'; ctx.fillRect(ox, CY-CFG.laneHalf, CFG.laneLen+100, CFG.laneHalf*2);
+  // Basis
+  ctx.fillStyle = '#23405f'; ctx.fillRect(ox, CY-CFG.laneHalf-30, CFG.baseX, CFG.laneHalf*2+60);
+  ctx.fillStyle = '#9ad'; ctx.font = '12px sans-serif'; ctx.fillText('BASIS  ·  Shop & Heilung', ox+10, CY-CFG.laneHalf-36);
+  ctx.fillStyle = '#ffd166'; ctx.fillRect(ox+150, CY-CFG.laneHalf-22, 26, 18);   // Shop-Symbol
+  // Spawn
+  ctx.fillStyle = '#5a2328'; ctx.fillRect(ox+CFG.spawnX-20, CY-CFG.laneHalf, 120, CFG.laneHalf*2);
+  // Meilensteine
+  ctx.strokeStyle = '#ffffff10'; ctx.lineWidth = 1;
+  for(let x=0;x<CFG.laneLen;x+=200){ ctx.beginPath(); ctx.moveTo(ox+x,CY-CFG.laneHalf); ctx.lineTo(ox+x,CY+CFG.laneHalf); ctx.stroke(); }
+
+  // Schadensfelder (unter den Einheiten)
+  for(const z of G.zones){
+    ctx.globalAlpha = 0.18 + 0.12*Math.sin(G.t*6); ctx.fillStyle = z.c;
+    ctx.beginPath(); ctx.arc(ox+z.x, CY+z.y, z.r, 0, 7); ctx.fill();
+    ctx.globalAlpha = .7; ctx.strokeStyle = z.c; ctx.lineWidth = 2; ctx.stroke(); ctx.globalAlpha = 1;
+  }
+  // Einheiten (nur deine Lane)
+  for(const u of G.units){
+    if(u.lane!==0) continue;
+    const sx = ox+u.x, sy = CY+u.y, d = UNITS[u.type];
+    ctx.fillStyle = u.stun>0 ? '#fff' : u.burn>0 ? '#ff7a2a' : u.tormT>0 ? '#c77dff' : u.slow>0 ? '#8fd8ff' : d.col;
+    ctx.beginPath(); ctx.arc(sx, sy, u.r, 0, 7); ctx.fill();
+    if(u.boss){ bar(sx-34, sy-u.r-14, 68, 6, u.hp/u.max, '#ff4d4d'); ctx.fillStyle='#fff'; ctx.font='bold 11px sans-serif'; ctx.fillText('BOSS · Phase '+u.phase, sx-32, sy-u.r-18); }
+    else bar(sx-12, sy-u.r-7, 24, 3, u.hp/u.max, '#e55');
+    if(H.target===u){ ctx.strokeStyle='#ff0'; ctx.beginPath(); ctx.arc(sx,sy,u.r+4,0,7); ctx.stroke(); }
+  }
+  // Boss-Leiste oben, solange ein Boss auf dieser Lane lebt
+  const bossU = G.units.find(u=>u.boss);
+  if(bossU){ ctx.fillStyle='#000a'; ctx.fillRect(330,36,340,22); bar(334,40,332,14,bossU.hp/bossU.max,'#ff4d4d');
+    ctx.fillStyle='#fff'; ctx.font='bold 12px sans-serif'; ctx.fillText(`BOSS · Phase ${bossU.phase} · ${Math.ceil(bossU.hp/bossU.max*100)} %`, 440, 51); }
+  // Elementare
+  for(const e of G.elems){
+    const sx = ox+e.x, sy = CY+e.y, c = ELEM[e.type].col;
+    ctx.fillStyle = c; ctx.globalAlpha = .85; ctx.beginPath(); ctx.arc(sx, sy, 14, 0, 7); ctx.fill(); ctx.globalAlpha = 1;
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.strokeStyle = c; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(sx, sy, 20, -Math.PI/2, -Math.PI/2 + 6.283*(e.t/CFG.elemTime)); ctx.stroke();
+    bar(sx-18, sy-32, 36, 4, e.hp/e.max, c);
+    ctx.fillStyle = '#fff'; ctx.font = '10px sans-serif'; ctx.fillText(ELEM[e.type].label, sx-12, sy-36);
+  }
+  // Held
+  if(!H.dead){
+    const sx = ox+H.x, sy = CY+H.y;
+    ctx.fillStyle = H.d.col; ctx.beginPath(); ctx.arc(sx, sy, 15, 0, 7); ctx.fill();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+    bar(sx-20, sy-26, 40, 5, H.hp/hMaxHp(), '#4c4');
+    if(H.uniq.has('slowAura')){ ctx.strokeStyle='#8fd8ff'; ctx.globalAlpha=.25; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(sx, sy, CFG.auraRadius, 0, 7); ctx.stroke(); ctx.globalAlpha=1; }   // Titanenpanzer-Aura
+    // Buff-Ringe
+    const rings = [['iron','#7fb4ff',21],['rage','#ff8a7a',25],['storm','#ff9a8a',130]];
+    for(const [n,c,r] of rings) if(buff(n)){ ctx.strokeStyle=c; ctx.lineWidth=2; ctx.globalAlpha=n==='storm'?.35:.9;
+      ctx.beginPath(); ctx.arc(sx, sy, r, 0, 7); ctx.stroke(); ctx.globalAlpha=1; }
+    if(H.bp>0){
+      ctx.strokeStyle = '#7fd6ff'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(sx, sy, 30, -Math.PI/2, -Math.PI/2 + 6.283*(1-H.bp/(H.bpMax||CFG.backportCast))); ctx.stroke();
+    }
+    if(H.moveTo){ ctx.strokeStyle='#8f8'; ctx.lineWidth=1; ctx.beginPath(); ctx.arc(ox+H.moveTo.x, CY+H.moveTo.y, 6, 0, 7); ctx.stroke(); }
+  }
+  // Effekte
+  for(const f of G.fx){
+    if(f.k==='ring'){ ctx.strokeStyle=f.c; ctx.globalAlpha=Math.min(1,f.t*2); ctx.lineWidth=4;
+      ctx.beginPath(); ctx.arc(ox+f.x, CY+f.y, f.r, 0, 7); ctx.stroke(); ctx.globalAlpha=1; }
+    else if(f.k==='cone'){ ctx.fillStyle=f.c; ctx.globalAlpha=Math.min(.5,f.t*1.4);
+      ctx.beginPath(); ctx.moveTo(ox+f.x,CY+f.y); ctx.arc(ox+f.x,CY+f.y,f.r,f.a-f.half,f.a+f.half); ctx.closePath(); ctx.fill(); ctx.globalAlpha=1; }
+    else if(f.k==='line'){ ctx.strokeStyle=f.c; ctx.lineWidth=f.w||2; ctx.globalAlpha=Math.min(1,f.t*4); ctx.beginPath(); ctx.moveTo(ox+f.x,CY+f.y); ctx.lineTo(ox+f.x2,CY+f.y2); ctx.stroke(); ctx.globalAlpha=1; }
+    else { ctx.fillStyle=f.c; ctx.font='bold 13px sans-serif'; ctx.fillText(f.s, ox+f.x-8, CY+f.y); }
+  }
+  if(H.dead){ ctx.fillStyle='#ff6b6b'; ctx.font='bold 22px sans-serif'; ctx.fillText('Tot – Respawn in '+Math.ceil(H.dead)+'s', 360, 60); }
+
+  // Statusleiste
+  ctx.fillStyle='#000a'; ctx.fillRect(0,372,1000,48);
+  ctx.fillStyle='#fff'; ctx.font='13px sans-serif';
+  ctx.fillText(`[B] Backport: ${H.bp>0? 'Cast '+H.bp.toFixed(1)+'s' : H.bpCd>0? 'CD '+Math.ceil(H.bpCd)+'s' : inBase()? 'in Basis' : 'bereit'}`, 12, 392);
+  ctx.fillStyle = inBase() ? '#4cd964' : '#ff8a7a'; ctx.font = 'bold 13px sans-serif';   // Shop-Anzeige: nur in der Basis kaufbar
+  ctx.fillText(inBase() ? '● SHOP OFFEN – du kannst kaufen & verkaufen' : '○ SHOP ZU – zurück in die Basis laufen oder Backport [B]', 640, 392);
+  ctx.fillStyle = '#fff'; ctx.font = '13px sans-serif';
+  ctx.fillText(`Skillpunkte: ${H.sp}   [F] Trank:${H.cons.potion}/${CFG.consMax}${H.potCd>0?' ('+Math.ceil(H.potCd)+'s)':''}`, 12, 412);
+  ctx.fillText(`Level ${H.lvl}  XP ${Math.floor(H.xp)}/${H.lvl<CFG.maxLevel?xpNeed(H.lvl):'-'}`, 300, 392);
+  ctx.fillText(`HP ${Math.ceil(H.hp)}/${hMaxHp()}  Schaden ${Math.round(hDmg())}  Rüstung ${hArmor().toFixed(1)}  Tempo ${hAs().toFixed(2)}/s  Zauber ${hSp()}`, 300, 412);
+
+  // Minimap: beide Lanes
+  mctx.clearRect(0,0,1000,110);
+  const sc = 960/CFG.laneLen;
+  [[P,'DEINE LANE','#2a3a55'],[E,`GEGNER-LANE  (${E.H.d.name}, Lv ${E.H.lvl}${E.H.dead?', tot':''})`,'#55302a']].forEach(([S,label,col],i)=>{
+    const y0 = 14 + i*50;
+    mctx.fillStyle = col; mctx.fillRect(20, y0, CFG.laneLen*sc, 34);
+    mctx.fillStyle = '#ffffff30'; mctx.fillRect(20, y0, CFG.baseX*sc, 34);
+    mctx.fillStyle = '#ccc'; mctx.font = '10px sans-serif'; mctx.fillText(label, 24, y0-3);
+    for(const u of S.G.units){
+      mctx.fillStyle = UNITS[u.type].col; mctx.fillRect(20+u.x*sc-2, y0+17+u.y*0.14-2, 4, 4); }
+    if(!S.H.dead){ mctx.fillStyle = S.H.d.col; mctx.fillRect(20+S.H.x*sc-4, y0+17-4, 8, 8); }
+  });
+  mctx.fillStyle='#fff'; mctx.font='12px sans-serif';
+  mctx.fillText(`Dein Leben: ${P.G.lives}`, 820, 12);
+  mctx.fillText(`Gegner-Leben: ${enemyLivesTxt()}`, 820, 62);
+  if(viewEnemy){ ctx.fillStyle='#ffd166'; ctx.font='bold 16px sans-serif'; ctx.fillText('ZUSCHAUER: Gegner-Lane ('+keyName(settings.keys.spectate)+' zum Zurückkehren)', 300, 24); }
+  if(paused){ ctx.fillStyle='#000a'; ctx.fillRect(0,0,1000,372); ctx.fillStyle='#ffd166'; ctx.font='bold 44px sans-serif'; ctx.fillText('PAUSE', 410, 205); }
+}
+function bar(x,y,w,h,p,c){ ctx.fillStyle='#000a'; ctx.fillRect(x,y,w,h); ctx.fillStyle=c; ctx.fillRect(x,y,w*Math.max(0,p),h); }
+
+// ====== UI ======
+let lastHudT = 0;
+function updateHud(force){
+  if(!isMainG()) return;   // nur der Spieler-Zustand darf die Oberfläche schreiben
+  const nowT = performance.now(); if(!force && nowT - lastHudT < 33) return; lastHudT = nowT;   // bei hohem Tempo nicht öfter als ~30× pro Sekunde
+  updateSkillbar();
+  const tl =Math.max(0, CFG.incomeTick - G.incomeT).toFixed(1);
+  document.getElementById('hud').innerHTML =
+    `<span>Gold <b>${Math.floor(G.gold)}</b></span><span>Einkommen <b>+${G.income.toFixed(1)}</b> / ${CFG.incomeTick}s (in ${tl}s)</span>`+
+    `<span>Leben <b>${G.lives}</b> · Gegner <b>${enemyLivesTxt()}</b> <small>(${E.H.d.name}, Lv ${E.H.lvl}, ${E.diff.name})</small></span><span>${waveInfoHtml()} · Zeit ${Math.floor(G.t/60)}:${String(Math.floor(G.t%60)).padStart(2,'0')}</span>`+
+    `<span>Monster-Stärke ×${hpMult().toFixed(2)}</span>`;
+  document.querySelectorAll('#sendPanel button').forEach(b=>b.disabled = G.gold < UNITS[b.dataset.k].cost || G.over);
+  // Kauf-Buttons bleiben klickbar: nicht kaufbar = abgedunkelt, der Grund steht am Button (und als Meldung beim Klick)
+  document.querySelectorAll('#shopPanel button[data-buy]').forEach(b=>{
+    const why = buyReason(b.dataset.buy); b.classList.toggle('blocked', !!why);
+    const w = b.querySelector('.why'); if(w && w.textContent !== why) w.textContent = why;
+  });
+  document.querySelectorAll('#shopPanel button[data-sell]').forEach(b=>b.classList.toggle('blocked', !inBase()));
+  document.getElementById('shopNote').textContent = inBase() ? '(offen – du bist in der Basis)' : '(nur in der Basis erreichbar – nutze Backport [B])';
+  dbgUpdate();
+  for(let i=0;i<4;i++){ const e = document.getElementById('skcd'+i);
+    if(e) e.textContent = H.ranks[i]<1 ? '' : SK[H.key][i].passive ? 'passiv' : (i===3 && H.key==='caster' ? (H.lastElem ? ELEM[H.lastElem].label+' · ' : 'kein Skill benutzt · ') : '') + (H.cds[i]>0 ? H.cds[i].toFixed(1)+'s' : 'bereit'); }
+}
+function buildSkills(){
+  if(!isMainG()) return;
+  buildSkillbar();
+  const keys = [0,1,2,3].map(i=>keyName(settings.keys['skill'+i]));
+  document.getElementById('spNote').textContent = `– Skillpunkte: ${H.sp} (1 pro Level; Klick auf „+“ oder Shift+Taste)`;
+  document.getElementById('skills').innerHTML = SK[H.key].map((s,i)=>{
+    const r = H.ranks[i], locked = H.lvl < CFG.unlock[i], can = !locked && H.sp>0 && r<s.max;
+    const pips = '●'.repeat(r)+'○'.repeat(s.max-r);
+    const at = s.at || [1,3,5];
+    const lines = s.info.map((t,j)=>`<li class="${r>=at[j]?'on':''}">${t}</li>`).join('');
+    return `<div class="sk ${locked?'locked':''} ${can?'ready':''}">
+      <b>[${keys[i]}] ${s.name}</b> <span class="cd" id="skcd${i}"></span><br>
+      <span class="pips">${locked&&r<1?'ab Level '+CFG.unlock[i]:pips}</span><ul>${lines}</ul>
+      <button data-i="${i}" ${can?'':'disabled'}>+ Skillpunkt</button></div>`;
+  }).join('');
+  document.querySelectorAll('#skills button').forEach(b=>b.onclick=()=>learn(+b.dataset.i));
+}
+function buildSend(){
+  if(!isMainG()) return;
+  const p = document.getElementById('sendPanel');
+  p.innerHTML = Object.entries(UNITS).filter(([k,u])=>!u.noSend).map(([k,u])=>
+    `<button data-k="${k}" title="+${u.inc} Einkommen, ${u.lives} Leben bei Durchbruch">[${u.key}] ${u.name} – ${u.cost}g <small>(+${u.inc} Eink.)</small></button>`).join('');
+  p.querySelectorAll('button').forEach(b=>b.onclick=()=>send(b.dataset.k));
+}
+function buildShop(){
+  if(!isMainG()) return;
+  const p = document.getElementById('shopPanel');
+  const bag = H.bag, count = (id)=>bag.filter(x=>x===id).length;
+  // Rezept-Fortschritt je Item: vollständig (alle direkten Teile im Rucksack) oder teilweise
+  const info = {}, parents = {};
+  for(const it of ITEM_LIST){
+    if(!it.parts) continue;
+    for(const pid of new Set(it.parts)) (parents[pid] = parents[pid] || []).push(it.id);
+    const need = {}; it.parts.forEach(x=>need[x]=(need[x]||0)+1);
+    const missing = [];
+    for(const [pid,n] of Object.entries(need)) for(let k=Math.min(n,count(pid)); k<n; k++) missing.push(pid);
+    const full = totalCost(it.id), price = resolveBuy(it.id, bag).cost;
+    info[it.id] = {direct:missing.length===0, missing, progress:(full-price)/full, price};
+  }
+  const ready = ITEM_LIST.filter(i=>info[i.id] && info[i.id].direct);
+  const partial = ITEM_LIST.filter(i=>info[i.id] && !info[i.id].direct && info[i.id].progress>0)
+                          .sort((a,b)=>info[b.id].progress-info[a.id].progress || info[a.id].price-info[b.id].price).slice(0,8);
+  const readyUse = {};   // Teil-ID → fertige Items, die du damit jetzt bauen kannst
+  for(const it of ready) for(const pid of new Set(it.parts)) (readyUse[pid] = readyUse[pid] || []).push(it.name);
+  const names = (arr,max=4)=>arr.slice(0,max).join(', ')+(arr.length>max?` +${arr.length-max} weitere`:'');
+  const btn = (it)=>{
+    const inf = info[it.id];
+    const price = it.consumable ? it.cost : resolveBuy(it.id, bag).cost;
+    const recipe = it.parts ? '\nRezept: '+it.parts.map(x=>ITEM[x].name).join(' + ')+' + '+it.cost+'g' : '';
+    let cls = it.parts ? 'fertig' : '', tag = '';
+    if(inf && inf.direct){ cls += ' ready'; tag = `<br><span class="tag ok">✔ BAUBAR: ${it.parts.map(x=>ITEM[x].name).join(' + ')}</span>`; }
+    else if(inf && inf.progress>0){ cls += ' partial'; tag = `<br><span class="tag warn">fehlt: ${inf.missing.map(x=>ITEM[x].name).join(', ')}</span>`; }
+    else if(!it.parts && !it.consumable && count(it.id)>0 && parents[it.id]){
+      cls += ' owned'; tag = `<br><span class="tag ok">im Rucksack ×${count(it.id)} → für: ${names(parents[it.id].map(x=>ITEM[x].name))}</span>`;
+    }
+    const fit = FIT[it.id] ? `<br><small style="color:#c9a227">für: ${FIT[it.id]}</small>` : '';
+    const html = `<button class="${cls}" data-buy="${it.id}" title="${it.desc}${recipe}">${it.name} – ${price}g${fit}${tag}<br><small>${it.desc.length>70 ? it.desc.slice(0,67)+'…' : it.desc}</small><br><span class="why"></span></button>`;
+    return it.parts ? `<div class="itemwrap">${html}${flyHtml(it)}</div>` : html;   // Items mit Rezept: Hover öffnet die Vorstufen zum direkten Kaufen
+  };
+  // Hover-Fenster: alle Vorstufen (inkl. Zwischenstufen) mit eigenem Kauf-Button; was du schon hast, ist mit ✓ markiert
+  const flyHtml = (it)=>{
+    const avail = {}; bag.forEach(x=>avail[x]=(avail[x]||0)+1);
+    let rows = '';
+    const rec = (pid, depth)=>{
+      const pi = ITEM[pid], have = avail[pid]>0; if(have) avail[pid]--;
+      const price = pi.parts ? resolveBuy(pid, bag).cost : pi.cost;
+      rows += `<div class="frow" style="margin-left:${depth*14}px"><button class="${have?'owned':''}" data-buy="${pid}" title="${pi.desc}">${have?'✓ ':''}${pi.name} – ${have?'im Rucksack':price+'g'}<span class="why"></span></button></div>`;
+      if(pi.parts && !have) pi.parts.forEach(sp=>rec(sp, depth+1));
+    };
+    it.parts.forEach(pid=>rec(pid,0));
+    return `<div class="flyout"><div class="fhead">Vorstufen von <b>${it.name}</b> <small>(Rezept ${it.cost}g)</small></div>${rows}</div>`;
+  };
+  // Rucksack + Verbrauchs-Slots (Teile, die du für ein baubares Item brauchst, sind grün markiert)
+  const full = bag.length >= CFG.bagSize;
+  let html = `<div class="shopsec"><b>Rucksack</b> ${full ? '<b style="color:#ff8a7a">⚠ VOLL – klicke ein Item, um es zu verkaufen</b>' : ''} <small>(${bag.length}/${CFG.bagSize} · Klick = verkaufen für ${Math.round(CFG.sellRatio*100)} % des Gesamtpreises · grün = Teil eines baubaren Items)</small><div class="row">`;
+  for(let i=0;i<CFG.bagSize;i++){
+    const id = bag[i], use = id && readyUse[id];
+    html += id ? `<button class="slot full ${use?'hint':''}" data-sell="${i}" title="${ITEM[id].desc}">${ITEM[id].name}<br><small>${use ? '→ '+names(use,2) : 'verkaufen '+Math.floor(totalCost(id)*CFG.sellRatio)+'g'}</small></button>`
+               : `<button class="slot" disabled>leer</button>`;
+  }
+  html += `</div><div style="margin-top:4px"><b>Verbrauch</b> <small>(Taste F)</small> – Heiltrank: <b>${H.cons.potion}</b>/${CFG.consMax}${H.potCd>0?` <small>(Abklingzeit ${Math.ceil(H.potCd)} s)</small>`:''}</div></div>`;
+  // Schnellzugriff: was kann ich JETZT bauen, und woran arbeite ich?
+  if(ready.length) html += `<div class="shopsec"><b style="color:#4cd964">★ Jetzt baubar</b> <small>(alle Teile im Rucksack – du zahlst nur das Rezept)</small><div class="row">${ready.map(btn).join('')}</div></div>`;
+  if(partial.length) html += `<div class="shopsec"><b style="color:#e0b13a">In Arbeit</b> <small>(du hast schon Teile dafür)</small><div class="row">${partial.map(btn).join('')}</div></div>`;
+  if(!ready.length && !partial.length) html += `<div class="shopsec"><small style="color:#9aa3b5">Tipp: Kaufe Teile – hier erscheinen dann sofort alle Items, die du damit bauen kannst.</small></div>`;
+  // Shop-Listen
+  const sections = [
+    ['Teile (Bausteine)',                    i=>i.group==='teil'],
+    ['Zwischenstufen',                       i=>i.group==='zwischen'],
+    ['Hüte (nur einer im Rucksack: Lederhut → Spezialhut)', i=>i.group==='hut'],
+    ['Fertige Items – Damage',               i=>i.group==='fertig' && CAT[i.id]==='damage'],
+    ['Fertige Items – Caster',               i=>i.group==='fertig' && CAT[i.id]==='caster'],
+    ['Fertige Items – Tank',                 i=>i.group==='fertig' && CAT[i.id]==='tank'],
+    ['Mischitems (klassenübergreifende Builds)', i=>i.group==='fertig' && CAT[i.id]==='mix'],
+    ['Wirtschaft',                           i=>i.group==='fertig' && CAT[i.id]==='gold'],
+    ['Einfache Basis-Items',                 i=>i.group==='basis'],
+    ['Verbrauchsgegenstände',                i=>i.group==='verbrauch'],
+  ];
+  for(const [label,filter] of sections){
+    html += `<div class="shopsec"><b>${label}</b><div class="row">`;
+    for(const it of ITEM_LIST.filter(filter)) html += btn(it);
+    html += `</div></div>`;
+  }
+  p.innerHTML = html;
+  p.querySelectorAll('.itemwrap').forEach(w=>{   // Hover-Fenster am rechten Rand nach links öffnen
+    const r = w.getBoundingClientRect(); if(r.left + 330 > window.innerWidth - 10) w.querySelector('.flyout').classList.add('right');
+  });
+  p.querySelectorAll('button[data-buy]').forEach(b=>b.onclick=()=>buy(b.dataset.buy));
+  p.querySelectorAll('button[data-sell]').forEach(b=>b.onclick=()=>sell(+b.dataset.sell));
+}
+function showMsg(t,c){ const m=document.getElementById('msg'); m.textContent=t; m.style.color=c; }
+
+// ====== EINGABE ======
+function setMouse(e){
+  const r = cv.getBoundingClientRect();
+  mouse.x = e.clientX-r.left; mouse.y = e.clientY-r.top;
+  mouse.wx = mouse.x + cam.x; mouse.wy = mouse.y - CY;
+}
+cv.addEventListener('mousemove', e=>{ if(cam) setMouse(e); });
+cv.addEventListener('contextmenu', e=>{
+  e.preventDefault(); if(!running || H.dead || viewEnemy || paused || P.G.over) return; setMouse(e);
+  if(H.bp>0) cancelBackport();
+  let hit = null, best = 1e9;
+  for(const u of G.units){ if(u.lane!==0) continue; const d = Math.hypot(u.x-mouse.wx,u.y-mouse.wy); if(d<u.r+8 && d<best){best=d;hit=u;} }
+  if(hit){ H.target = hit; H.moveTo = null; }
+  else { H.target = null; H.moveTo = {x:Math.max(20,mouse.wx), y:clampY(mouse.wy)}; }
+});
+addEventListener('keydown', e=>{
+  const k = e.key.toLowerCase();
+  if(rebinding){ handleRebind(e, k); return; }                       // Einstellungen: neue Taste zuweisen
+  if(document.activeElement && ['INPUT','SELECT','TEXTAREA'].includes(document.activeElement.tagName)) return;
+  if(!running) return;
+  const K = settings.keys;
+  if(k==='escape'){ if(document.getElementById('settings').style.display!=='none') closeSettings(); else togglePause(); return; }
+  if(k===K.pause){ e.preventDefault(); togglePause(); return; }
+  if(k===K.spectate){ e.preventDefault(); viewEnemy = !viewEnemy; return; }
+  if(P.G.over) return;
+  const si = [0,1,2,3].find(i=>K['skill'+i]===k);
+  if(si!==undefined){ if(e.shiftKey) learn(si); else if(!paused) castSlot(si); return; }   // Skillpunkte gehen auch in der Pause
+  if(paused) return;
+  if(k===K.backport) startBackport();
+  else if(k===K.stop){ H.moveTo=null; H.target=null; }
+  else if(k===K.potion) drinkPotion();
+  else { for(const t of Object.keys(UNITS)) if(!UNITS[t].noSend && K['send_'+t]===k) send(t); }
+});
+
+// ====== TESTFENSTER ======
+const enemyLivesTxt = ()=> !E ? '-' : (E.G.lives>1e8 ? '∞' : E.G.lives);
+function dbg(a, arg){
+  if(!H) return;
+  const clamp = (v,lo,hi)=>Math.max(lo,Math.min(hi,v));
+  if(a==='lvl'){ H.lvl = clamp(H.lvl+arg,1,CFG.maxLevel); H.xp = 0; H.hp = Math.min(Math.max(H.hp,1), hMaxHp()); }
+  else if(a==='sp') H.sp = Math.max(0, H.sp+arg);
+  else if(a==='rank'){ const [i,d] = arg; H.ranks[i] = clamp(H.ranks[i]+d, 0, SK[H.key][i].max); }
+  else if(a==='allmax'){ H.lvl = CFG.maxLevel; H.ranks = SK[H.key].map(s=>s.max); H.sp = 0; H.hp = hMaxHp(); }
+  else if(a==='reset'){ H.ranks = [0,0,0,0]; H.sp = H.lvl; }
+  else if(a==='cd') H.cds = [0,0,0,0];
+  else if(a==='gold') G.gold += 1000;
+  else if(a==='wave') spawnWave();
+  else if(a==='clear') G.units = G.units.filter(u=>u.lane!==0);
+  else if(a==='god') H.god = !H.god;
+  else if(a==='einf' && E) E.G.lives = E.G.lives>1e8 ? CFG.startLives : 1e9;
+  buildSkills(); dbgUpdate();
+}
+function dbgUpdate(){
+  if(!H || !isMainG()) return;
+  const s = (id,v)=>{ const e = document.getElementById(id); if(e) e.textContent = v; };
+  s('dLvl',H.lvl); s('dSp',H.sp); for(let i=0;i<4;i++) s('dR'+i,H.ranks[i]);
+  s('dGod','Unsterblich: '+(H.god?'an':'aus'));
+  if(E) s('dInf','Gegner-Leben ∞: '+(E.G.lives>1e8?'an':'aus'));
+}
+if(CFG.debug){
+  addEventListener('keydown', e=>{ if(e.key==='F2'){ e.preventDefault(); document.getElementById('dbg').classList.toggle('open'); } });
+  document.getElementById('dbg').classList.add('open');
+  const box = document.getElementById('dbg'), head = document.getElementById('dbgHead'); let drag = null;
+  head.addEventListener('mousedown', e=>{ const r = box.getBoundingClientRect(); drag = {dx:e.clientX-r.left, dy:e.clientY-r.top}; });
+  addEventListener('mousemove', e=>{ if(drag){ box.style.left = (e.clientX-drag.dx)+'px'; box.style.top = (e.clientY-drag.dy)+'px'; box.style.right = 'auto'; } });
+  addEventListener('mouseup', ()=>drag = null);
+}
+
+// ====== GEGNER-BOT ======
+// Spielt wie ein Mensch: Reaktionszeit, gelegentliche Fehler, Einkaufsreisen per Backport, Sende-Entscheidungen.
+const BOT_CLASS = {
+  tank:   {bias:[0,1,1,-10],  items:['sword','armor','gloves','heart','sword','armor','gloves','heart','sword']},
+  damage: {bias:[0,1,1,-10],  items:['sword','gloves','heart','sword','gloves','armor','boots','sword','heart']},
+  caster: {bias:[0,1,.5,-10], items:['staff','boots','heart','staff','gloves','staff','armor','heart','staff']},
+};
+const BOT_SEND_W = t => t<480 ? {grunt:3,tank:3,archer:2,fast:1,elite:0} : {grunt:1,tank:3,archer:2,fast:1,elite:3};
+const nearCount = r => { let n=0; for(const u of G.units) if(u.lane===0 && Math.hypot(u.x-H.x,u.y-H.y)<=r) n++; return n; };
+const dist2 = (a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
+
+// Bauplan je Klasse: Reihenfolge der Käufe (fertige Items kombinieren die Teile im Rucksack automatisch)
+const BOT_BUILD = {
+  tank:   ['cloth','cloth','strongArmor','cloth','thornArmor','thornShirt','thornPlate','hat','hatGuard','heart','potion','heart','potion'],
+  damage: ['bigSword','rake','critCloak','mightyBlade','hat','hatWind','gloves','heart','potion','sword','potion'],
+  caster: ['bigStaff','bigStaff','arcaneCrown','hat','hatSage','heart','staff','potion','gloves','heart','potion'],
+};
+// Alternative Baupläne (für Simulationen: I.build = BOT_VARIANTS.xyz)
+const BOT_VARIANTS = {
+  damageStorm: ['rake','critCloak','windCloak','stormBreaker','hat','hatWind','gloves','heart','potion','sword','potion'],
+  casterTime:  ['bigStaff','timeAmulet','timeStaff','hat','hatSage','heart','staff','potion','gloves','heart','potion'],
+  tankTitan:   ['cloth','lifeStone','regenBand','titanPlate','hat','hatGuard','heart','potion','heart','potion'],
+  casterMask:  ['wand','ruby','tome','guise','tormentMask','hat','hatSage','heart','potion','gloves','potion'],
+  damageRuin:  ['rake','bloodGem','cutlass','windCloak','ruinBlade','hat','hatWind','heart','potion','sword','potion'],
+  tankSpring:  ['lifeStone','ruby','regenBand','lifeSpring','hat','hatGuard','cloth','potion','heart','potion'],
+  // Neue Items (klassenübergreifend)
+  damageCleave: ['bigSword','dagger','cleaver','hat','hatWind','rake','bloodGem','cutlass','potion','heart','potion'],
+  casterSpark:  ['dagger','wand','windCloak','sparkBlade','hat','hatBlood','bigStaff','bigStaff','arcaneCrown','potion','heart','potion'],
+  casterVamp:   ['bloodGem','spellGem','ruby','soulDrinker','hat','hatBlood','bigStaff','bigStaff','arcaneCrown','potion','heart','potion'],
+  casterTank:   ['ruby','tome','guise','regenBand','moonstone','hat','hatGuard','lifeStone','heart','potion','potion'],
+  tankGiant:    ['lifeStone','bigSword','giantsMight','hat','hatGuard','cloth','cloth','strongArmor','ruby','bulwark','potion','potion'],
+  damageVamp:   ['bloodGem','spellGem','ruby','soulDrinker','bigSword','rake','critCloak','mightyBlade','hat','hatBlood','potion','potion'],
+  goldDamage:   ['coinPouch','coinPouch','merchantChain','bigSword','rake','critCloak','mightyBlade','hat','hatWind','potion','potion'],
+};
+// Build-Auswahl des Gegners: pro Klasse mehrere gleichwertige Builds (aus der Balance-Messung), zufällig gewählt
+const BOT_POOL = (()=>{
+  const FD=['gloves','heart','potion','sword','potion'], FC=['heart','staff','potion','gloves','potion'], FT=['heart','potion','heart','potion'];
+  return {
+    damage: [
+      ['bigSword','rake','critCloak','mightyBlade','hat','hatWind',...FD],
+      ['rake','critCloak','windCloak','stormBreaker','hat','hatWind',...FD],
+      ['rake','bloodGem','cutlass','windCloak','ruinBlade','hat','hatBlood',...FD],
+      ['bigSword','dagger','cleaver','hat','hatWind',...FD],
+      ['bloodGem','spellGem','ruby','soulDrinker','bigSword','rake','critCloak','mightyBlade','hat','hatBlood','potion','potion'],
+    ],
+    caster: [
+      ['bigStaff','bigStaff','arcaneCrown','hat','hatSage',...FC],
+      ['bigStaff','timeAmulet','timeStaff','hat','hatSage',...FC],
+      ['wand','ruby','tome','guise','tormentMask','hat','hatSage',...FC],
+      ['dagger','wand','windCloak','sparkBlade','hat','hatWind',...FC],
+      ['bloodGem','spellGem','ruby','soulDrinker','hat','hatBlood',...FC],
+      ['ruby','tome','guise','regenBand','moonstone','hat','hatSage',...FC],
+    ],
+    tank: [
+      ['cloth','cloth','strongArmor','cloth','thornArmor','thornShirt','thornPlate','hat','hatGuard',...FT],
+      ['cloth','lifeStone','regenBand','titanPlate','hat','hatGuard',...FT],
+      ['lifeStone','ruby','regenBand','lifeSpring','hat','hatGuard',...FT],
+      ['cloth','cloth','strongArmor','ruby','bulwark','hat','hatGuard',...FT],
+      ['lifeStone','bigSword','giantsMight','hat','hatGuard',...FT],
+    ],
+  };
+})();
+function pickBotBuild(heroKey){ const p = BOT_POOL[heroKey]; return p[Math.floor(Math.random()*p.length)]; }
+const botPlan = I => I.build || BOT_BUILD[H.key];
+// Preis des nächsten Bauplan-Schritts (0 = Bauplan abgeschlossen)
+function botNextCost(I){
+  const id = botPlan(I)[I.b.step]; if(!id) return 0;
+  return ITEM[id].consumable ? ITEM[id].cost : resolveBuy(id, H.bag).cost;
+}
+function botShop(I){
+  const plan = botPlan(I);
+  while(I.b.step < plan.length){
+    const id = plan[I.b.step], it = ITEM[id];
+    if(buy(id)) { I.b.step++; continue; }
+    // Schritt überspringen, wenn er nie möglich ist (Rucksack voll / Trankvorrat voll); sonst auf mehr Gold warten
+    const blocked = it.consumable ? H.cons[id]>=CFG.consMax : (H.bag.length - resolveBuy(id,H.bag).consumed.length + 1 > CFG.bagSize);
+    if(blocked) I.b.step++; else break;
+  }
+}
+function botLearn(I){
+  const bias = BOT_CLASS[H.key].bias;
+  while(H.sp>0){
+    let best=-1, bs=1e9;
+    for(let i=0;i<4;i++){ const s = SK[H.key][i]; if(H.lvl<CFG.unlock[i] || H.ranks[i]>=s.max) continue;
+      const sc = H.ranks[i] + bias[i]; if(sc<bs){ bs=sc; best=i; } }
+    if(best<0) break; learn(best);
+  }
+}
+function botSkills(I, tgt){
+  const cast = i => { if(Math.random() >= I.diff.miss) castSlot(i); };   // Fehlerquote je Schwierigkeit
+  mouse.wx = tgt.x + (Math.random()*30-15); mouse.wy = tgt.y + (Math.random()*20-10);
+  const hp = H.hp/hMaxHp();
+  if(H.key==='tank'){
+    if(nearCount(240)>=1) cast(0);
+    if(nearCount(450)>=1) cast(2);
+    if(nearCount(190)>=3 || (hp<.4 && nearCount(190)>=1)) cast(3);
+  } else if(H.key==='damage'){
+    if(nearCount(115)>=2 || (hp<.6 && nearCount(115)>=1)) cast(0);
+    if(nearCount(220)>=3 || (nearCount(220)>=1 && hp<.5)) cast(1);
+    if(nearCount(420)>=1 && dist2(tgt,H)>110) cast(2);
+    if(nearCount(650)>=3) cast(3);
+  } else {
+    if(nearCount(380)>=3) cast(0);
+    if(nearCount(240)>=2) cast(1);
+    if(nearCount(500)>=2) cast(2);
+    if(nearCount(450)>=2) cast(3);
+  }
+}
+function botSend(I, O){
+  const b = I.b;
+  if(G.t < 35 || G.t - b.lastSend < I.diff.sendEvery) return;
+  const ph = G.t<240 ? 0 : G.t<600 ? 1 : 2;
+  let f = I.diff.strat[ph];
+  if(O.H.dead>0) f = Math.min(.9, f*1.6);                           // Gegner-Held tot → Druck machen
+  if(G.units.filter(u=>u.lane===0).length>22) f *= .4;              // eigene Lane brennt → erst verteidigen
+  const reserve = (inBase() || b.mode==='shop') ? 0 : botNextCost(I)*.7;
+  let budget = Math.max(0, G.gold - reserve)*f;
+  for(let n=0;n<10;n++){
+    const w = BOT_SEND_W(G.t), opts = Object.keys(w).filter(k=>w[k]>0 && UNITS[k].cost<=budget);
+    if(!opts.length) break;
+    const tot = opts.reduce((a,k)=>a+w[k],0); let r = Math.random()*tot, pick = opts[0];
+    for(const k of opts){ r -= w[k]; if(r<=0){ pick = k; break; } }
+    G.gold -= UNITS[pick].cost; G.income += UNITS[pick].inc*CFG.incMul; G.stats.sent[pick] = (G.stats.sent[pick]||0)+1;
+    sendTo(O, pick); budget -= UNITS[pick].cost; b.lastSend = G.t;
+  }
+}
+function botThink(I, O, dt){
+  const b = I.b, diff = I.diff;
+  if(H.dead){ if(!b.wasDead){ b.deaths++; b.deathTimes.push(G.t); b.wasDead = true; } b.mode='fight'; b.clock = 0; return; }
+  b.wasDead = false;
+  b.clock -= dt; if(b.clock>0) return;
+  b.clock = diff.react[0] + Math.random()*(diff.react[1]-diff.react[0]);   // Reaktionszeit
+  botLearn(I);
+  if(H.cons.potion>0 && H.hp < .4*hMaxHp()) drinkPotion();           // Trank trinken bei wenig Leben
+  if(inBase()){ botShop(I); if(b.mode!=='fight' && H.hp>.9*hMaxHp()) b.mode='fight'; }
+  botSend(I, O);
+  const en = enemies(), near = nearCount(300);
+  if(b.mode==='fight'){
+    const nx = botNextCost(I);
+    if(H.hp < diff.retreat*hMaxHp()) b.mode = 'retreat';
+    else if(nx>0 && !inBase() && H.bpCd<=0 && near===0 && (G.gold>=diff.shopGold*nx || (G.gold>=nx && (en.length===0 || H.hp<.6*hMaxHp())))) b.mode = 'shop';
+  }
+  if(b.mode==='retreat' || b.mode==='shop'){
+    if(inBase()){ if(b.mode==='shop'){ b.trips++; b.mode='fight'; } return; }
+    if(H.bp<=0){ H.target = null;
+      if(H.bpCd<=0 && nearCount(260)===0) startBackport(); else H.moveTo = {x:100, y:0}; }
+    return;
+  }
+  if(!en.length){ H.target = null; H.moveTo = {x:700, y:0}; return; }
+  let best=null, bs=1e9;
+  for(const u of en){ let s = u.x; if(u.type==='archer') s-=250; if(u.type==='elite') s-=120; if(u.type==='fast') s-=150; if(dist2(u,H)>800) s+=500; if(s<bs){ bs=s; best=u; } }
+  H.target = best; H.moveTo = null;
+  botSkills(I, best);
+}
+function botStep(I, O, dt){
+  useInst(I);
+  const pm = mouse; mouse = I.mouse;          // der Bot zielt mit eigenem Mauszeiger, nicht mit deinem
+  try { botThink(I, O, dt); } finally { mouse = pm; }
+}
+
+// ====== BEDIENUNG: Einstellungen, Pause, Tempo, Menü, Endbildschirm, Hinweise, Skill-Leiste ======
+const SETTINGS_KEY = 'lanewars.settings.v1';
+const DEFAULT_KEYS = {skill0:'q', skill1:'w', skill2:'e', skill3:'r', backport:'b', stop:'s', potion:'f', pause:'p', spectate:'tab',
+                      send_grunt:'z', send_tank:'x', send_archer:'c', send_fast:'v', send_elite:'n'};
+const KEY_LABELS = {skill0:'Skill 1', skill1:'Skill 2', skill2:'Skill 3', skill3:'Ultimate', backport:'Backport', stop:'Stopp', potion:'Heiltrank',
+                    pause:'Pause', spectate:'Gegner zuschauen', send_grunt:'Senden: Grunt', send_tank:'Senden: Brocken', send_archer:'Senden: Schütze',
+                    send_fast:'Senden: Läufer', send_elite:'Senden: Elite'};
+let settings = {keys:{...DEFAULT_KEYS}, volume:70, lastHero:null, lastDiff:'normal', lastEnemy:'random'};
+try{ const s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || 'null'); if(s) settings = {...settings, ...s, keys:{...DEFAULT_KEYS, ...(s.keys||{})}}; }catch(e){}
+const saveSettings = ()=>{ try{ localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); }catch(e){} };
+const keyName = k => k.length===1 ? k.toUpperCase() : ({tab:'Tab', escape:'Esc', ' ':'Leertaste', enter:'Enter'}[k] || k.charAt(0).toUpperCase()+k.slice(1));
+function applyKeys(){ for(const t of Object.keys(UNITS)) if(!UNITS[t].noSend) UNITS[t].key = keyName(settings.keys['send_'+t]); }
+applyKeys();
+
+let paused = false, gameSpeed = 1, endShown = false, rebinding = null, settingsPaused = false;
+const uiT = {base:0, sp:0, lives:null, warnWave:0};
+
+function buildHelp(){
+  const K = settings.keys, n = k=>keyName(K[k]);
+  document.getElementById('helpText').innerHTML =
+    `Rechtsklick: laufen / angreifen · <b>${n('skill0')} ${n('skill1')} ${n('skill2')} ${n('skill3')}</b>: Skills auf Mauszeiger · <b>Shift+Taste</b> oder „+“: Skillpunkt vergeben · <b>${n('backport')}</b>: Backport · <b>${n('stop')}</b>: Stopp · `+
+    `<b>${n('potion')}</b>: Heiltrank · Senden: <b>${['grunt','tank','archer','fast','elite'].map(t=>n('send_'+t)).join(' ')}</b> · <b>${n('pause')}</b>/<b>Esc</b>: Pause · <b>${n('spectate')}</b>: Gegner zuschauen · Shop nur an der Basis`;
+}
+function syncToolbar(){
+  document.getElementById('btnPause').textContent = paused ? '▶ Weiter ('+keyName(settings.keys.pause)+')' : '⏸ Pause ('+keyName(settings.keys.pause)+')';
+  document.querySelectorAll('#toolbar [data-speed]').forEach(b=>b.classList.toggle('on', +b.dataset.speed===gameSpeed));
+  document.getElementById('pauseNote').style.display = paused ? 'block' : 'none';
+}
+function togglePause(){ if(!running || (P && P.G.over)) return; paused = !paused; settingsPaused = false; syncToolbar(); }
+function setSpeed(n){ gameSpeed = n; syncToolbar(); }
+function closeOverlays(){ document.getElementById('endScreen').style.display = 'none'; document.getElementById('settings').style.display = 'none'; }
+function clearAlerts(){ const b = document.getElementById('alerts'); if(b) b.innerHTML = ''; }
+function restartGame(){
+  if(!P) return;
+  if(!P.G.over && !confirm('Partie wirklich neu starten?')) return;
+  closeOverlays(); newGame(P.H.key);
+}
+function toMenu(){
+  if(running && P && !P.G.over && !confirm('Zurück zum Menü? Die laufende Partie geht verloren.')) return;
+  running = false; paused = false; closeOverlays(); clearAlerts(); hideTip();
+  document.getElementById('msg').textContent = ''; document.getElementById('start').style.display = '';
+  syncToolbar(); markLastHero();
+}
+function markLastHero(){
+  document.getElementById('diffSel').value = settings.lastDiff || 'normal';
+  document.getElementById('enemySel').value = settings.lastEnemy || 'random';
+  document.querySelectorAll('#heroPick button').forEach(b=>b.classList.toggle('last', b.dataset.k===settings.lastHero));
+}
+
+// --- Hinweise (Einblendungen über dem Spielfeld) ---
+function uiAlert(text, kind='info', ms=3200){
+  if(!running) return;
+  const box = document.getElementById('alerts'); if(!box) return;
+  const d = document.createElement('div'); d.className = 'alert '+kind; d.textContent = text; box.appendChild(d);
+  while(box.children.length > 4) box.removeChild(box.firstChild);
+  setTimeout(()=>d.remove(), ms);
+}
+function uiTick(dt){   // Warnungen: Basis in Gefahr, verlorene Leben, ungenutzte Skillpunkte; Endbildschirm
+  if(!P) return;
+  const g = P.G, h = P.H;
+  if(!g.over && !paused){
+    uiT.base -= dt; uiT.sp -= dt;
+    if(uiT.lives === null) uiT.lives = g.lives;
+    if(g.lives < uiT.lives) uiAlert(`−${uiT.lives-g.lives} Leben! Noch ${Math.max(0,g.lives)}`, 'danger');
+    uiT.lives = g.lives;
+    if(uiT.base <= 0){
+      const near = g.units.filter(u=>u.lane===0 && u.x < CFG.baseX+320).length;
+      if(near>0){ uiAlert(`⚠ ${near} Monster nahe deiner Basis!`, 'danger', 2600); uiT.base = 6; }
+    }
+    const nk = waveKind(g.wave+1);   // Vorschau: besondere Welle in 10 Sekunden
+    if(nk!=='normal' && g.waveT<=10 && g.waveT>0 && uiT.warnWave!==g.wave+1){ uiT.warnWave = g.wave+1; uiAlert(`In ${Math.ceil(g.waveT)} s: ${WAVE_NAME[nk]}!`, 'danger', 4500); }
+    if(uiT.sp <= 0){
+      if(h.sp>0 && [0,1,2,3].some(i=>h.lvl>=CFG.unlock[i] && h.ranks[i]<SK[h.key][i].max)) uiAlert('Skillpunkt frei – Shift+Taste oder „+“ in der Skill-Leiste', 'info', 3000);
+      uiT.sp = 30;
+    }
+  }
+  if(g.over && !endShown){ endShown = true; setTimeout(showEnd, 1100); }
+}
+
+// --- Endbildschirm mit Statistik ---
+function showEnd(){
+  if(!P || !P.G.over || !running) return;   // nicht anzeigen, wenn du schon im Menü bist
+  const win = P.G.lives > 0;
+  const fmtT = s=>Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0');
+  const side = S=>{
+    const sent = S.G.stats.sent, total = Object.values(sent).reduce((a,b)=>a+b,0);
+    return {
+      hero: `${S.H.d.name} (Level ${S.H.lvl})`,
+      lives: `${S.G.lives>1e8 ? '∞' : Math.max(0,S.G.lives)} von ${CFG.startLives}`,
+      kills: S.G.stats.kills, deaths: S.H.deaths||0, gold: Math.round(S.G.stats.gold),
+      sent: total ? `${total} (${Object.entries(sent).map(([k,n])=>UNITS[k].name+' '+n).join(', ')})` : '0',
+      income: (S.G.income*(S.G.goldMul||1)).toFixed(1)+' pro '+CFG.incomeTick+' s',
+      boss: S.G.bossSpawned ? (S.G.bossIncome>0 ? 'besiegt (+'+S.G.bossIncome+' Gold pro Welle)' : 'nicht besiegt') : 'nicht erschienen',
+      ranks: S.H.ranks.join(' / '),
+      items: (S.H.bag.map(x=>ITEM[x].name).join(', ') || 'keine') + (S.H.cons.potion ? `, ${S.H.cons.potion}× Heiltrank` : ''),
+    };
+  };
+  const a = side(P), b = side(E);
+  document.getElementById('endTitle').textContent = win ? 'SIEG!' : 'NIEDERLAGE';
+  document.getElementById('endTitle').style.color = win ? '#7be07b' : '#ff6b6b';
+  document.getElementById('endInfo').innerHTML = `<small>Spielzeit ${fmtT(P.G.t)} · Gegner: ${E.H.d.name}, Schwierigkeit ${E.diff.name}</small>`;
+  const rows = [['Held','hero'],['Leben übrig','lives'],['Monster getötet','kills'],['Tode des Helden','deaths'],['Gold verdient','gold'],
+                ['Monster gesendet','sent'],['Einkommen','income'],['Boss','boss'],['Skill-Ränge (Q/W/E/R)','ranks'],['Items im Rucksack','items']];
+  document.getElementById('endTable').innerHTML = `<tr><th></th><th>Du</th><th>Gegner</th></tr>` +
+    rows.map(([l,k])=>`<tr><td>${l}</td><td>${a[k]}</td><td>${b[k]}</td></tr>`).join('');
+  document.getElementById('endScreen').style.display = 'flex';
+}
+
+// --- Einstellungen (Tasten, Lautstärke) ---
+function openSettings(){
+  if(running && !paused && P && !P.G.over){ paused = true; settingsPaused = true; syncToolbar(); }
+  rebinding = null; renderSettings(); document.getElementById('settings').style.display = 'flex';
+}
+function closeSettings(){
+  rebinding = null; document.getElementById('settings').style.display = 'none';
+  if(settingsPaused){ paused = false; settingsPaused = false; syncToolbar(); }
+}
+function renderSettings(){
+  const K = settings.keys;
+  document.getElementById('settingsBody').innerHTML =
+    Object.keys(KEY_LABELS).map(id=>`<div class="krow"><span>${KEY_LABELS[id]}</span><button data-key="${id}">${rebinding===id ? 'Taste drücken …' : keyName(K[id])}</button></div>`).join('') +
+    `<div class="krow"><span>Lautstärke <small>(Sound folgt; der Wert wird gespeichert)</small></span><input type="range" id="volRange" min="0" max="100" value="${settings.volume}"></div>`;
+  document.querySelectorAll('#settingsBody button[data-key]').forEach(b=>b.onclick=()=>{ rebinding = b.dataset.key; renderSettings(); });
+  document.getElementById('volRange').oninput = e=>{ settings.volume = +e.target.value; saveSettings(); };
+}
+function handleRebind(e, k){
+  e.preventDefault();
+  if(['shift','control','alt','meta','capslock'].includes(k)) return;
+  if(k!=='escape'){
+    const other = Object.keys(settings.keys).find(x=>x!==rebinding && settings.keys[x]===k);
+    if(other) settings.keys[other] = settings.keys[rebinding];   // Tausch, falls die Taste schon belegt war
+    settings.keys[rebinding] = k; saveSettings(); applyKeys();
+    if(running){ buildSend(); buildSkills(); } buildHelp(); syncToolbar();
+  }
+  rebinding = null; renderSettings();
+}
+
+// --- Skill-Leiste mit Cooldowns und Tooltips ---
+const f1 = x=>(Math.round(x*10)/10).toString().replace('.',','), rd = Math.round;
+const TIP = {
+  tank:[
+    r=>`Schaden ${rd(dmgOf(CFG.tankQBase,8,r,0,.5))} · Reichweite ${200+15*(r-1)} · Betäubung ${f1(.8+.12*(r-1))} s${r>=3?' · Rückstoß':''}${r>=5?' · 2. Welle '+rd(dmgOf(CFG.tankQBase,8,r,0,.5)*1.25):''}`,
+    r=>{ const x = IRON[r-1]; return `Rüstung +${x.armor} · Dornen ${Math.round(x.reflect*100)} % des erlittenen Schadens · Regeneration ${f1(x.regen*100)} %/s`; },
+    r=>`Schaden ${rd(dmgOf(35,14,r,0,.8))} · ${r>=3?5:3} Ziele · danach Heilung ${Math.round(CFG.shieldHeal*100)} % Leben${r>=5?' · Blutung 5 %/s (3 s)':''}`,
+    r=>`Schaden ${rd(dmgOf(200,0,1,0,1))} im Umkreis 190 · Betäubung 3 s · Rückstoß`],
+  damage:[
+    r=>`Schaden ${rd(dmgOf(30,10,r,0,.7))} · Radius ${95+5*(r-1)} · Heilung ${f1(CFG.whirlHeal[r-1]*100)} % Leben je Gegner (max. ${CFG.whirlHealCap})`,
+    r=>`Angriffstempo +${Math.round((.4+.12*(r-1))*100)} % · Lauftempo +40 · ${r>=3?10:6} s${r>=5?' · Angriffe treffen im Umkreis mit':''}`,
+    r=>`Sprung bis 420 · Aufprall ${rd(dmgOf(20,8,r,0,.4))} (Radius ${80+4*(r-1)})${r>=3?' · Feld '+rd(dmgOf(10,4,r,0,.15))+'/s (4 s)':''}${r>=5?' · Betäubung 1,5 s':''}`,
+    r=>`5 Schwerter: je ${rd(dmgOf(60,0,1,0,.8))} Schaden · Blitzfeld ${rd(dmgOf(18,0,1,0,.3))}/s (8 s)`],
+  caster:[
+    r=>`Feld ${rd(dmgOf(9,5,r,.2,.08))}/s (5 s) · Radius ${90+6*(r-1)}${r>=3?' · jagt Gegner':''}${r>=5?' · Meteor '+rd(dmgOf(120,0,1,.8,.3)):''}`,
+    r=>`Schaden ${rd(dmgOf(20,10,r,.3,0))} · Reichweite ${200+15*(r-1)} · Verlangsamung ${f1(3+.5*(r-1))} s${r>=5?' · Betäubung 1,6 s':r>=3?' · Betäubung 0,8 s':''}`,
+    r=>`Schaden ${rd(dmgOf(40,18,r,.6,0))} je Ziel · ${3+r} Ziele · Krit ${Math.round(CRIT_BY_RANK[r-1]*100)} % (doppelter Schaden, 0,5 s Betäubung)`,
+    r=>`Beschwört einen Elementar (${CFG.elemTime} s, ${CFG.elemHp} Leben) passend zum zuletzt genutzten Skill`],
+};
+function skillTipHtml(i){
+  const s = SK[H.key][i], r = H.ranks[i], tip = TIP[H.key][i];
+  const cd = s.passive ? 'passiv' : `Abklingzeit ${f1(s.cd)} s${H.cdr>0 ? ' (mit Items '+f1(s.cd*(1-H.cdr))+' s)' : ''}`;
+  let rows = ''; for(let k=1;k<=s.max;k++) rows += `<div class="${k===r?'cur':''}">Rang ${k}: ${tip(k)}</div>`;
+  return `<b>[${keyName(settings.keys['skill'+i])}] ${s.name}</b> <small>${cd}${H.lvl<CFG.unlock[i]?' · ab Level '+CFG.unlock[i]:''}</small><div style="margin-top:4px">${rows}</div>`+
+         `<ul>${s.info.map(t=>`<li>${t}</li>`).join('')}</ul>`;
+}
+function showTip(el, html){
+  const t = document.getElementById('tip'); t.innerHTML = html; t.style.display = 'block';
+  const r = el.getBoundingClientRect(), tw = t.offsetWidth, th = t.offsetHeight;
+  t.style.left = Math.max(6, Math.min(innerWidth-tw-6, r.left)) + 'px';
+  t.style.top = Math.max(6, r.top - th - 8) + 'px';
+}
+function hideTip(){ const t = document.getElementById('tip'); if(t) t.style.display = 'none'; }
+function buildSkillbar(){
+  const bar = document.getElementById('skillbar'); if(!bar || !H) return;
+  const keys = [0,1,2,3].map(i=>keyName(settings.keys['skill'+i]));
+  bar.innerHTML = SK[H.key].map((s,i)=>{
+    const r = H.ranks[i], locked = H.lvl < CFG.unlock[i], can = !locked && H.sp>0 && r<s.max;
+    return `<div class="ssl ${locked&&r<1?'locked':''}" data-i="${i}"><div class="cdfill"></div><span class="skey">${keys[i]}</span><span class="sname">${s.name}</span>`+
+           `<span class="srank">${'●'.repeat(r)}${'○'.repeat(s.max-r)}</span><span class="scd"></span>${can?`<button class="splus" data-learn="${i}" title="Skillpunkt vergeben">+</button>`:''}</div>`;
+  }).join('') +
+  `<div class="ssl small" data-x="bp"><div class="cdfill"></div><span class="skey">${keyName(settings.keys.backport)}</span><span class="sname">Backport</span><span class="scd"></span></div>`+
+  `<div class="ssl small" data-x="pot"><div class="cdfill"></div><span class="skey">${keyName(settings.keys.potion)}</span><span class="sname">Heiltrank</span><span class="scd"></span></div>`;
+  bar.querySelectorAll('.ssl[data-i]').forEach(el=>{ el.onmouseenter = ()=>showTip(el, skillTipHtml(+el.dataset.i)); el.onmouseleave = hideTip; });
+  bar.querySelectorAll('.ssl[data-x]').forEach(el=>{
+    el.onmouseenter = ()=>showTip(el, el.dataset.x==='bp'
+      ? `<b>Backport</b><div style="margin-top:4px">Teleportiert dich nach ${f1(CFG.backportCast*(1-H.bpRed))} s Cast-Zeit in die Basis (Schaden oder Bewegung unterbricht). Abklingzeit ${CFG.backportCd} s. Nur in der Basis kannst du einkaufen.</div>`
+      : `<b>Heiltrank</b><div style="margin-top:4px">Heilt ${Math.round(CFG.potionHeal*100)} % deines maximalen Lebens, ${CFG.potionCd} s Abklingzeit. Im Shop (Basis) für ${ITEM.potion.cost} g, höchstens ${CFG.consMax} Stück.</div>`);
+    el.onmouseleave = hideTip;
+  });
+  bar.querySelectorAll('button[data-learn]').forEach(b=>b.onclick=e=>{ e.stopPropagation(); learn(+b.dataset.learn); hideTip(); });
+}
+function updateSkillbar(){
+  const bar = document.getElementById('skillbar'); if(!bar || !H || !bar.children.length) return;
+  bar.querySelectorAll('.ssl[data-i]').forEach(el=>{
+    const i = +el.dataset.i, s = SK[H.key][i], r = H.ranks[i], cd = H.cds[i], tot = Math.max(.1, (s.cd||1)*(1-H.cdr));
+    el.querySelector('.cdfill').style.height = (s.passive || r<1) ? '0%' : Math.min(100, cd/tot*100)+'%';
+    el.querySelector('.scd').textContent = s.passive ? 'passiv' : r<1 ? (H.lvl<CFG.unlock[i] ? 'ab Level '+CFG.unlock[i] : 'nicht gelernt') : cd>0 ? cd.toFixed(1)+' s' : 'bereit';
+  });
+  const bp = bar.querySelector('.ssl[data-x=bp]'), pot = bar.querySelector('.ssl[data-x=pot]');
+  if(bp){ const cd = H.bp>0 ? 0 : H.bpCd; bp.querySelector('.cdfill').style.height = Math.min(100, cd/CFG.backportCd*100)+'%';
+          bp.querySelector('.scd').textContent = H.bp>0 ? 'Cast '+H.bp.toFixed(1)+' s' : H.bpCd>0 ? H.bpCd.toFixed(0)+' s' : inBase() ? 'in Basis' : 'bereit'; }
+  if(pot){ pot.querySelector('.cdfill').style.height = Math.min(100, H.potCd/CFG.potionCd*100)+'%';
+           pot.querySelector('.scd').textContent = H.potCd>0 ? H.potCd.toFixed(0)+' s' : `${H.cons.potion}/${CFG.consMax}`; }
+}
+
+// --- Knöpfe verdrahten ---
+document.getElementById('btnPause').onclick = togglePause;
+document.querySelectorAll('#toolbar [data-speed]').forEach(b=>b.onclick=()=>setSpeed(+b.dataset.speed));
+document.getElementById('btnRestart').onclick = restartGame;
+document.getElementById('btnMenu').onclick = toMenu;
+document.getElementById('btnSettings').onclick = openSettings;
+document.getElementById('btnStartSettings').onclick = openSettings;
+document.getElementById('btnSettingsClose').onclick = closeSettings;
+document.getElementById('btnKeysReset').onclick = ()=>{ settings.keys = {...DEFAULT_KEYS}; saveSettings(); applyKeys(); if(running){ buildSend(); buildSkills(); } buildHelp(); syncToolbar(); renderSettings(); };
+document.getElementById('btnRematch').onclick = ()=>{ closeOverlays(); newGame(P.H.key); };
+document.getElementById('btnEndMenu').onclick = ()=>{ closeOverlays(); running = false; toMenu(); };
+buildHelp(); syncToolbar();
+
+// Heldenwahl
+document.getElementById('heroPick').innerHTML = Object.entries(HEROES).map(([k,h])=>
+  `<button data-k="${k}"><b style="color:${h.col}">${h.name}</b><br><small>${h.desc}</small></button>`).join('');
+document.querySelectorAll('#heroPick button').forEach(b=>b.onclick=()=>newGame(b.dataset.k));
+markLastHero();
+
+function stepWorld(dt){
+  useInst(P); mouse = P.mouse; update(dt);
+  if(!P.G.over) botStep(E, P, dt), (useInst(E), update(dt));   // Gegner-Bot entscheidet, dann läuft seine Lane
+  useInst(P);
+  if(E.G.lives<=0 && !P.G.over){ P.G.over = true; showMsg('SIEG!', '#7be07b'); }
+}
+function loop(now){
+  const dt = Math.min(0.1, (now-last)/1000); last = now;
+  if(running){
+    if(!paused){ let rem = dt*gameSpeed; while(rem > 1e-6){ const s = Math.min(.05, rem); stepWorld(s); rem -= s; } }   // Tempo ×2/×3 = mehrere Teilschritte
+    else { useInst(P); updateHud(true); }                                                                              // Pause: Shop und Skills bleiben aktuell
+    uiTick(dt);
+    useInst(viewEnemy ? E : P); draw(); useInst(P);
+  }
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
