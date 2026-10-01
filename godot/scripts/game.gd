@@ -6,7 +6,10 @@ extends Node3D
 
 const S := 0.05                      # Spielwert -> Meter (Lane 3000 -> 150 m)
 const WALL := 3.2                    # Breite der Felswand zwischen/neben Lanes (Meter)
-const TEAM_SPACE := 22.0             # Abstand zwischen den Lane-Rändern der beiden Teams (Felswand, Gras, Fluss, Felswand)
+const TEAM_SPACE := 28.0             # Abstand zwischen den Lane-Rändern der beiden Teams (Felswand, Gras, Fluss, Felswand)
+# Durchgänge in der Wand zwischen den beiden Lanes eines Teams (4v4): Weg-Bereiche [von, bis] in Spielwerten. Die Basis (x < 300) ist offen.
+const WALL_GAPS := [[800.0, 960.0], [1500.0, 1660.0], [2200.0, 2360.0], [2800.0, 2960.0]]
+const WALL_OPEN_BASE := 300.0
 const CAM_PITCH := 58.0              # Kamerawinkel in Grad (wie Warcraft 3: schräg von oben)
 var cam_dist := 28.0                 # Kamera-Abstand zum Helden (Mausrad)
 
@@ -33,47 +36,135 @@ var lanes_per_team := 1
 var lane_half_g := 90.0              # halbe Lane-Breite in Spielwerten
 var lane_xs: Array[float] = []       # Mitte jeder Lane in Metern, von links nach rechts: erst Team A, dann Team B
 var slot_ys: Array[float] = []       # Spieler-Plätze quer in der Lane (Spielwerte)
+var lane_off_g: Array[float] = []    # Quer-Mitte jeder Lane deines Teams in Spielwerten (Lane 1 = 0, Lane 2 = Abstand)
 
 var cam: Camera3D
 var hud: Label
 var msg: Label
+var started := false
+var trace := false
+var menu_shot := ""
+var menu_layer: CanvasLayer
 
 
 func _ready() -> void:
 	cfg = Data.cfg
-	gold = cfg["startGold"]
-	income = cfg["baseIncome"]
-	lives = int(cfg["startLives"])
-	wave_t = cfg["firstWave"]
 	var sim_secs := 0.0
 	var shot_path := ""
+	var direct := false                  # Kommandozeile gibt Modus vor: Menü überspringen
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--hero="):
 			hero_key = a.substr(7)
 		elif a.begins_with("--sim="):
 			sim_secs = float(a.substr(6))
+			direct = true
 		elif a.begins_with("--shot="):
 			shot_path = a.substr(7)
 		elif a.begins_with("--team="):
 			team_size = int(a.substr(7))
+			direct = true
 		elif a.begins_with("--zoom="):
 			cam_dist = float(a.substr(7))
 		elif a == "--autoplay":
 			autoplay = true
+		elif a == "--trace":
+			trace = true
+		elif a.begins_with("--menushot="):
+			menu_shot = a.substr(11)
+	if direct:
+		_start_game()
+		if sim_secs > 0.0:
+			set_process(false)   # Testmodus: nur der Simulationslauf rechnet
+			_run_simulation(sim_secs, shot_path)
+	else:
+		_show_menu()
+		if menu_shot != "":               # Test: Menü-Bild speichern und beenden
+			for i in 5:
+				await get_tree().process_frame
+			get_viewport().get_texture().get_image().save_png(menu_shot)
+			get_tree().quit()
+
+
+## Startet eine Partie mit dem gewählten Modus (team_size) und Helden (hero_key).
+func _start_game() -> void:
+	gold = cfg["startGold"]
+	income = cfg["baseIncome"]
+	lives = int(cfg["startLives"])
+	wave_t = cfg["firstWave"]
 	_setup_layout()
 	_build_world()
 	_build_hud()
 	_spawn_hero()
-	if sim_secs > 0.0:
-		set_process(false)   # Testmodus: nur der Simulationslauf rechnet
-		_run_simulation(sim_secs, shot_path)
+	started = true
+
+
+## Startmenü: Spielmodus (1v1, 2v2, 4v4) und Held wählen.
+func _show_menu() -> void:
+	menu_layer = CanvasLayer.new()
+	add_child(menu_layer)
+	var bg := ColorRect.new()
+	bg.color = Color("#10131a")
+	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	menu_layer.add_child(bg)
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	menu_layer.add_child(center)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 14)
+	center.add_child(box)
+	var title := Label.new()
+	title.text = "HERO LANE WARS"
+	title.add_theme_font_size_override("font_size", 44)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(title)
+	box.add_child(_menu_row("Spielmodus", [["1 gegen 1", 1], ["2 gegen 2", 2], ["4 gegen 4", 4]], team_size, func(v): team_size = v))
+	var hero_opts := []
+	for k in ["tank", "damage", "caster"]:
+		hero_opts.append([str(Data.heroes[k]["name"]), k])
+	box.add_child(_menu_row("Held", hero_opts, hero_key, func(v): hero_key = v))
+	var info := Label.new()
+	info.text = "1 gegen 1: je eine Lane pro Spieler   |   2 gegen 2: eine breite Lane pro Team\n4 gegen 4: Doppel-Lane pro Team (zwischen den Lanes könnt ihr wechseln und aushelfen)"
+	info.modulate = Color("#9aa3b5")
+	info.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(info)
+	var go := Button.new()
+	go.text = "Spiel starten"
+	go.custom_minimum_size = Vector2(260, 54)
+	go.add_theme_font_size_override("font_size", 22)
+	go.pressed.connect(func():
+		menu_layer.queue_free()
+		_start_game())
+	box.add_child(go)
+
+
+## Eine Zeile mit Auswahl-Knöpfen (nur einer aktiv). opts = [[Beschriftung, Wert], ...]
+func _menu_row(label: String, opts: Array, current: Variant, on_pick: Callable) -> Control:
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 10)
+	var l := Label.new()
+	l.text = label
+	l.custom_minimum_size = Vector2(130, 0)
+	row.add_child(l)
+	var group := ButtonGroup.new()
+	for o in opts:
+		var b := Button.new()
+		b.text = o[0]
+		b.toggle_mode = true
+		b.button_group = group
+		b.custom_minimum_size = Vector2(130, 44)
+		b.button_pressed = (o[1] == current)
+		var val: Variant = o[1]
+		b.pressed.connect(func(): on_pick.call(val))
+		row.add_child(b)
+	return row
 
 
 # ---------------------------------------------------------------- Koordinaten
 ## Spielkoordinaten -> Welt: Die Lane läuft senkrecht über den Bildschirm (Basis unten, Monster kommen von oben).
-## x = Weg entlang der Lane (0 = Basis), y = quer, lane 0 = deine Lane, 1 = Gegner-Lane.
-func _wp(gx: float, gy: float, lane: int = 0) -> Vector3:
-	return Vector3(gy * S + lane_xs[lane], 0.0, -gx * S)
+## x = Weg entlang der Lane (0 = Basis), y = quer über alle Lanes deines Teams (Lane 1 hat die Mitte y = 0).
+func _wp(gx: float, gy: float) -> Vector3:
+	return Vector3(gy * S + lane_xs[0], 0.0, -gx * S)
 
 
 ## Berechnet Lane-Breite, Lane-Mitten und Spieler-Plätze aus der Teamgröße.
@@ -81,7 +172,7 @@ func _setup_layout() -> void:
 	team_size = clampi(team_size, 1, 4)
 	lanes_per_team = 2 if team_size >= 4 else 1
 	var per_lane := int(ceil(float(team_size) / lanes_per_team))
-	lane_half_g = float(cfg["laneHalf"]) * (1.2 if per_lane <= 1 else 1.7)   # 2 Helden pro Lane brauchen eine breitere Lane
+	lane_half_g = float(cfg["laneHalf"]) * (1.2 if per_lane <= 1 else 1.95)   # 2 Helden pro Lane brauchen eine breitere Lane
 	var half := lane_half_g * S
 	lane_xs.clear()
 	var x := 0.0
@@ -94,6 +185,9 @@ func _setup_layout() -> void:
 	slot_ys.clear()
 	for j in per_lane:
 		slot_ys.append((j - (per_lane - 1) / 2.0) * (2.0 * lane_half_g / per_lane))
+	lane_off_g.clear()
+	for k in lanes_per_team:
+		lane_off_g.append((lane_xs[k] - lane_xs[0]) / S)
 
 
 func _cam_offset() -> Vector3:
@@ -150,8 +244,12 @@ func _build_map() -> void:
 		_box(Vector3(cx, 0.02, z_mid + 4.0), Vector3(half * 0.5, 0.06, z_len - 8.0), Color("#8d7d55"))       # Pflasterstreifen in der Mitte
 		var sides: Array = [1.0] if k > 0 else [-1.0, 1.0]   # Lanes desselben Teams teilen sich eine Wand (nur rechts bauen)
 		for side in sides:
-			_box(Vector3(cx + side * (half + WALL / 2.0), 1.1, z_mid - 6.0), Vector3(WALL, 2.4, lane_len + 2.0), Color("#4c4f55"))   # Felswand
-			_box(Vector3(cx + side * (half + WALL / 2.0), 2.45, z_mid - 6.0), Vector3(WALL - 1.0, 0.5, lane_len + 2.0), Color("#5f636b"))
+			var wall_x: float = cx + side * (half + WALL / 2.0)
+			if lanes_per_team == 2 and k == 0 and side > 0.0:
+				_gapped_wall(wall_x)                                  # gemeinsame Wand mit Durchgängen (Helden können die Lane wechseln)
+			else:
+				_box(Vector3(wall_x, 1.1, z_mid - 6.0), Vector3(WALL, 2.4, lane_len + 2.0), Color("#4c4f55"))   # Felswand
+				_box(Vector3(wall_x, 2.45, z_mid - 6.0), Vector3(WALL - 1.0, 0.5, lane_len + 2.0), Color("#5f636b"))
 	var river_x: float = (lane_xs[lanes_per_team - 1] + lane_xs[lanes_per_team]) / 2.0
 	_box(Vector3(river_x, -0.06, z_mid - 6.0), Vector3(5.0, 0.2, lane_len + 2.0), Color("#1f5fa8"))           # Fluss zwischen den Teams
 	var spawn_z := -float(cfg["spawnX"]) * S
@@ -185,6 +283,34 @@ func _build_map() -> void:
 			var tx: float = (x_min - 14.0 - rng.randf() * 12.0) if side < 0.0 else (x_max + 14.0 + rng.randf() * 12.0)
 			_tree(Vector3(tx, 0.0, zz + rng.randf() * 4.0), 0.8 + rng.randf() * 0.7)
 		zz -= 7.0
+
+
+## Wand zwischen den beiden Lanes eines Teams: Stücke zwischen den Durchgängen (WALL_GAPS), an den Durchgängen Torpfosten.
+## Die Basis (x < WALL_OPEN_BASE) ist offen.
+func _gapped_wall(wall_x: float) -> void:
+	var cursor := WALL_OPEN_BASE
+	var end_x := float(cfg["laneLen"]) + 50.0
+	_sand_piece(wall_x, -200.0, WALL_OPEN_BASE)                      # offene Basis: Sandweg statt Wand
+	for g in WALL_GAPS:
+		_sand_piece(wall_x, g[0], g[1])
+		_wall_piece(wall_x, cursor, g[0])
+		_box(Vector3(wall_x, 1.6, -g[0] * S), Vector3(WALL + 0.6, 3.2, 0.9), Color("#6a6e76"))       # Torpfosten
+		_box(Vector3(wall_x, 1.6, -g[1] * S), Vector3(WALL + 0.6, 3.2, 0.9), Color("#6a6e76"))
+		cursor = g[1]
+	_wall_piece(wall_x, cursor, end_x)
+
+
+func _sand_piece(wall_x: float, x0: float, x1: float) -> void:
+	_box(Vector3(wall_x, -0.04, -(x0 + x1) / 2.0 * S), Vector3(WALL + 0.2, 0.1, (x1 - x0) * S), Color("#a89462"))
+
+
+func _wall_piece(wall_x: float, x0: float, x1: float) -> void:
+	if x1 <= x0:
+		return
+	var zc := -(x0 + x1) / 2.0 * S
+	var len := (x1 - x0) * S
+	_box(Vector3(wall_x, 1.1, zc), Vector3(WALL, 2.4, len), Color("#4c4f55"))
+	_box(Vector3(wall_x, 2.45, zc), Vector3(WALL - 1.0, 0.5, len), Color("#5f636b"))
 
 
 func _cyl(pos: Vector3, radius: float, height: float, col: Color, glow: Color = Color(0, 0, 0, 0)) -> MeshInstance3D:
@@ -327,7 +453,7 @@ func _in_base() -> bool:
 
 
 # ---------------------------------------------------------------- Einheiten und Wellen
-func _spawn_unit(type: String, off_x: float, spd_mul: float) -> void:
+func _spawn_unit(type: String, off_x: float, spd_mul: float, lane: int = 0) -> void:
 	var u: Dictionary = Data.units[type]
 	var m := _hp_mult()
 	var node := Node3D.new()
@@ -341,7 +467,7 @@ func _spawn_unit(type: String, off_x: float, spd_mul: float) -> void:
 	node.add_child(body)
 	add_child(node)
 	var ly: float = lane_half_g - 16.0
-	units.append({"type": type, "x": float(cfg["spawnX"]) + off_x + randf() * 30.0, "y": (randf() * 2.0 - 1.0) * ly,
+	units.append({"type": type, "lane": lane, "x": float(cfg["spawnX"]) + off_x + randf() * 30.0, "y": lane_off_g[lane] + (randf() * 2.0 - 1.0) * ly,
 		"hp": float(u["hp"]) * m, "max": float(u["hp"]) * m,
 		"dmg": float(u["dmg"]) * (1.0 + float(cfg["unitDmgScale"]) * (m - 1.0)),
 		"spd": float(u["spd"]) * spd_mul * float(cfg["speedMul"]), "range": float(u["range"]),
@@ -354,13 +480,14 @@ func _spawn_wave() -> void:
 	var count := int(round(float(cfg["waveBase"]) + float(cfg["wavePer"]) * n))
 	var from_x: float = minf(float(cfg["spawnX"]), float(cfg["rampStart"]) + float(cfg["rampStep"]) * (n - 1))
 	var base_off := from_x - float(cfg["spawnX"])
-	for i in count:
-		_spawn_unit("grunt", base_off + i * 4.0, float(cfg["waveSpeedMul"]))
-	if n % int(cfg["eliteEvery"]) == 0:
-		for k in int(cfg["eliteCount"]):
-			_spawn_unit("elite", base_off + count * 4.0 + 30.0 + k * 40.0, float(cfg["waveSpeedMul"]))
-	if n == int(cfg["bossWave"]):
-		_spawn_unit("boss", base_off + count * 4.0 + 160.0, float(cfg["waveSpeedMul"]))
+	for lane in lanes_per_team:          # jede Lane deines Teams bekommt die Welle
+		for i in count:
+			_spawn_unit("grunt", base_off + i * 4.0, float(cfg["waveSpeedMul"]), lane)
+		if n % int(cfg["eliteEvery"]) == 0:
+			for k in int(cfg["eliteCount"]):
+				_spawn_unit("elite", base_off + count * 4.0 + 30.0 + k * 40.0, float(cfg["waveSpeedMul"]), lane)
+		if n == int(cfg["bossWave"]):
+			_spawn_unit("boss", base_off + count * 4.0 + 160.0, float(cfg["waveSpeedMul"]), lane)
 	_flash_msg("Welle %d" % n)
 
 
@@ -462,7 +589,9 @@ func _step_hero(dt: float) -> void:
 			goal = Vector2(tg["x"], tg["y"])
 	elif hero["move_to"] != null:
 		goal = hero["move_to"]
+	var old_y: float = hero["y"]
 	if goal != null:
+		goal = _route(goal)              # bei Doppel-Lane: über einen Durchgang zur anderen Lane laufen
 		var dv: Vector2 = goal - Vector2(hero["x"], hero["y"])
 		var d := dv.length()
 		if d < 4.0:
@@ -473,8 +602,7 @@ func _step_hero(dt: float) -> void:
 			hero["x"] += dv.x / d * step_len
 			hero["y"] += dv.y / d * step_len
 	hero["x"] = clampf(hero["x"], 20.0, float(cfg["laneLen"]))
-	var ly: float = lane_half_g - 10.0
-	hero["y"] = clampf(hero["y"], -ly, ly)
+	hero["y"] = _clamp_y(hero["x"], hero["y"], old_y)
 	# Auto-Angriff: auch im Laufen, sobald ein Gegner in Reichweite ist
 	hero["atk_t"] -= dt
 	var tgt: Variant = hero["target"]
@@ -488,6 +616,49 @@ func _step_hero(dt: float) -> void:
 	if tgt != null and Vector2(tgt["x"] - hero["x"], tgt["y"] - hero["y"]).length() <= range_ + tgt["r"] and hero["atk_t"] <= 0.0:
 		hero["atk_t"] = 1.0 / float(hero["d"]["as"])
 		_hit_unit(tgt, _hero_dmg())
+
+
+## Doppel-Lane (4v4): Quer-Bereich, den der Held betreten darf. Die Wand zwischen den Lanes ist nur an den Durchgängen und in der Basis offen.
+func _in_gap(x: float) -> bool:
+	if x < WALL_OPEN_BASE:
+		return true
+	for g in WALL_GAPS:
+		if x >= g[0] and x <= g[1]:
+			return true
+	return false
+
+
+func _clamp_y(x: float, y: float, old_y: float) -> float:
+	var ly := lane_half_g - 10.0
+	y = clampf(y, -ly, lane_off_g[lanes_per_team - 1] + ly)
+	if lanes_per_team == 2 and not _in_gap(x):
+		var lo := lane_half_g - 10.0
+		var hi: float = lane_off_g[1] - lane_half_g + 10.0
+		if y > lo and y < hi:
+			y = lo if old_y <= (lo + hi) / 2.0 else hi
+	return y
+
+
+## Liegt das Ziel auf der anderen Lane, läuft der Held zuerst zum nächsten Durchgang (oder durch die offene Basis).
+func _route(goal: Vector2) -> Vector2:
+	if lanes_per_team < 2:
+		return goal
+	var mid: float = (lane_off_g[0] + lane_off_g[1]) / 2.0
+	if (hero["y"] < mid) == (goal.y < mid):
+		return goal
+	var best_x := 150.0
+	var best_c: float = absf(hero["x"] - 150.0) + absf(goal.x - 150.0)
+	for g in WALL_GAPS:
+		var cx: float = (g[0] + g[1]) / 2.0
+		var c: float = absf(hero["x"] - cx) + absf(goal.x - cx)
+		if c < best_c:
+			best_c = c
+			best_x = cx
+	if best_x > WALL_OPEN_BASE and absf(hero["x"] - best_x) > 40.0:
+		return Vector2(best_x, hero["y"])      # erst in der eigenen Lane bis auf Höhe des Durchgangs laufen
+	var lo := lane_half_g - 10.0               # Wandbereich quer
+	var hi: float = lane_off_g[1] - lane_half_g + 10.0
+	return Vector2(best_x, hi + 10.0 if goal.y >= mid else lo - 10.0)   # quer durch den Durchgang bis auf die andere Seite
 
 
 func _autoplay_choose() -> void:
@@ -526,7 +697,8 @@ func _step_units(dt: float) -> void:
 					dy = hy / dist
 			u["x"] += dx * step_len
 			var ly: float = lane_half_g - 16.0
-			u["y"] = clampf(u["y"] + dy * step_len, -ly, ly)
+			var off: float = lane_off_g[u["lane"]]
+			u["y"] = clampf(u["y"] + dy * step_len, off - ly, off + ly)
 		if u["x"] <= float(cfg["leakX"]):
 			lives -= int(u["def"]["lives"])
 			units.erase(u)
@@ -535,6 +707,8 @@ func _step_units(dt: float) -> void:
 
 # ---------------------------------------------------------------- Darstellung und Eingabe
 func _process(delta: float) -> void:
+	if not started:
+		return
 	step(delta)
 	_sync_visuals(delta)
 
@@ -580,7 +754,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			cam_dist = clampf(cam_dist - 2.0, 14.0, 50.0)
 		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
 			cam_dist = clampf(cam_dist + 2.0, 14.0, 50.0)
-	if over or hero["dead"] > 0.0:
+	if not started or over or hero["dead"] > 0.0:
 		return
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_RIGHT:
 		var p := _ground_point(event.position)
@@ -599,7 +773,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		else:
 			hero["target"] = null
 			var ly: float = lane_half_g - 10.0
-			hero["move_to"] = Vector2(maxf(20.0, gx), clampf(gy, -ly, ly))
+			hero["move_to"] = Vector2(maxf(20.0, gx), clampf(gy, -ly, lane_off_g[lanes_per_team - 1] + ly))
 
 
 # ---------------------------------------------------------------- Test-Simulation (Kommandozeile)
@@ -607,6 +781,10 @@ func _run_simulation(secs: float, shot_path: String) -> void:
 	var steps := int(secs / 0.05)
 	for i in steps:
 		step(0.05)
+		if trace and i % 100 == 0:   # alle 5 Sekunden: Position des Helden und Ziel (für Fehlersuche)
+			var tg: Variant = hero["target"]
+			print("t=%.0f Held x=%.0f y=%.0f | Ziel: %s | Einheiten %d" % [t, hero["x"], hero["y"],
+				"-" if tg == null else "x=%.0f y=%.0f lane=%d" % [tg["x"], tg["y"], tg["lane"]], units.size()])
 	print("SIM %.0f s | Welle %d | Leben %d | Gold %d | Level %d | Kills %d | Tode %d | Einheiten %d" % [
 		secs, wave, lives, int(gold), hero["lvl"], kills, hero["deaths"], units.size()])
 	if shot_path != "":
