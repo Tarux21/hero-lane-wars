@@ -5,7 +5,8 @@ extends Node3D
 ## Alle Spielwerte stammen aus data/daten.json (Autoload "Data"). Spielkoordinaten (x = Lane entlang, y = quer) werden mit S in Meter umgerechnet.
 
 const S := 0.05                      # Spielwert -> Meter (Lane 3000 -> 150 m)
-const LANE_GAP := 26.0               # Abstand der Lane-Mitten (Meter): deine Lane bei x=0, Gegner-Lane bei x=LANE_GAP
+const WALL := 3.2                    # Breite der Felswand zwischen/neben Lanes (Meter)
+const TEAM_SPACE := 22.0             # Abstand zwischen den Lane-Rändern der beiden Teams (Felswand, Gras, Fluss, Felswand)
 const CAM_PITCH := 58.0              # Kamerawinkel in Grad (wie Warcraft 3: schräg von oben)
 var cam_dist := 28.0                 # Kamera-Abstand zum Helden (Mausrad)
 
@@ -25,6 +26,13 @@ var texts: Array = []                # schwebende Zahlen
 var kills := 0
 var autoplay := false
 var cam_init := false
+
+# Kartenaufbau je Spielerzahl pro Team (--team=1|2|4): bis 2 Spieler teilen sich eine breite Lane, ab 4 gibt es pro Team eine Doppel-Lane.
+var team_size := 1
+var lanes_per_team := 1
+var lane_half_g := 90.0              # halbe Lane-Breite in Spielwerten
+var lane_xs: Array[float] = []       # Mitte jeder Lane in Metern, von links nach rechts: erst Team A, dann Team B
+var slot_ys: Array[float] = []       # Spieler-Plätze quer in der Lane (Spielwerte)
 
 var cam: Camera3D
 var hud: Label
@@ -46,10 +54,13 @@ func _ready() -> void:
 			sim_secs = float(a.substr(6))
 		elif a.begins_with("--shot="):
 			shot_path = a.substr(7)
+		elif a.begins_with("--team="):
+			team_size = int(a.substr(7))
 		elif a.begins_with("--zoom="):
 			cam_dist = float(a.substr(7))
 		elif a == "--autoplay":
 			autoplay = true
+	_setup_layout()
 	_build_world()
 	_build_hud()
 	_spawn_hero()
@@ -62,7 +73,27 @@ func _ready() -> void:
 ## Spielkoordinaten -> Welt: Die Lane läuft senkrecht über den Bildschirm (Basis unten, Monster kommen von oben).
 ## x = Weg entlang der Lane (0 = Basis), y = quer, lane 0 = deine Lane, 1 = Gegner-Lane.
 func _wp(gx: float, gy: float, lane: int = 0) -> Vector3:
-	return Vector3(gy * S + lane * LANE_GAP, 0.0, -gx * S)
+	return Vector3(gy * S + lane_xs[lane], 0.0, -gx * S)
+
+
+## Berechnet Lane-Breite, Lane-Mitten und Spieler-Plätze aus der Teamgröße.
+func _setup_layout() -> void:
+	team_size = clampi(team_size, 1, 4)
+	lanes_per_team = 2 if team_size >= 4 else 1
+	var per_lane := int(ceil(float(team_size) / lanes_per_team))
+	lane_half_g = float(cfg["laneHalf"]) * (1.2 if per_lane <= 1 else 1.7)   # 2 Helden pro Lane brauchen eine breitere Lane
+	var half := lane_half_g * S
+	lane_xs.clear()
+	var x := 0.0
+	for team in 2:
+		for k in lanes_per_team:
+			lane_xs.append(x)
+			if k < lanes_per_team - 1:
+				x += half * 2.0 + WALL          # Lanes desselben Teams teilen sich eine Felswand
+		x += half * 2.0 + TEAM_SPACE            # zwischen den Teams: Felswände, Gras, Fluss
+	slot_ys.clear()
+	for j in per_lane:
+		slot_ys.append((j - (per_lane - 1) / 2.0) * (2.0 * lane_half_g / per_lane))
 
 
 func _cam_offset() -> Vector3:
@@ -102,47 +133,56 @@ func _build_world() -> void:
 ## unten ein Platz mit magischem Kreis, Häusern (Monster senden) und Händlern. Alles noch aus einfachen Formen (Platzhalter).
 func _build_map() -> void:
 	var lane_len: float = cfg["laneLen"] * S
-	var half: float = cfg["laneHalf"] * S
-	var base_len: float = cfg["baseX"] * S
-	var mid_x := LANE_GAP / 2.0
+	var half: float = lane_half_g * S
+	var n := lane_xs.size()
+	var x_min: float = lane_xs[0] - half - WALL
+	var x_max: float = lane_xs[n - 1] + half + WALL
+	var mid_x := (lane_xs[0] + lane_xs[n - 1]) / 2.0
+	var span := x_max - x_min
 	var z_far := -lane_len - 10.0
 	var z_mid := (z_far + 14.0) / 2.0
 	var z_len := 14.0 - z_far
-	_box(Vector3(mid_x, -0.5, z_mid), Vector3(120.0, 1.0, z_len + 30.0), Color("#4b6b30"))                   # Gras
-	for lane in 2:
-		var cx := lane * LANE_GAP
+	_box(Vector3(mid_x, -0.5, z_mid), Vector3(span + 120.0, 1.0, z_len + 30.0), Color("#4b6b30"))            # Gras
+	for i in n:
+		var cx: float = lane_xs[i]
+		var k := i % lanes_per_team
 		_box(Vector3(cx, -0.04, z_mid + 4.0), Vector3(half * 2.0, 0.1, z_len - 8.0), Color("#a89462"))       # Lane (Sandweg)
 		_box(Vector3(cx, 0.02, z_mid + 4.0), Vector3(half * 0.5, 0.06, z_len - 8.0), Color("#8d7d55"))       # Pflasterstreifen in der Mitte
-		for side in [-1.0, 1.0]:
-			_box(Vector3(cx + side * (half + 1.6), 1.1, z_mid - 6.0), Vector3(3.2, 2.4, lane_len + 2.0), Color("#4c4f55"))   # Felswand
-			_box(Vector3(cx + side * (half + 1.6), 2.45, z_mid - 6.0), Vector3(2.2, 0.5, lane_len + 2.0), Color("#5f636b"))
-	_box(Vector3(mid_x, -0.06, z_mid - 6.0), Vector3(5.0, 0.2, lane_len + 2.0), Color("#1f5fa8"))             # Fluss zwischen den Lanes
+		var sides: Array = [1.0] if k > 0 else [-1.0, 1.0]   # Lanes desselben Teams teilen sich eine Wand (nur rechts bauen)
+		for side in sides:
+			_box(Vector3(cx + side * (half + WALL / 2.0), 1.1, z_mid - 6.0), Vector3(WALL, 2.4, lane_len + 2.0), Color("#4c4f55"))   # Felswand
+			_box(Vector3(cx + side * (half + WALL / 2.0), 2.45, z_mid - 6.0), Vector3(WALL - 1.0, 0.5, lane_len + 2.0), Color("#5f636b"))
+	var river_x: float = (lane_xs[lanes_per_team - 1] + lane_xs[lanes_per_team]) / 2.0
+	_box(Vector3(river_x, -0.06, z_mid - 6.0), Vector3(5.0, 0.2, lane_len + 2.0), Color("#1f5fa8"))           # Fluss zwischen den Teams
 	var spawn_z := -float(cfg["spawnX"]) * S
-	for lane in 2:
-		_box(Vector3(lane * LANE_GAP, 0.03, spawn_z - 2.0), Vector3(half * 2.0, 0.06, 6.0), Color("#6e2a2a"))  # Monster-Spawn
+	for i in n:
+		_box(Vector3(lane_xs[i], 0.03, spawn_z - 2.0), Vector3(half * 2.0, 0.06, 6.0), Color("#6e2a2a"))     # Monster-Spawn
 	# Platz am unteren Ende (Basis): Pflaster, magischer Kreis, Feuerstellen
 	var plaza_z := 7.0
-	var plaza := _cyl(Vector3(mid_x, -0.02, plaza_z), 21.0, 0.1, Color("#8b8272"))
-	plaza.scale = Vector3(1.0, 1.0, 0.55)
+	var plaza_r := span / 2.0 + 6.0
+	var plaza := _cyl(Vector3(mid_x, -0.02, plaza_z), plaza_r, 0.1, Color("#8b8272"))
+	plaza.scale = Vector3(1.0, 1.0, minf(1.0, 13.0 / plaza_r))
 	_cyl(Vector3(mid_x, 0.06, plaza_z), 4.2, 0.05, Color("#2a3a7a"), Color("#4a7aff"))                         # magischer Kreis
 	_cyl(Vector3(mid_x, 0.1, plaza_z), 2.4, 0.06, Color("#3b3f48"))
 	for fx in [-1.0, 1.0]:
-		_cyl(Vector3(mid_x + fx * 10.5, 0.1, plaza_z - 2.0), 1.3, 0.2, Color("#4c4f55"))
-		_cyl(Vector3(mid_x + fx * 10.5, 0.5, plaza_z - 2.0), 0.5, 0.8, Color("#ff7a2a"), Color("#ff5a10"))     # Feuer
-	# Häuser (Monster senden) und Händler-Sockel in einer Reihe am unteren Rand, je Lane
-	for lane in 2:
-		for i in 4:
-			var hx := lane * LANE_GAP + (i - 1.5) * 3.4
-			_house(Vector3(hx, 0.0, plaza_z + 5.0))
+		var fire_x: float = mid_x + fx * (plaza_r * 0.5)
+		_cyl(Vector3(fire_x, 0.1, plaza_z - 2.0), 1.3, 0.2, Color("#4c4f55"))
+		_cyl(Vector3(fire_x, 0.5, plaza_z - 2.0), 0.5, 0.8, Color("#ff7a2a"), Color("#ff5a10"))               # Feuer
+	# Je Spieler-Platz: 4 Häuser (Monster senden); je Lane zwei Händler-Sockel (Items)
+	for i in n:
+		for sy in slot_ys:
+			var slot_x: float = lane_xs[i] + sy * S
+			for h in 4:
+				_house(Vector3(slot_x + (h - 1.5) * 2.5, 0.0, plaza_z + 5.0))
 		for sx in [-1.0, 1.0]:
-			_cyl(Vector3(lane * LANE_GAP + sx * 7.0, 0.2, plaza_z - 1.0), 1.1, 0.4, Color("#6d6558"))        # Händler-Sockel
-	# Bäume und Felsen außerhalb der Lanes
+			_cyl(Vector3(lane_xs[i] + sx * (half - 1.5), 0.2, plaza_z - 1.0), 1.1, 0.4, Color("#6d6558"))     # Händler-Sockel
+	# Bäume außerhalb der Lanes
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 7
 	var zz := 12.0
 	while zz > z_far:
 		for side in [-1.0, 1.0]:
-			var tx: float = (-14.0 - rng.randf() * 12.0) if side < 0.0 else (LANE_GAP + 14.0 + rng.randf() * 12.0)
+			var tx: float = (x_min - 14.0 - rng.randf() * 12.0) if side < 0.0 else (x_max + 14.0 + rng.randf() * 12.0)
 			_tree(Vector3(tx, 0.0, zz + rng.randf() * 4.0), 0.8 + rng.randf() * 0.7)
 		zz -= 7.0
 
@@ -253,7 +293,7 @@ func _spawn_hero() -> void:
 	lab.position.y = 2.7
 	node.add_child(lab)
 	add_child(node)
-	hero = {"d": d, "x": 120.0, "y": 0.0, "lvl": 1, "xp": 0.0, "hp": float(d["hp"]), "dead": 0.0,
+	hero = {"d": d, "x": 120.0, "y": slot_ys[0], "lvl": 1, "xp": 0.0, "hp": float(d["hp"]), "dead": 0.0,
 		"atk_t": 0.0, "target": null, "move_to": null, "deaths": 0, "node": node, "label": lab}
 
 
@@ -300,7 +340,7 @@ func _spawn_unit(type: String, off_x: float, spd_mul: float) -> void:
 	body.material_override = _mat(Color.html(u["col"]))
 	node.add_child(body)
 	add_child(node)
-	var ly: float = float(cfg["laneHalf"]) - 16.0
+	var ly: float = lane_half_g - 16.0
 	units.append({"type": type, "x": float(cfg["spawnX"]) + off_x + randf() * 30.0, "y": (randf() * 2.0 - 1.0) * ly,
 		"hp": float(u["hp"]) * m, "max": float(u["hp"]) * m,
 		"dmg": float(u["dmg"]) * (1.0 + float(cfg["unitDmgScale"]) * (m - 1.0)),
@@ -404,7 +444,7 @@ func _step_hero(dt: float) -> void:
 			hero["dead"] = 0.0
 			hero["hp"] = _hero_max_hp()
 			hero["x"] = 120.0
-			hero["y"] = 0.0
+			hero["y"] = slot_ys[0]
 		return
 	var mx := _hero_max_hp()
 	var regen: float = mx * 0.12 if _in_base() else 1.5 + hero["lvl"] * 0.3
@@ -433,7 +473,7 @@ func _step_hero(dt: float) -> void:
 			hero["x"] += dv.x / d * step_len
 			hero["y"] += dv.y / d * step_len
 	hero["x"] = clampf(hero["x"], 20.0, float(cfg["laneLen"]))
-	var ly: float = float(cfg["laneHalf"]) - 10.0
+	var ly: float = lane_half_g - 10.0
 	hero["y"] = clampf(hero["y"], -ly, ly)
 	# Auto-Angriff: auch im Laufen, sobald ein Gegner in Reichweite ist
 	hero["atk_t"] -= dt
@@ -485,7 +525,7 @@ func _step_units(dt: float) -> void:
 					dx = hx / dist
 					dy = hy / dist
 			u["x"] += dx * step_len
-			var ly: float = float(cfg["laneHalf"]) - 16.0
+			var ly: float = lane_half_g - 16.0
 			u["y"] = clampf(u["y"] + dy * step_len, -ly, ly)
 		if u["x"] <= float(cfg["leakX"]):
 			lives -= int(u["def"]["lives"])
@@ -545,7 +585,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_RIGHT:
 		var p := _ground_point(event.position)
 		var gx := -p.z / S
-		var gy := p.x / S
+		var gy := (p.x - lane_xs[0]) / S
 		var hit: Variant = null
 		var best := 1e9
 		for u in units:
@@ -558,7 +598,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			hero["move_to"] = null
 		else:
 			hero["target"] = null
-			var ly: float = float(cfg["laneHalf"]) - 10.0
+			var ly: float = lane_half_g - 10.0
 			hero["move_to"] = Vector2(maxf(20.0, gx), clampf(gy, -ly, ly))
 
 

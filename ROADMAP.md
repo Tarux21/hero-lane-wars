@@ -19,6 +19,7 @@ Rolle: Projektmanager (Planung, Abnahme) – Claude setzt um und stellt nach jed
 ## Phase 2 – Umzug nach Godot (läuft)
 - [x] Regelwerk exportiert (`regelwerk/daten.json`, Skript `export-regelwerk.js`)
 - [x] Meilenstein 1: 3D-Szene, Kamera, Held, Wellen, Level, Gold, Leben (siehe `godot/README.md`)
+- [x] Karte: Warcraft-artige Kamera, senkrechte Lanes, Fluss, Platz; Layout je Spielerzahl (1v1/2v2: eine Lane pro Team, ab 4v4 Doppel-Lane pro Team, breitere Lanes, größerer Teamabstand)
 - [ ] Meilenstein 2: Skills (Q W E R) und Heiltrank, Backport
 - [ ] Meilenstein 3: Shop und Items
 - [ ] Meilenstein 4: Gegner-Bot mit eigener Lane, Monster senden, Aufholhilfe, Schwierigkeiten
