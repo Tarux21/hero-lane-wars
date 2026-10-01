@@ -20,6 +20,8 @@ Rolle: Projektmanager (Planung, Abnahme) – Claude setzt um und stellt nach jed
 - [x] Regelwerk exportiert (`regelwerk/daten.json`, Skript `export-regelwerk.js`)
 - [x] Meilenstein 1: 3D-Szene, Kamera, Held, Wellen, Level, Gold, Leben (siehe `godot/README.md`)
 - [x] Karte: Warcraft-artige Kamera, senkrechte Lanes, Fluss, Platz; Layout je Spielerzahl (1v1/2v2: eine Lane pro Team, ab 4v4 Doppel-Lane pro Team, breitere Lanes, größerer Teamabstand)
+- [x] 4v4: Wand zwischen den Lanes eines Teams durchgehend (keine Durchgänge), Wechsel nur über die offene Basis, Backport (B), Minimap mit Monsterzahl je Lane
+> **Grundsatz:** Der Browser-Prototyp ist die Spielbasis. Die Godot-Version übernimmt Regeln, Zahlen und Abläufe 1:1 aus `index.html`; Abweichungen nur nach Absprache.
 - [ ] Meilenstein 2: Skills (Q W E R) und Heiltrank, Backport
 - [ ] Meilenstein 3: Shop und Items
 - [ ] Meilenstein 4: Gegner-Bot mit eigener Lane, Monster senden, Aufholhilfe, Schwierigkeiten

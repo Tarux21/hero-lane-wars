@@ -7,10 +7,10 @@ extends Node3D
 const S := 0.05                      # Spielwert -> Meter (Lane 3000 -> 150 m)
 const WALL := 3.2                    # Breite der Felswand zwischen/neben Lanes (Meter)
 const TEAM_SPACE := 28.0             # Abstand zwischen den Lane-Rändern der beiden Teams (Felswand, Gras, Fluss, Felswand)
-# Durchgänge in der Wand zwischen den beiden Lanes eines Teams (4v4): Weg-Bereiche [von, bis] in Spielwerten. Die Basis (x < 300) ist offen.
-const WALL_GAPS := [[800.0, 960.0], [1500.0, 1660.0], [2200.0, 2360.0], [2800.0, 2960.0]]
-const WALL_OPEN_BASE := 300.0
-const CAM_PITCH := 58.0              # Kamerawinkel in Grad (wie Warcraft 3: schräg von oben)
+const WALL_OPEN_BASE := 300.0        # bis hierhin (Spielwerte) ist die Basis offen: nur dort kommt man zur anderen Lane des Teams
+const MINI_W := 290.0                # Größe der Minimap (Pixel)
+const MINI_H := 270.0
+const CAM_PITCH := 58.0             # Kamerawinkel in Grad (wie Warcraft 3: schräg von oben)
 var cam_dist := 28.0                 # Kamera-Abstand zum Helden (Mausrad)
 
 var cfg: Dictionary
@@ -43,7 +43,9 @@ var hud: Label
 var msg: Label
 var started := false
 var trace := false
+var selftest := false
 var menu_shot := ""
+var mini: Control                    # Minimap
 var menu_layer: CanvasLayer
 
 
@@ -69,10 +71,17 @@ func _ready() -> void:
 			autoplay = true
 		elif a == "--trace":
 			trace = true
+		elif a == "--selftest":
+			selftest = true
+			direct = true
 		elif a.begins_with("--menushot="):
 			menu_shot = a.substr(11)
 	if direct:
 		_start_game()
+		if selftest:
+			set_process(false)
+			_selftest()
+			return
 		if sim_secs > 0.0:
 			set_process(false)   # Testmodus: nur der Simulationslauf rechnet
 			_run_simulation(sim_secs, shot_path)
@@ -285,19 +294,11 @@ func _build_map() -> void:
 		zz -= 7.0
 
 
-## Wand zwischen den beiden Lanes eines Teams: Stücke zwischen den Durchgängen (WALL_GAPS), an den Durchgängen Torpfosten.
-## Die Basis (x < WALL_OPEN_BASE) ist offen.
+## Wand zwischen den beiden Lanes eines Teams (4v4): durchgehend, nur die Basis (x < WALL_OPEN_BASE) ist offen.
+## Zur anderen Lane kommt man also nur über die Basis (Backport nutzen oder zurücklaufen), man muss sich im Team absprechen.
 func _gapped_wall(wall_x: float) -> void:
-	var cursor := WALL_OPEN_BASE
-	var end_x := float(cfg["laneLen"]) + 50.0
 	_sand_piece(wall_x, -200.0, WALL_OPEN_BASE)                      # offene Basis: Sandweg statt Wand
-	for g in WALL_GAPS:
-		_sand_piece(wall_x, g[0], g[1])
-		_wall_piece(wall_x, cursor, g[0])
-		_box(Vector3(wall_x, 1.6, -g[0] * S), Vector3(WALL + 0.6, 3.2, 0.9), Color("#6a6e76"))       # Torpfosten
-		_box(Vector3(wall_x, 1.6, -g[1] * S), Vector3(WALL + 0.6, 3.2, 0.9), Color("#6a6e76"))
-		cursor = g[1]
-	_wall_piece(wall_x, cursor, end_x)
+	_wall_piece(wall_x, WALL_OPEN_BASE, float(cfg["laneLen"]) + 50.0)
 
 
 func _sand_piece(wall_x: float, x0: float, x1: float) -> void:
@@ -390,6 +391,66 @@ func _build_hud() -> void:
 	msg.add_theme_color_override("font_outline_color", Color.BLACK)
 	msg.add_theme_constant_override("outline_size", 8)
 	layer.add_child(msg)
+	mini = Control.new()                 # Minimap unten links
+	mini.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	mini.offset_left = 14.0
+	mini.offset_right = 14.0 + MINI_W
+	mini.offset_bottom = -14.0
+	mini.offset_top = -14.0 - MINI_H
+	mini.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	mini.draw.connect(_draw_minimap)
+	layer.add_child(mini)
+
+
+## Minimap: alle Lanes von oben. Monster sind rot (Elite größer, Boss am größten), dein Held ist in Heldenfarbe.
+## Über jeder Lane deines Teams steht, wie viele Monster dort laufen, damit man sieht, wo mehr los ist.
+func _draw_minimap() -> void:
+	var n := lane_xs.size()
+	var half := lane_half_g * S
+	var x_min: float = lane_xs[0] - half - WALL
+	var x_max: float = lane_xs[n - 1] + half + WALL
+	var lane_len: float = cfg["laneLen"] * S
+	var z_top := -(lane_len + 8.0)
+	var z_bot := 8.0
+	var sx := MINI_W / (x_max - x_min)
+	var sy := (MINI_H - 18.0) / (z_bot - z_top)
+	var top := 18.0                       # oben Platz für die Monster-Zahlen
+	var pt := func(wx: float, wz: float) -> Vector2: return Vector2((wx - x_min) * sx, top + (wz - z_top) * sy)
+	mini.draw_rect(Rect2(0, 0, MINI_W, MINI_H), Color(0.05, 0.06, 0.08, 0.82))
+	mini.draw_rect(Rect2(0, 0, MINI_W, MINI_H), Color("#8d7d55"), false, 2.0)
+	var river_x: float = (lane_xs[lanes_per_team - 1] + lane_xs[lanes_per_team]) / 2.0
+	var rp: Vector2 = pt.call(river_x - 2.5, z_top)
+	mini.draw_rect(Rect2(rp.x, rp.y, 5.0 * sx, (z_bot - z_top) * sy), Color("#1f5fa8"))
+	var base_z := -float(cfg["baseX"]) * S
+	var counts: Array[int] = []
+	counts.resize(lanes_per_team)
+	counts.fill(0)
+	for u in units:
+		counts[u["lane"]] += 1
+	for i in n:
+		var mine := i < lanes_per_team
+		var a: Vector2 = pt.call(lane_xs[i] - half, z_top)
+		var b: Vector2 = pt.call(lane_xs[i] + half, z_bot)
+		mini.draw_rect(Rect2(a, b - a), Color("#6b5f3e") if mine else Color("#4a4a52"))
+		var ba: Vector2 = pt.call(lane_xs[i] - half, base_z)
+		mini.draw_rect(Rect2(ba, b - ba), Color("#2d4f7a") if mine else Color("#5a3a3a"))           # Basis
+		if mine:
+			var c: int = counts[i]
+			var col := Color("#ff5a5a") if c > 0 else Color("#9aa3b5")
+			mini.draw_string(ThemeDB.fallback_font, Vector2(a.x + 2.0, 14.0), str(c), HORIZONTAL_ALIGNMENT_LEFT, b.x - a.x, 14, col)
+	if lanes_per_team == 2:               # gemeinsame Wand
+		var wa: Vector2 = pt.call((lane_xs[0] + lane_xs[1]) / 2.0, z_top)
+		var wb: Vector2 = pt.call((lane_xs[0] + lane_xs[1]) / 2.0, -float(WALL_OPEN_BASE) * S)
+		mini.draw_line(wa, wb, Color("#9aa3b5"), 2.0)
+	for u in units:
+		var d: Dictionary = u["def"]
+		var r := 2.5 + clampf(float(d["r"]) / 9.0, 0.0, 4.0) * 0.8
+		var p: Vector2 = pt.call(_wp(u["x"], u["y"]).x, _wp(u["x"], u["y"]).z)
+		mini.draw_circle(p, r, Color("#ff3030"))
+	if hero["dead"] <= 0.0:
+		var hp: Vector2 = pt.call(_wp(hero["x"], hero["y"]).x, _wp(hero["x"], hero["y"]).z)
+		mini.draw_circle(hp, 5.5, Color.WHITE)
+		mini.draw_circle(hp, 4.0, Color.html(hero["d"]["col"]))
 
 
 func _label3d(text: String, size: int, col: Color) -> Label3D:
@@ -419,8 +480,13 @@ func _spawn_hero() -> void:
 	lab.position.y = 2.7
 	node.add_child(lab)
 	add_child(node)
+	var ring := _cyl(Vector3(0, 0.08, 0), 1.6, 0.04, Color("#7fd6ff"), Color("#7fd6ff"))   # Backport-Anzeige am Boden
+	ring.visible = false
+	remove_child(ring)                   # _cyl hängt es an die Szene, hier gehört es an den Helden
+	node.add_child(ring)
 	hero = {"d": d, "x": 120.0, "y": slot_ys[0], "lvl": 1, "xp": 0.0, "hp": float(d["hp"]), "dead": 0.0,
-		"atk_t": 0.0, "target": null, "move_to": null, "deaths": 0, "node": node, "label": lab}
+		"atk_t": 0.0, "target": null, "move_to": null, "deaths": 0, "node": node, "label": lab,
+		"bp": 0.0, "bp_cd": 0.0, "ring": ring}
 
 
 # ---------------------------------------------------------------- Formeln (wie im Browser-Prototyp)
@@ -533,6 +599,7 @@ func _damage_hero(dmg: float) -> void:
 	if hero["dead"] > 0.0:
 		return
 	var eff := _reduce(dmg, _hero_armor())
+	hero["bp"] = 0.0                     # Schaden unterbricht den Backport
 	hero["hp"] -= eff
 	_float_text("-" + str(int(round(eff))), _wp(hero["x"], hero["y"]) + Vector3(0, 3.0, 0), Color("#ff6b6b"), 30, 0.6)
 	if hero["hp"] <= 0.0:
@@ -576,6 +643,18 @@ func _step_hero(dt: float) -> void:
 	var mx := _hero_max_hp()
 	var regen: float = mx * 0.12 if _in_base() else 1.5 + hero["lvl"] * 0.3
 	hero["hp"] = minf(mx, hero["hp"] + regen * dt)
+	hero["bp_cd"] = maxf(0.0, hero["bp_cd"] - dt)
+	if hero["bp"] > 0.0:                 # Backport wird gewirkt: der Held steht still und greift nicht an
+		hero["bp"] -= dt
+		if hero["bp"] <= 0.0:
+			hero["bp"] = 0.0
+			hero["bp_cd"] = float(cfg["backportCd"])
+			hero["x"] = 120.0
+			hero["y"] = slot_ys[0]
+			hero["move_to"] = null
+			hero["target"] = null
+			_float_text("Zurück in der Basis", _wp(hero["x"], hero["y"]) + Vector3(0, 3.2, 0), Color("#7fd6ff"), 36, 1.0)
+		return
 	if autoplay:
 		_autoplay_choose()
 	# Ziel gültig? Bewegungsziel bestimmen
@@ -618,20 +697,20 @@ func _step_hero(dt: float) -> void:
 		_hit_unit(tgt, _hero_dmg())
 
 
-## Doppel-Lane (4v4): Quer-Bereich, den der Held betreten darf. Die Wand zwischen den Lanes ist nur an den Durchgängen und in der Basis offen.
-func _in_gap(x: float) -> bool:
-	if x < WALL_OPEN_BASE:
-		return true
-	for g in WALL_GAPS:
-		if x >= g[0] and x <= g[1]:
-			return true
-	return false
+## Backport (Taste B): Zauberzeit, danach zurück in die Basis; nicht in der Basis, nicht während der Abklingzeit.
+func _start_backport() -> void:
+	if hero["dead"] > 0.0 or hero["bp"] > 0.0 or hero["bp_cd"] > 0.0 or _in_base():
+		return
+	hero["bp"] = float(cfg["backportCast"])
+	hero["move_to"] = null
+	hero["target"] = null
 
 
+## Doppel-Lane (4v4): Die Wand zwischen den Lanes ist nur in der Basis offen.
 func _clamp_y(x: float, y: float, old_y: float) -> float:
 	var ly := lane_half_g - 10.0
 	y = clampf(y, -ly, lane_off_g[lanes_per_team - 1] + ly)
-	if lanes_per_team == 2 and not _in_gap(x):
+	if lanes_per_team == 2 and x >= WALL_OPEN_BASE:
 		var lo := lane_half_g - 10.0
 		var hi: float = lane_off_g[1] - lane_half_g + 10.0
 		if y > lo and y < hi:
@@ -639,26 +718,19 @@ func _clamp_y(x: float, y: float, old_y: float) -> float:
 	return y
 
 
-## Liegt das Ziel auf der anderen Lane, läuft der Held zuerst zum nächsten Durchgang (oder durch die offene Basis).
+## Liegt das Ziel auf der anderen Lane: In der Basis läuft der Held quer hinüber. In der Lane ist die Wand zu,
+## er läuft nur bis an die Wand (zur anderen Lane kommt man über die Basis, z. B. mit dem Backport).
 func _route(goal: Vector2) -> Vector2:
 	if lanes_per_team < 2:
 		return goal
 	var mid: float = (lane_off_g[0] + lane_off_g[1]) / 2.0
 	if (hero["y"] < mid) == (goal.y < mid):
 		return goal
-	var best_x := 150.0
-	var best_c: float = absf(hero["x"] - 150.0) + absf(goal.x - 150.0)
-	for g in WALL_GAPS:
-		var cx: float = (g[0] + g[1]) / 2.0
-		var c: float = absf(hero["x"] - cx) + absf(goal.x - cx)
-		if c < best_c:
-			best_c = c
-			best_x = cx
-	if best_x > WALL_OPEN_BASE and absf(hero["x"] - best_x) > 40.0:
-		return Vector2(best_x, hero["y"])      # erst in der eigenen Lane bis auf Höhe des Durchgangs laufen
+	if hero["x"] < WALL_OPEN_BASE:
+		return Vector2(minf(hero["x"], WALL_OPEN_BASE - 50.0), goal.y)   # quer durch die Basis
 	var lo := lane_half_g - 10.0               # Wandbereich quer
 	var hi: float = lane_off_g[1] - lane_half_g + 10.0
-	return Vector2(best_x, hi + 10.0 if goal.y >= mid else lo - 10.0)   # quer durch den Durchgang bis auf die andere Seite
+	return Vector2(goal.x, lo if hero["y"] < mid else hi)
 
 
 func _autoplay_choose() -> void:
@@ -733,11 +805,23 @@ func _sync_visuals(delta: float) -> void:
 	cam.position = want if not cam_init else cam.position.lerp(want, minf(1.0, delta * 6.0))
 	cam_init = true
 	cam.look_at(cam.position - off)
+	var ring: MeshInstance3D = hero["ring"]
+	ring.visible = hero["bp"] > 0.0
+	var prog: float = hero["bp"] / float(cfg["backportCast"])
+	ring.scale = Vector3(0.4 + 0.6 * prog, 1.0, 0.4 + 0.6 * prog)
+	var bp_txt := "in der Basis"
+	if hero["dead"] > 0.0:
+		bp_txt = "Held tot: %ds" % int(ceil(hero["dead"]))
+	elif hero["bp"] > 0.0:
+		bp_txt = "Cast %.1fs (Schaden unterbricht)" % hero["bp"]
+	elif not _in_base():
+		bp_txt = "CD %ds" % int(ceil(hero["bp_cd"])) if hero["bp_cd"] > 0.0 else "bereit"
 	var min_t := int(t) / 60
-	hud.text = "Gold %d   Einkommen +%.0f / %ds   Leben %d   Welle %d   Zeit %d:%02d\nLevel %d   XP %d / %d   HP %d / %d   Kills %d   %s" % [
+	hud.text = "Gold %d   Einkommen +%.0f / %ds   Leben %d   Welle %d   Zeit %d:%02d\nLevel %d   XP %d / %d   HP %d / %d   Kills %d   [B] Backport: %s" % [
 		int(gold), income, int(cfg["incomeTick"]), lives, wave, min_t, int(t) % 60,
-		hero["lvl"], int(hero["xp"]), int(_xp_need(hero["lvl"])), int(hero["hp"]), int(_hero_max_hp()), kills,
-		"[Held tot: %ds]" % int(ceil(hero["dead"])) if hero["dead"] > 0.0 else ("[in der Basis]" if _in_base() else "")]
+		hero["lvl"], int(hero["xp"]), int(_xp_need(hero["lvl"])), int(hero["hp"]), int(_hero_max_hp()), kills, bp_txt]
+	if mini != null:
+		mini.queue_redraw()
 
 
 func _ground_point(screen_pos: Vector2) -> Vector3:
@@ -756,6 +840,12 @@ func _unhandled_input(event: InputEvent) -> void:
 			cam_dist = clampf(cam_dist + 2.0, 14.0, 50.0)
 	if not started or over or hero["dead"] > 0.0:
 		return
+	if event is InputEventKey and event.pressed and not event.echo:
+		if event.keycode == KEY_B:
+			_start_backport()
+		elif event.keycode == KEY_S:      # Stopp
+			hero["move_to"] = null
+			hero["target"] = null
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_RIGHT:
 		var p := _ground_point(event.position)
 		var gx := -p.z / S
@@ -774,6 +864,52 @@ func _unhandled_input(event: InputEvent) -> void:
 			hero["target"] = null
 			var ly: float = lane_half_g - 10.0
 			hero["move_to"] = Vector2(maxf(20.0, gx), clampf(gy, -ly, lane_off_g[lanes_per_team - 1] + ly))
+
+
+# ---------------------------------------------------------------- Selbsttest (--selftest, nur 4v4)
+func _selftest() -> void:
+	var ok := true
+	var check := func(name: String, cond: bool) -> void:
+		print(("PASS  " if cond else "FAIL  ") + name)
+		if not cond:
+			ok = false
+	var run := func(secs: float) -> void:
+		for i in int(secs / 0.05):
+			wave_t = 1e9
+			units.clear()
+			hero["hp"] = _hero_max_hp()
+			step(0.05)
+	var mid: float = (lane_off_g[0] + lane_off_g[1]) / 2.0
+	# 1. Aus der Basis quer in die andere Lane laufen ist erlaubt
+	hero["move_to"] = Vector2(1000.0, lane_off_g[1])
+	run.call(40.0)
+	check.call("Aus der Basis in Lane 2 gelaufen (x=%.0f, y=%.0f)" % [hero["x"], hero["y"]], hero["x"] > 900.0 and hero["y"] > mid)
+	# 2. In der Lane ist die Wand zu: Ziel in Lane 1 -> Held bleibt auf seiner Seite
+	hero["move_to"] = Vector2(1500.0, lane_off_g[0])
+	run.call(30.0)
+	check.call("Wand blockiert den Wechsel (y=%.0f bleibt über %.0f)" % [hero["y"], mid], hero["y"] > mid)
+	# 3. Backport: zurück in die Basis, Abklingzeit läuft
+	hero["move_to"] = null
+	_start_backport()
+	check.call("Backport startet in der Lane", hero["bp"] > 0.0)
+	run.call(2.0)
+	check.call("Backport noch nicht fertig nach 2 s", hero["x"] > 900.0)
+	run.call(3.0)
+	check.call("Backport fertig nach 5 s (x=%.0f)" % hero["x"], absf(hero["x"] - 120.0) < 1.0 and hero["bp_cd"] > 60.0)
+	_start_backport()
+	check.call("Kein Backport in der Basis", hero["bp"] == 0.0)
+	# 4. Aus der Basis in Lane 1 laufen
+	hero["move_to"] = Vector2(1000.0, lane_off_g[0])
+	run.call(40.0)
+	check.call("Aus der Basis in Lane 1 gelaufen (x=%.0f, y=%.0f)" % [hero["x"], hero["y"]], hero["x"] > 900.0 and hero["y"] < mid)
+	# 5. Schaden unterbricht den Backport
+	hero["bp_cd"] = 0.0
+	hero["move_to"] = null
+	_start_backport()
+	_damage_hero(10.0)
+	check.call("Schaden unterbricht den Backport", hero["bp"] == 0.0)
+	print("SELFTEST " + ("OK" if ok else "FEHLER"))
+	get_tree().quit()
 
 
 # ---------------------------------------------------------------- Test-Simulation (Kommandozeile)

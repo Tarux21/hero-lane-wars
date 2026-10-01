@@ -15,7 +15,7 @@ Noch nicht: Skills, Shop und Items, Gegner-Bot mit eigener Lane, Monster senden,
 Beim Start wählst du im Menü Spielmodus (1 gegen 1, 2 gegen 2, 4 gegen 4) und Held. Für Tests überspringt `--team=1|2|4` das Menü (Starter `...-2v2.bat`, `...-4v4.bat`). Der Aufbau:
 - **1 gegen 1:** je eine Lane pro Spieler, Fluss dazwischen.
 - **2 gegen 2:** je eine breite Lane pro Team (2 Helden nebeneinander, Lane-Breite ×1,95 gegenüber dem Prototyp).
-- **4 gegen 4:** pro Team eine Doppel-Lane (2 Lanes, je 2 Helden). Die gemeinsame Wand hat 4 Durchgänge (und die Basis ist offen): Helden können die Lane wechseln und der anderen Seite helfen. Beide Lanes bekommen die Wellen. Fluss zwischen den Teams.
+- **4 gegen 4:** pro Team eine Doppel-Lane (2 Lanes, je 2 Helden). Die gemeinsame Wand ist durchgehend, nur die Basis (x < 300) ist offen: zur anderen Lane kommt man nur über die Basis (Backport nutzen oder zurücklaufen), das Team muss sich absprechen. Beide Lanes bekommen die Wellen. Fluss zwischen den Teams.
 Die Breiten und Abstände stehen oben in `game.gd` (`WALL`, `TEAM_SPACE`, Faktoren in `_setup_layout`). Aktuell spielt nur 1 Held (du) in Lane 1; weitere Spieler und Bots kommen mit Meilenstein 4.
 
 ## Regeln und Zahlen
@@ -32,3 +32,8 @@ Godot_console.exe --path godot --resolution 1280x720 -- --autoplay --sim=60 --sh
 - `scripts/data.gd` – lädt die Regeln (Autoload `Data`).
 - `scripts/game.gd` – Spiellogik, Szene, Eingabe (Spielwerte × `S` = Meter).
 - `scenes/main.tscn` – Hauptszene.
+
+## Backport und Minimap
+- **Backport (B):** wie im Prototyp 4,5 s Zauberzeit, 75 s Abklingzeit, Schaden unterbricht, nicht in der Basis. Stopp: S.
+- **Minimap** (unten links): alle Lanes von oben, Monster rot (Elite/Boss größer), dein Held in Heldenfarbe, über jeder Lane deines Teams die Zahl der Monster.
+- **Selbsttest** (Lane-Wechsel und Backport): `Godot_console.exe --headless --path godot -- --selftest --team=4`
