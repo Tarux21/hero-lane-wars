@@ -160,6 +160,7 @@ const CFG = {
   speedMul: 1.0,              // Lauftempo aller Monster (zum Anpassen an die Lanelänge)
   startGold: 300, baseIncome: 24, incomeTick: 10,   // Wirtschaft x3 (wegen der teureren Items)
   startLives: 20,
+  comebackDiff: 3, comebackPerLife: 0.04, comebackCap: 0.20,   // Aufholhilfe: ab 3 Leben Rückstand +4 % Einkommen je weiterem Leben (max. +20 %)
   bagSize: 6, consMax: 5, sellRatio: 0.7,           // Rucksack-Plätze / max. Verbrauchsgegenstände je Sorte / Verkaufserlös
   potionHeal: 0.40, potionCd: 15,                   // Heiltrank
   critDmgBase: 2.0, critDmgBonus: 0.25,             // Kritischer Schaden: Grundfaktor / Bonus der Mächtigen Klinge
@@ -809,13 +810,21 @@ function bossThink(u, dt){
   }
 }
 
+// Aufholhilfe gegen Snowballing: Wer deutlich weniger Leben hat als der Gegner, bekommt mehr Einkommen.
+function comebackBonus(g){
+  const o = (P && E) ? (g===P.G ? E.G : P.G) : null;
+  if(!o || o.lives>1e8 || g.lives>=o.lives) return 0;
+  const behind = o.lives - g.lives;
+  return behind < CFG.comebackDiff ? 0 : Math.min(CFG.comebackCap, CFG.comebackPerLife*(behind-CFG.comebackDiff+1));
+}
+
 // ====== UPDATE ======
 function update(dt){
   if(G.over) return;
   G.t += dt; G.gold += H.goldPS*dt; G.stats.gold += H.goldPS*dt;   // Gold-Items: zusätzliches Einkommen pro Sekunde
   // Einkommen
   G.incomeT += dt;
-  if(G.incomeT >= CFG.incomeTick){ G.incomeT -= CFG.incomeTick; const inc = G.income * (G.goldMul||1); G.gold += inc; G.stats.gold += inc; }
+  if(G.incomeT >= CFG.incomeTick){ G.incomeT -= CFG.incomeTick; const inc = G.income * (G.goldMul||1) * (1 + comebackBonus(G)); G.gold += inc; G.stats.gold += inc; }
   // Wellen
   G.waveT -= dt;
   if(G.waveT <= 0){ spawnWave(); G.waveT = G.wave<=CFG.earlyWaves ? CFG.earlyWaveEvery : CFG.waveEvery; }
@@ -1087,7 +1096,8 @@ function updateHud(force){
   document.getElementById('hud').innerHTML =
     `<span>Gold <b>${Math.floor(G.gold)}</b></span><span>Einkommen <b>+${G.income.toFixed(1)}</b> / ${CFG.incomeTick}s (in ${tl}s)</span>`+
     `<span>Leben <b>${G.lives}</b> · Gegner <b>${enemyLivesTxt()}</b> <small>(${E.H.d.name}, Lv ${E.H.lvl}, ${E.diff.name})</small></span><span>${waveInfoHtml()} · Zeit ${Math.floor(G.t/60)}:${String(Math.floor(G.t%60)).padStart(2,'0')}</span>`+
-    `<span>Monster-Stärke ×${hpMult().toFixed(2)}</span>`;
+    `<span>Monster-Stärke ×${hpMult().toFixed(2)}</span>`+
+    (comebackBonus(G)>0 ? `<span style="color:#9af0a8" title="Du liegst bei den Leben zurück: mehr Einkommen, damit du aufholen kannst.">Aufholhilfe +${Math.round(comebackBonus(G)*100)} %</span>` : '');
   document.querySelectorAll('#sendPanel button').forEach(b=>b.disabled = G.gold < UNITS[b.dataset.k].cost || G.over);
   // Kauf-Buttons bleiben klickbar: nicht kaufbar = abgedunkelt, der Grund steht am Button (und als Meldung beim Klick)
   document.querySelectorAll('#shopPanel button[data-buy]').forEach(b=>{
