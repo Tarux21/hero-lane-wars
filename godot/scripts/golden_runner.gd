@@ -3,7 +3,7 @@ extends RefCounted
 ## in Godot nach und vergleicht Zahl für Zahl. Aufruf: Godot --headless --path godot -- --golden  (oder --golden=<Teil der ID>)
 ## Szenarien, die Item-Effekte brauchen, die noch nicht in Godot sind, werden als "übersprungen" gezählt.
 
-const SUPPORTED_UNIQ := ["vengeance", "spMul", "hpAp", "comboAmp"]   # Item-Effekte, die schon umgesetzt sind
+const SUPPORTED_UNIQ := ["vengeance", "spMul", "hpAp", "comboAmp", "thorns", "critDmg", "stormCrit", "torment", "ruin", "giants", "cleave", "lifeflow", "slowAura", "onHitMagic"]   # alle Item-Effekte umgesetzt
 const SNAP_TIMES := [0.0, 0.5, 1.0, 2.0, 4.0, 8.0, 12.0]
 
 var g: Node
@@ -52,12 +52,6 @@ func _unsupported(inp: Dictionary) -> String:
 	for u in inp.get("uniq", []):
 		if not SUPPORTED_UNIQ.has(str(u)):
 			return "Item-Effekt " + str(u)
-	if float(inp.get("critCh", 0.0)) > 0.0:
-		return "Krit-Chance (Item)"
-	if float(inp.get("lifesteal", 0.0)) > 0.0:
-		return "Lebensraub (Item)"
-	if float(inp.get("regen", 0.0)) > 0.0:
-		return "Regeneration (Item)"
 	return ""
 
 
@@ -109,8 +103,8 @@ func _snapshot(t: float, p: Dictionary, dummies: Array, dhp: float) -> Dictionar
 	for k in p["buffs"].keys():
 		buffs[k] = {"t": p["buffs"][k]["t"]}
 	var dm: Array = []
-	for u in dummies:
-		dm.append([dhp - u["hp"], u["stun"], u["slow"], u["burn"], u["burn_dps"], u["bleed"], 0.0, u["x"], u["y"]])
+	for u in g.units:                              # nur lebende (gestorbene verschwinden aus der Liste, wie im Prototyp)
+		dm.append([dhp - u["hp"], u["stun"], u["slow"], u["burn"], u["burn_dps"], u["bleed"], u["torm_t"], u["x"], u["y"]])
 	var zs: Array = []
 	for z in g.zones:
 		zs.append({"x": z["x"], "y": z["y"], "r": z["r"], "t": z["t"], "dmg": z["dmg"], "follow": z.get("follow", "")})
@@ -180,8 +174,6 @@ func _compare(sc: Dictionary) -> Array:
 		var wd: Array = ws["dummies"]
 		for di in wd.size():
 			for fi in 9:
-				if fi == 6:
-					continue                           # Qual: Item (später)
 				_chk(diffs, pre + "dummy[%d].%s" % [di, names[fi]], gs["dummies"][di][fi], wd[di][fi])
 		_chk(diffs, pre + "Anzahl Zonen", float(gs["zones"].size()), float(ws["zones"].size()))
 		for zi in mini(ws["zones"].size(), gs["zones"].size()):

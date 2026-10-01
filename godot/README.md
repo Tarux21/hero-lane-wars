@@ -37,3 +37,11 @@ Godot_console.exe --path godot --resolution 1280x720 -- --autoplay --sim=60 --sh
 - **Backport (B):** wie im Prototyp 4,5 s Zauberzeit, 75 s Abklingzeit, Schaden unterbricht, nicht in der Basis. Stopp: S.
 - **Minimap** (unten links): alle Lanes von oben, Monster rot (Elite/Boss größer), dein Held in Heldenfarbe, über jeder Lane deines Teams die Zahl der Monster.
 - **Selbsttest** (Lane-Wechsel und Backport): `Godot_console.exe --headless --path godot -- --selftest --team=4`
+
+## Skills, Items, Tests (Stand Meilenstein 2 und 3)
+- **Skills Q W E R** aller drei Helden (`scripts/skills.gd`), Skillpunkte (1 pro Level, Shift+Taste oder „+“), Rang-Werte, Abklingzeiten, Zonen, Elementare, Statuseffekte – 1:1 aus dem Prototyp.
+- **Items und Shop** (`scripts/items.gd`): 49 Items, Rucksack mit 6 Plätzen, Rezepte, Hut-Regel, Verkauf 70 %, Heiltrank (F). Shop mit **Tab** oder Knopf; Kaufen nur in der Basis. Alle Item-Effekte (Krit, Lebensraub, Dornen, Qual, Aura, Gold pro Sekunde ...) sind umgesetzt.
+- **Tests:**
+  - `-- --golden` : Szenario-Runner, vergleicht 205 Szenarien (`data/golden-skills.json`, erzeugt aus dem Prototyp) Zahl für Zahl. Stand: 205 von 205 identisch.
+  - `-- --selftest-items` : Shop-Regeln (20 Prüfungen). `-- --selftest --team=4` : Lane-Wechsel, Backport, Minimap, Kristall.
+  - Neue Vergleichswerte erzeugen: im Browser `regelwerk/golden-skills.js` ausführen, Datei nach `godot/data/` kopieren.

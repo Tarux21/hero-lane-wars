@@ -9,6 +9,7 @@ const WALL := 3.2                    # Breite der Felswand zwischen/neben Lanes 
 const TEAM_SPACE := 28.0             # Abstand zwischen den Lane-Rändern der beiden Teams (Felswand, Gras, Fluss, Felswand)
 const WALL_OPEN_BASE := 300.0        # bis hierhin (Spielwerte) ist die Basis offen: nur dort kommt man zur anderen Lane des Teams
 const SkillsLib := preload("res://scripts/skills.gd")
+const ItemsLib := preload("res://scripts/items.gd")
 const GoldenRunner := preload("res://scripts/golden_runner.gd")
 const MINI_W := 290.0                # Größe der Minimap (Pixel)
 const MINI_H := 270.0
@@ -33,12 +34,19 @@ var autoplay_skills := false          # Test: Der Test-Held nutzt Skills (--skil
 var test_mode := false                # Tests ohne Grafik: keine Knoten für Effekte, Zahlen und Monster
 var rand_fixed := -1.0                 # Tests: fester Zufallswert (>= 0)
 var deterministic := false            # Tests: kein Zufall (keine Krits, feste Auswahl, feste Startpositionen)
+var items: ItemsLib                 # Items, Rucksack, Shop-Regeln (items.gd)
 var skills: SkillsLib                # Skill-Logik (skills.gd)
 var zones: Array = []                 # Schadensfelder am Boden
 var timers: Array = []                # zeitverzögerte Skill-Effekte
 var elems: Array = []                 # Caster-Elementare
 var fx_list: Array = []               # Skill-Effekte (Ringe, Kegel, Linien), blenden aus
 var skillbar: Array = []              # Oberfläche: die 4 Skill-Plätze
+var shop_panel: PanelContainer
+var shop_btn: Button
+var pot_btn: Button
+var shop_note: Label
+var shop_btns: Array = []              # Shop-Knöpfe [{id, btn}]
+var bag_btns: Array = []               # Rucksack-Plätze
 var cam_init := false
 
 # Kartenaufbau je Spielerzahl pro Team (--team=1|2|4): bis 2 Spieler teilen sich eine breite Lane, ab 4 gibt es pro Team eine Doppel-Lane.
@@ -55,6 +63,8 @@ var msg: Label
 var started := false
 var trace := false
 var selftest := false
+var selftest_items := false
+var shopshot := false                 # Test: Shop offen, Gold und ein paar Items fürs Screenshot
 var golden := false                   # Szenario-Runner (Vergleich mit dem Prototyp)
 var golden_filter := ""
 var menu_shot := ""
@@ -69,6 +79,7 @@ var menu_layer: CanvasLayer
 func _ready() -> void:
 	cfg = Data.cfg
 	skills = SkillsLib.new(self)
+	items = ItemsLib.new(self)
 	var sim_secs := 0.0
 	var shot_path := ""
 	var direct := false                  # Kommandozeile gibt Modus vor: Menü überspringen
@@ -91,6 +102,11 @@ func _ready() -> void:
 			trace = true
 		elif a == "--skills":
 			autoplay_skills = true
+		elif a == "--shopshot":
+			shopshot = true
+		elif a == "--selftest-items":
+			selftest_items = true
+			direct = true
 		elif a == "--golden":
 			golden = true
 			direct = true
@@ -108,6 +124,11 @@ func _ready() -> void:
 		if selftest:
 			set_process(false)
 			_selftest()
+			return
+		if selftest_items:
+			set_process(false)
+			wave_t = 1e9
+			_selftest_items()
 			return
 		if golden:
 			set_process(false)
@@ -136,6 +157,12 @@ func _start_game() -> void:
 	_spawn_hero()
 	_build_hud()
 	started = true
+	if shopshot:                         # Test: Shop zeigen
+		hero["gold"] = 1500.0
+		for id in ["bigSword", "rake", "hat", "heart"]:
+			items.buy(hero, id)
+		items.buy(hero, "potion")
+		shop_panel.visible = true
 
 
 ## Startmenü: Spielmodus (1v1, 2v2, 4v4) und Held wählen.
@@ -324,10 +351,10 @@ func _build_map() -> void:
 		_cyl(Vector3(cx, 0.25, 0.8), 1.6, 0.5, Color("#6d6558"))                                  # Sockel
 		var crystal := MeshInstance3D.new()
 		var sm := SphereMesh.new()
-		sm.radius = 1.0
-		sm.height = 3.2
+		sm.radius = 0.7
+		sm.height = 2.2
 		crystal.mesh = sm
-		crystal.position = Vector3(cx, 2.3, 0.8)
+		crystal.position = Vector3(cx, 1.9, 0.8)
 		var cmat := _mat(col)
 		cmat.emission_enabled = true
 		cmat.emission = col
@@ -335,7 +362,7 @@ func _build_map() -> void:
 		crystal.material_override = cmat
 		add_child(crystal)
 		var ll := _label3d("", 44, col)
-		ll.position = Vector3(cx, 5.2, 0.8)
+		ll.position = Vector3(cx, 3.8, 0.8)
 		add_child(ll)
 		life_labels.append(ll)
 	# Bäume außerhalb der Lanes
@@ -453,11 +480,141 @@ func _build_hud() -> void:
 	mini.offset_bottom = -14.0
 	mini.offset_top = -14.0 - MINI_H
 	_build_skillbar(layer)
+	_build_shop(layer)
 	mini.clip_contents = true
 	mini.mouse_filter = Control.MOUSE_FILTER_STOP
 	mini.draw.connect(_draw_minimap)
 	mini.gui_input.connect(_mini_input)
 	layer.add_child(mini)
+
+
+## Shop (Taste Tab oder Knopf) und Rucksack (immer sichtbar, unten rechts). Kaufen geht nur in der Basis.
+func _build_shop(layer: CanvasLayer) -> void:
+	# Rucksack: 6 Plätze + Heiltrank (unten rechts)
+	var inv := VBoxContainer.new()
+	inv.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	inv.offset_left = -330.0
+	inv.offset_right = -14.0
+	inv.offset_bottom = -14.0
+	inv.offset_top = -160.0
+	layer.add_child(inv)
+	var head := HBoxContainer.new()
+	inv.add_child(head)
+	shop_btn = Button.new()
+	shop_btn.text = "Shop (Tab)"
+	shop_btn.focus_mode = Control.FOCUS_NONE
+	shop_btn.pressed.connect(_toggle_shop)
+	head.add_child(shop_btn)
+	pot_btn = Button.new()
+	pot_btn.focus_mode = Control.FOCUS_NONE
+	pot_btn.pressed.connect(func(): items.drink_potion(hero))
+	head.add_child(pot_btn)
+	var grid := GridContainer.new()
+	grid.columns = 3
+	inv.add_child(grid)
+	bag_btns.clear()
+	for i in int(cfg["bagSize"]):
+		var b := Button.new()
+		b.custom_minimum_size = Vector2(104, 44)
+		b.clip_text = true
+		b.focus_mode = Control.FOCUS_NONE
+		b.pressed.connect(func():
+			if not items.sell(hero, i):
+				if i < hero["bag"].size():
+					_flash_msg("Verkaufen nur in der Basis (Backport: B)"))
+		grid.add_child(b)
+		bag_btns.append(b)
+	# Shop-Fenster (rechts, scrollbar)
+	shop_panel = PanelContainer.new()
+	shop_panel.set_anchors_preset(Control.PRESET_CENTER_RIGHT)
+	shop_panel.offset_left = -360.0
+	shop_panel.offset_right = -14.0
+	shop_panel.offset_top = -260.0
+	shop_panel.offset_bottom = 170.0
+	shop_panel.visible = false
+	layer.add_child(shop_panel)
+	var sc := ScrollContainer.new()
+	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	shop_panel.add_child(sc)
+	var vb := VBoxContainer.new()
+	vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sc.add_child(vb)
+	shop_note = Label.new()
+	shop_note.add_theme_font_size_override("font_size", 13)
+	vb.add_child(shop_note)
+	shop_btns.clear()
+	var groups := [["basis", "Basis-Items"], ["teil", "Teile"], ["hut", "Hüte (nur einer im Rucksack)"], ["zwischen", "Zwischenstufen"],
+		["fertig", "Fertige Items"], ["verbrauch", "Verbrauchsgegenstände"]]
+	for gr in groups:
+		var lab := Label.new()
+		lab.text = gr[1]
+		lab.add_theme_color_override("font_color", Color("#ffd166"))
+		vb.add_child(lab)
+		for id in items.order:
+			var it: Dictionary = items.item[id]
+			if it["group"] != gr[0]:
+				continue
+			var b := Button.new()
+			b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+			b.clip_text = true
+			b.focus_mode = Control.FOCUS_NONE
+			b.tooltip_text = _item_tip(id)
+			var iid: String = id
+			b.pressed.connect(func():
+				if not items.buy(hero, iid):
+					var why := items.buy_reason(hero, iid)
+					if why != "":
+						_flash_msg(why))
+			vb.add_child(b)
+			shop_btns.append({"id": id, "btn": b})
+
+
+func _item_tip(id: String) -> String:
+	var it: Dictionary = items.item[id]
+	var tip := "%s\n%s" % [str(it["name"]), str(it["desc"])]
+	if it.has("parts"):
+		var names: Array = []
+		for part in it["parts"]:
+			names.append(str(items.item[part]["name"]))
+		tip += "\n\nRezept: %s\nRezeptgeld %d, Gesamtpreis %d" % [" + ".join(names), int(it["cost"]), items.total_cost(id)]
+	if it["group"] != "verbrauch":
+		tip += "\nVerkauf: %d Gold" % int(floor(items.total_cost(id) * float(cfg["sellRatio"])))
+	return tip
+
+
+func _toggle_shop() -> void:
+	shop_panel.visible = not shop_panel.visible
+
+
+func _update_shop() -> void:
+	if shop_btn == null or hero.is_empty():
+		return
+	var in_base := _in_base()
+	pot_btn.text = "Heiltrank F: %d%s" % [hero["cons"]["potion"], (" (%ds)" % int(ceil(hero["pot_cd"]))) if hero["pot_cd"] > 0.0 else ""]
+	for i in bag_btns.size():
+		var b: Button = bag_btns[i]
+		if i < hero["bag"].size():
+			var id: String = hero["bag"][i]
+			b.text = str(items.item[id]["name"])
+			b.tooltip_text = _item_tip(id) + "\n(Klick: verkaufen, nur in der Basis)"
+		else:
+			b.text = "–"
+			b.tooltip_text = "leerer Platz"
+	if not shop_panel.visible:
+		return
+	shop_note.text = "Gold %d   %s" % [int(hero["gold"]), "Shop offen: du kannst kaufen und verkaufen." if in_base else "Shop zu: zurück in die Basis (Backport B)."]
+	for e in shop_btns:
+		var id: String = e["id"]
+		var b: Button = e["btn"]
+		var it: Dictionary = items.item[id]
+		var price: int
+		if it.get("consumable", false):
+			price = int(it["cost"])
+		else:
+			price = int(items.resolve_buy(id, hero["bag"])["cost"])
+		var why: String = items.buy_reason(hero, id)
+		b.text = "%s  –  %d g%s" % [str(it["name"]), price, "" if why == "" else "   (" + why + ")"]
+		b.modulate = Color("#8dff9a") if why == "" else Color(1, 1, 1, 0.55)
 
 
 ## Skill-Leiste unten in der Mitte: 4 Plätze (Q W E R) mit Rang, Abklingzeit und "+" zum Lernen.
@@ -467,14 +624,14 @@ func _build_skillbar(layer: CanvasLayer) -> void:
 	bar.offset_left = -300.0
 	bar.offset_right = 300.0
 	bar.offset_bottom = -14.0
-	bar.offset_top = -100.0
+	bar.offset_top = -124.0
 	bar.add_theme_constant_override("separation", 8)
 	layer.add_child(bar)
 	skillbar.clear()
 	var keys := ["Q", "W", "E", "R"]
 	for i in 4:
 		var pc := PanelContainer.new()
-		pc.custom_minimum_size = Vector2(140, 86)
+		pc.custom_minimum_size = Vector2(140, 110)
 		pc.mouse_filter = Control.MOUSE_FILTER_PASS
 		var vb := VBoxContainer.new()
 		pc.add_child(vb)
@@ -663,7 +820,8 @@ func _spawn_hero() -> void:
 		"ranks": [0, 0, 0, 0], "cds": [0.0, 0.0, 0.0, 0.0], "sp": 1, "buffs": {}, "leap": null,
 		"last_elem": "", "combo_t": 0.0, "amp_now": false,
 		"bonus_hp": 0.0, "bonus_dmg": 0.0, "bonus_armor": 0.0, "bonus_as": 0.0, "bonus_sp": 0.0, "bonus_spd": 0.0,   # kommen später aus Items
-		"uniq": {}, "spell_vamp": 0.0, "cdr": 0.0, "bonus_regen": 0.0, "dr": 0.0}
+		"uniq": {}, "spell_vamp": 0.0, "cdr": 0.0, "bonus_regen": 0.0, "dr": 0.0,
+		"bag": [], "cons": {"potion": 0}, "pot_cd": 0.0, "crit_ch": 0.0, "lifesteal": 0.0, "gps": 0.0, "bp_red": 0.0, "dmg_t": 99.0, "bp_max": 0.0}
 
 
 # ---------------------------------------------------------------- Formeln (wie im Browser-Prototyp)
@@ -726,8 +884,14 @@ func clamp_lane_y(y: float) -> float:
 	return clampf(y, -ly, lane_off_g[lanes_per_team - 1] + ly)
 
 
-func apply_torment(_p: Dictionary, _u: Dictionary) -> void:
-	pass                                  # Quälende Maske (Item): kommt mit den Items
+## Quälende Maske: Fähigkeitstreffer starten einen Schaden-über-Zeit-Effekt (pro Ziel mit Abklingzeit)
+func apply_torment(p: Dictionary, u: Dictionary) -> void:
+	if not p["uniq"].has("torment") or not units.has(u) or u["torm_cd"] > 0.0:
+		return
+	u["torm_t"] = float(cfg["tormentTime"])
+	u["torm_tick"] = float(cfg["tormentEvery"])
+	u["torm_dmg"] = float(cfg["tormentFlat"]) + float(cfg["tormentAp"]) * skills.h_sp(p) + float(cfg["tormentPct"]) * u["max"]
+	u["torm_cd"] = float(cfg["tormentCd"])
 
 
 func sfx_cast(_i: int) -> void:
@@ -908,7 +1072,8 @@ func _spawn_unit(type: String, off_x: float, spd_mul: float, lane: int = 0) -> v
 		"dmg": float(u["dmg"]) * (1.0 + float(cfg["unitDmgScale"]) * (m - 1.0)),
 		"spd": float(u["spd"]) * spd_mul * float(cfg["speedMul"]), "range": float(u["range"]),
 		"armor": float(u["armor"]), "r": float(u["r"]), "atk_t": 0.0, "node": node, "def": u,
-		"stun": 0.0, "slow": 0.0, "burn": 0.0, "burn_dps": 0.0, "burn_t": 0.0, "bleed": 0.0, "bleed_pct": 0.0, "bleed_t": 0.0})
+		"stun": 0.0, "slow": 0.0, "burn": 0.0, "burn_dps": 0.0, "burn_t": 0.0, "bleed": 0.0, "bleed_pct": 0.0, "bleed_t": 0.0,
+		"torm_t": 0.0, "torm_tick": 0.0, "torm_dmg": 0.0, "torm_cd": 0.0})
 
 
 ## Zufallswert für Startpositionen (in Tests fest, damit Läufe vergleichbar sind)
@@ -994,10 +1159,13 @@ func _damage_hero(dmg: float, src: Variant = null) -> void:
 	var eff := _reduce(dmg, _hero_armor())
 	hero["bp"] = 0.0                     # Schaden unterbricht den Backport
 	hero["hp"] -= eff
+	hero["dmg_t"] = 0.0                  # Lebensquell-Harnisch: Zeit seit dem letzten Schaden
 	_float_text("-" + str(int(round(eff))), _wp(hero["x"], hero["y"]) + Vector3(0, 3.0, 0), Color("#ff6b6b"), 30, 0.6)
 	var ir := skills.iron_passive(hero)  # Tank: Dornen geben einen Anteil des Schadens an den Angreifer zurück
 	if ir["reflect"] > 0.0 and src != null and units.has(src):
 		hit_unit(src, raw * float(ir["reflect"]) * float(cfg["reflectMul"]), hero)
+	if src != null and units.has(src) and hero["uniq"].has("thorns"):   # Dornen-Items: fester Schaden + Anteil der Item-Rüstung
+		hit_unit(src, (float(cfg["thornFlat"]) + float(cfg["thornArmorPct"]) * hero["bonus_armor"]) * float(cfg["reflectMul"]), hero)
 	if hero["hp"] <= 0.0:
 		hero["hp"] = 0.0
 		hero["deaths"] += 1
@@ -1013,6 +1181,7 @@ func step(dt: float) -> void:
 	if over:
 		return
 	t += dt
+	hero["gold"] += hero["gps"] * dt                                          # Gold-Items: zusätzliches Einkommen pro Sekunde
 	# Einkommen und Wellen
 	income_t += dt
 	if income_t >= float(cfg["incomeTick"]):
@@ -1074,6 +1243,7 @@ func _step_hero(dt: float) -> void:
 	for i in 4:
 		p["cds"][i] = maxf(0.0, p["cds"][i] - dt)
 	p["bp_cd"] = maxf(0.0, p["bp_cd"] - dt)
+	p["pot_cd"] = maxf(0.0, p["pot_cd"] - dt)
 	p["combo_t"] = maxf(0.0, p["combo_t"] - dt)
 	for k in p["buffs"].keys():
 		p["buffs"][k]["t"] -= dt
@@ -1090,6 +1260,9 @@ func _step_hero(dt: float) -> void:
 	var mx := _hero_max_hp()
 	var ir := skills.iron_passive(p)
 	var regen: float = mx * 0.12 if _in_base() else 1.5 + p["lvl"] * 0.3
+	p["dmg_t"] += dt
+	if p["uniq"].has("lifeflow") and p["dmg_t"] >= float(cfg["lifeflowDelay"]):   # Lebensquell-Harnisch: Heilung, wenn lange kein Schaden
+		p["hp"] = minf(mx, p["hp"] + mx * float(cfg["lifeflowPct"]) * dt)
 	p["hp"] = minf(mx, p["hp"] + (regen + mx * float(ir["regen"]) + mx * float(p["bonus_regen"])) * dt)
 	if p["leap"] != null:                # Sprung (Damage): Held fliegt zum Ziel und landet mit Schaden
 		var L: Dictionary = p["leap"]
@@ -1155,7 +1328,35 @@ func _step_hero(dt: float) -> void:
 		var dmg := _hero_dmg()
 		var tx: float = tgt["x"]
 		var ty: float = tgt["y"]
-		hit_unit(tgt, dmg, p)
+		var is_crit := false
+		if p["crit_ch"] > 0.0 and rand() < p["crit_ch"]:                  # kritischer Treffer (Crit-Mantel / Mächtige Klinge)
+			is_crit = true
+			dmg *= float(cfg["critDmgBase"]) + (float(cfg["critDmgBonus"]) if p["uniq"].has("critDmg") else 0.0)
+			fx_text(tx, ty - 28.0, "KRIT!", "#ffe066", 0.6, 34)
+			if p["uniq"].has("stormCrit"):                                # Sturmbrecher: kurz mehr Angriffstempo
+				p["buffs"]["critAs"] = {"t": float(cfg["stormCritTime"]), "as": float(cfg["stormCritAs"])}
+		var dealt := hit_unit(tgt, dmg, p)
+		if p["lifesteal"] > 0.0:                                          # Lebensraub (inkl. Rachsucht)
+			var vf := 2.0 if p["uniq"].has("vengeance") and p["hp"] < 0.4 * _hero_max_hp() else 1.0
+			p["hp"] = minf(_hero_max_hp(), p["hp"] + dealt * p["lifesteal"] * vf)
+		if p["uniq"].has("onHitMagic") and units.has(tgt):                # Funkenklinge: magischer Zusatzschaden, ignoriert Rüstung
+			var md: float = float(cfg["sparkFlat"]) + float(cfg["sparkAp"]) * skills.h_sp(p)
+			tgt["hp"] -= md
+			fx_text(tx, ty - 14.0, str(int(round(md))), "#9fe0ff", 0.4, 28)
+			if tgt["hp"] <= 0.0:
+				_kill_unit(tgt, p)
+		if p["uniq"].has("giants") and units.has(tgt):                    # Gigantenschlag: % deines max. Lebens
+			hit_unit(tgt, float(cfg["giantsPct"]) * _hero_max_hp(), p)
+		if p["uniq"].has("cleave"):                                       # Splitteraxt: die nächsten Gegner im Umkreis (höchstens cleaveMax)
+			var near: Array = []
+			for u in units:
+				if u != tgt and Vector2(u["x"] - tx, u["y"] - ty).length() <= 80.0:
+					near.append(u)
+			near.sort_custom(func(a, b): return Vector2(a["x"] - tx, a["y"] - ty).length() < Vector2(b["x"] - tx, b["y"] - ty).length())
+			for u in near.slice(0, int(cfg["cleaveMax"])):
+				hit_unit(u, dmg * float(cfg["cleaveItemPct"]), p)
+		if p["uniq"].has("ruin") and units.has(tgt):                      # Schneide des gefallenen Monarchen: % des aktuellen Lebens
+			hit_unit(tgt, minf(float(cfg["ruinMax"]), maxf(float(cfg["ruinMin"]), float(cfg["ruinPct"]) * tgt["hp"])), p)
 		var rg: Variant = skills.buff(p, "rage")
 		if rg != null and rg["cleave"]:                                   # Kampfrausch Rang 5: Angriffe treffen Gegner im Umkreis
 			for u in units.duplicate():
@@ -1169,7 +1370,8 @@ func _step_hero(dt: float) -> void:
 func _start_backport() -> void:
 	if hero["dead"] > 0.0 or hero["bp"] > 0.0 or hero["bp_cd"] > 0.0 or _in_base():
 		return
-	hero["bp"] = float(cfg["backportCast"])
+	hero["bp_max"] = float(cfg["backportCast"]) * (1.0 - float(hero["bp_red"]))   # Hut des Reisenden verkürzt den Cast
+	hero["bp"] = hero["bp_max"]
 	hero["move_to"] = null
 	hero["target"] = null
 
@@ -1240,6 +1442,18 @@ func _step_units(dt: float) -> void:
 				hit_unit(u, u["burn_dps"], hero)
 				if not units.has(u):
 					continue
+		if u["torm_cd"] > 0.0:
+			u["torm_cd"] -= dt
+		if u["torm_t"] > 0.0:                                             # Qual (Quälende Maske): alle 0,5 s Schaden, ignoriert Rüstung
+			u["torm_t"] -= dt
+			u["torm_tick"] -= dt
+			if u["torm_tick"] <= 0.0:
+				u["torm_tick"] += float(cfg["tormentEvery"])
+				u["hp"] -= u["torm_dmg"]
+				_float_text(str(int(round(u["torm_dmg"]))), _wp(u["x"], u["y"]) + Vector3(0, 1.8, 0), Color("#c77dff"), 26, 0.4)
+				if u["hp"] <= 0.0:
+					_kill_unit(u, hero)
+					continue
 		if u["bleed"] > 0.0:                                              # Blutung: % des Lebens pro Sekunde, ignoriert Rüstung
 			u["bleed"] -= dt
 			u["bleed_t"] += dt
@@ -1272,7 +1486,11 @@ func _step_units(dt: float) -> void:
 				else:
 					el["hp"] -= _reduce(u["dmg"], 10.0)
 		if not engaged:
-			var step_len: float = u["spd"] * (0.5 if u["slow"] > 0.0 else 1.0) * dt
+			# Titanenpanzer-Aura: Gegner nahe am Helden sind langsamer
+			var aura := 1.0
+			if hero["dead"] <= 0.0 and hero["uniq"].has("slowAura") and Vector2(u["x"] - hero["x"], u["y"] - hero["y"]).length() <= float(cfg["auraRadius"]):
+				aura = 1.0 - float(cfg["auraSlow"])
+			var step_len: float = u["spd"] * (0.5 if u["slow"] > 0.0 else 1.0) * aura * dt
 			var dx := -1.0
 			var dy := 0.0
 			var chasing := false
@@ -1336,7 +1554,7 @@ func _sync_visuals(delta: float) -> void:
 	cam.look_at(cam.position - off)
 	var ring: MeshInstance3D = hero["ring"]
 	ring.visible = hero["bp"] > 0.0
-	var prog: float = hero["bp"] / float(cfg["backportCast"])
+	var prog: float = hero["bp"] / maxf(0.01, hero["bp_max"])
 	ring.scale = Vector3(0.4 + 0.6 * prog, 1.0, 0.4 + 0.6 * prog)
 	var bp_txt := "in der Basis"
 	if hero["dead"] > 0.0:
@@ -1352,6 +1570,7 @@ func _sync_visuals(delta: float) -> void:
 	if mini != null:
 		mini.queue_redraw()
 	_update_skillbar()
+	_update_shop()
 
 
 func _ground_point(screen_pos: Vector2) -> Vector3:
@@ -1388,8 +1607,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		elif event.keycode == KEY_S:      # Stopp
 			hero["move_to"] = null
 			hero["target"] = null
-		elif event.keycode == KEY_F:      # Heiltrank: kommt mit den Items
-			pass
+		elif event.keycode == KEY_TAB:    # Shop ein-/ausblenden
+			_toggle_shop()
+		elif event.keycode == KEY_F:      # Heiltrank
+			items.drink_potion(hero)
 		else:
 			var slot := [KEY_Q, KEY_W, KEY_E, KEY_R].find(event.keycode)
 			if slot >= 0:
@@ -1453,6 +1674,9 @@ func reset_test(inp: Dictionary, heldpos: Array, layouts: Dictionary) -> void:
 	p["cdr"] = float(inp.get("cdr", 0.0))
 	p["spell_vamp"] = float(inp.get("spellVamp", 0.0))
 	p["dr"] = float(inp.get("dr", 0.0))
+	p["crit_ch"] = float(inp.get("critCh", 0.0))
+	p["lifesteal"] = float(inp.get("lifesteal", 0.0))
+	p["bonus_regen"] = float(inp.get("regen", 0.0))
 	p["x"] = float(heldpos[0])
 	p["y"] = float(heldpos[1])
 	p["hp"] = skills.h_max_hp(p) * float(inp.get("hpFrac", 0.5))
@@ -1472,6 +1696,81 @@ func reset_test(inp: Dictionary, heldpos: Array, layouts: Dictionary) -> void:
 		u["atk_t"] = 1e9
 		u["r"] = 9.0
 		u["range"] = 0.0                       # Prototyp-Dummys haben Reichweite 0 (laufen dicht an den Helden heran)
+
+
+# ---------------------------------------------------------------- Selbsttest Shop (--selftest-items)
+func _selftest_items() -> void:
+	var ok := true
+	var check := func(name: String, cond: bool) -> void:
+		print(("PASS  " if cond else "FAIL  ") + name)
+		if not cond:
+			ok = false
+	var p := hero
+	p["gold"] = 10000.0
+	p["x"] = 1000.0
+	check.call("Kaufen nur in der Basis", items.buy_reason(p, "sword") != "" and not items.buy(p, "sword"))
+	p["x"] = 100.0
+	check.call("Schwert kaufen (80 g, +8 Schaden)", items.buy(p, "sword") and p["gold"] == 9920.0 and p["bonus_dmg"] == 8.0 and p["bag"] == ["sword"])
+	var g0: float = p["gold"]
+	check.call("Verkaufen: 70 % von 80 = 56 g", items.sell(p, 0) and p["gold"] == g0 + 56.0 and p["bag"].is_empty() and p["bonus_dmg"] == 0.0)
+	# Rezept: Mächtige Klinge = Großes Schwert + Harke + Crit-Mantel + 300 Rezeptgeld
+	items.buy(p, "bigSword")
+	check.call("Teil im Rucksack senkt den Rezeptpreis (700 statt 1000)", items.resolve_buy("mightyBlade", p["bag"])["cost"] == 700)
+	g0 = p["gold"]
+	check.call("Mächtige Klinge kaufen: Teil verbraucht, fehlende Teile mitgekauft", items.buy(p, "mightyBlade") and g0 - p["gold"] == 700.0 and p["bag"] == ["mightyBlade"])
+	check.call("Werte: +80 Schaden, 25 % Krit, Effekt critDmg", p["bonus_dmg"] == 80.0 and absf(p["crit_ch"] - 0.25) < 1e-9 and p["uniq"].has("critDmg"))
+	g0 = p["gold"]
+	check.call("Verkauf Mächtige Klinge: 70 % von 1000 = 700 g", items.sell(p, 0) and p["gold"] == g0 + 700.0)
+	# Hut-Regel
+	items.buy(p, "hat")
+	check.call("Zweiter Lederhut wird abgelehnt (nur ein Hut)", items.buy_reason(p, "hat") == "du trägst schon einen Hut")
+	g0 = p["gold"]
+	check.call("Spezialhut verbraucht den Lederhut, kostet 450", items.buy(p, "hatWind") and g0 - p["gold"] == 450.0 and p["bag"] == ["hatWind"])
+	check.call("Hutwerte: +50 Lauftempo, +0,35 Angriffstempo", p["bonus_spd"] == 50.0 and absf(p["bonus_as"] - 0.35) < 1e-9)
+	check.call("Zweiter Hut blockiert", items.buy_reason(p, "hatSage") == "du trägst schon einen Hut")
+	# Rucksack voll
+	p["bag"] = []
+	items.recalc(p)
+	for i in 6:
+		items.buy(p, "sword")
+	check.call("Rucksack hat 6 Plätze", p["bag"].size() == 6 and items.buy_reason(p, "sword").begins_with("Rucksack voll"))
+	# Leben beim Kauf: aktuelles Leben steigt mit dem max. Leben
+	p["bag"] = []
+	items.recalc(p)
+	p["hp"] = 100.0
+	items.buy(p, "heart")
+	check.call("Herz: +180 max. Leben und aktuelles Leben steigt mit (100 -> 280)", p["bonus_hp"] == 180.0 and absf(p["hp"] - 280.0) < 1e-6)
+	# Heiltrank
+	p["bag"] = []
+	items.recalc(p)
+	p["hp"] = skills.h_max_hp(p)
+	items.buy(p, "potion")
+	check.call("Heiltrank gekauft", p["cons"]["potion"] == 1)
+	check.call("Trinken bei vollem Leben geht nicht", not items.drink_potion(p))
+	p["hp"] = 100.0
+	var mx: float = skills.h_max_hp(p)
+	check.call("Trinken heilt 40 %% des max. Lebens (%.0f)" % (mx * 0.4), items.drink_potion(p) and absf(p["hp"] - (100.0 + mx * 0.4)) < 1e-6 and p["pot_cd"] == 15.0)
+	items.buy(p, "potion")
+	p["hp"] = 100.0
+	check.call("Abklingzeit 15 s blockiert den nächsten Trank", not items.drink_potion(p))
+	for i in 10:
+		items.buy(p, "potion")
+	check.call("Vorrat höchstens 5", p["cons"]["potion"] <= int(cfg["consMax"]))
+	# Gold pro Sekunde
+	p["bag"] = ["coinPouch", "coinPouch"]
+	items.recalc(p)
+	g0 = p["gold"]
+	for i in 20:
+		step(0.05)
+	check.call("Münzbeutel: 0,8 Gold/s -> +0,8 in 1 s", absf(p["gold"] - g0 - 0.8) < 1e-6)
+	# Backport-Verkürzung (Hut des Reisenden: -40 %)
+	p["bag"] = ["hatTravel"]
+	items.recalc(p)
+	p["x"] = 1000.0
+	_start_backport()
+	check.call("Hut des Reisenden: Backport 2,7 s statt 4,5 s", absf(p["bp"] - 2.7) < 1e-9)
+	print("SELFTEST-ITEMS " + ("OK" if ok else "FEHLER"))
+	get_tree().quit()
 
 
 # ---------------------------------------------------------------- Selbsttest (--selftest, nur 4v4)
