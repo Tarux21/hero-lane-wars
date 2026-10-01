@@ -5,7 +5,9 @@ extends Node3D
 ## Alle Spielwerte stammen aus data/daten.json (Autoload "Data"). Spielkoordinaten (x = Lane entlang, y = quer) werden mit S in Meter umgerechnet.
 
 const S := 0.05                      # Spielwert -> Meter (Lane 3000 -> 150 m)
-const CAM_OFFSET := Vector3(0, 20, 15)
+const LANE_GAP := 26.0               # Abstand der Lane-Mitten (Meter): deine Lane bei x=0, Gegner-Lane bei x=LANE_GAP
+const CAM_PITCH := 58.0              # Kamerawinkel in Grad (wie Warcraft 3: schräg von oben)
+var cam_dist := 28.0                 # Kamera-Abstand zum Helden (Mausrad)
 
 var cfg: Dictionary
 var t := 0.0
@@ -44,6 +46,8 @@ func _ready() -> void:
 			sim_secs = float(a.substr(6))
 		elif a.begins_with("--shot="):
 			shot_path = a.substr(7)
+		elif a.begins_with("--zoom="):
+			cam_dist = float(a.substr(7))
 		elif a == "--autoplay":
 			autoplay = true
 	_build_world()
@@ -54,43 +58,136 @@ func _ready() -> void:
 		_run_simulation(sim_secs, shot_path)
 
 
+# ---------------------------------------------------------------- Koordinaten
+## Spielkoordinaten -> Welt: Die Lane läuft senkrecht über den Bildschirm (Basis unten, Monster kommen von oben).
+## x = Weg entlang der Lane (0 = Basis), y = quer, lane 0 = deine Lane, 1 = Gegner-Lane.
+func _wp(gx: float, gy: float, lane: int = 0) -> Vector3:
+	return Vector3(gy * S + lane * LANE_GAP, 0.0, -gx * S)
+
+
+func _cam_offset() -> Vector3:
+	var p := deg_to_rad(CAM_PITCH)
+	return Vector3(0.0, sin(p) * cam_dist, cos(p) * cam_dist)
+
+
 # ---------------------------------------------------------------- Aufbau
 func _build_world() -> void:
 	var env := Environment.new()
 	env.background_mode = Environment.BG_COLOR
-	env.background_color = Color("#10131a")
+	env.background_color = Color("#2a3a22")
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color("#8a93a8")
-	env.ambient_light_energy = 0.6
+	env.ambient_light_color = Color("#b9c2cc")
+	env.ambient_light_energy = 0.7
 	var we := WorldEnvironment.new()
 	we.environment = env
 	add_child(we)
 
 	var sun := DirectionalLight3D.new()
-	sun.rotation_degrees = Vector3(-55, -30, 0)
-	sun.light_energy = 1.1
+	sun.rotation_degrees = Vector3(-60, -25, 0)
+	sun.light_color = Color("#fff1d6")
+	sun.light_energy = 1.15
 	sun.shadow_enabled = true
+	sun.directional_shadow_max_distance = 90.0
 	add_child(sun)
 
-	var lane_len: float = cfg["laneLen"] * S
-	var half: float = cfg["laneHalf"] * S
-	_box(Vector3(lane_len / 2.0, -0.3, 0), Vector3(lane_len + 60.0, 0.3, 50.0), Color("#14181f"))    # Boden
-	_box(Vector3((lane_len + 5.0) / 2.0, -0.05, 0), Vector3(lane_len + 5.0, 0.1, half * 2.0), Color("#46506a"))  # Lane
-	for side in [-1.0, 1.0]:                                                                                    # helle Lane-Ränder
-		_box(Vector3((lane_len + 5.0) / 2.0, 0.05, side * half), Vector3(lane_len + 5.0, 0.12, 0.25), Color("#8d9ab8"))
-	var base_w: float = cfg["baseX"] * S
-	_box(Vector3(base_w / 2.0, 0.0, 0), Vector3(base_w, 0.12, half * 2.0 + 6.0), Color("#23405f"))   # Basis
-	var spawn_x: float = cfg["spawnX"] * S
-	_box(Vector3(spawn_x + 3.0, 0.0, 0), Vector3(6.0, 0.12, half * 2.0), Color("#5a2328"))           # Monster-Spawn
-	var x := 10.0
-	while x < lane_len:                                                                                  # Meilensteine
-		_box(Vector3(x, 0.02, 0), Vector3(0.1, 0.02, half * 2.0), Color("#3a4252"))
-		x += 10.0
+	_build_map()
 
 	cam = Camera3D.new()
-	cam.fov = 40
-	cam.far = 400
+	cam.fov = 45
+	cam.far = 500
 	add_child(cam)
+
+
+## Karte im Stil von Warcraft-3-Hero-Line-Wars: zwei Lanes nebeneinander, dazwischen Felswände und ein Fluss,
+## unten ein Platz mit magischem Kreis, Häusern (Monster senden) und Händlern. Alles noch aus einfachen Formen (Platzhalter).
+func _build_map() -> void:
+	var lane_len: float = cfg["laneLen"] * S
+	var half: float = cfg["laneHalf"] * S
+	var base_len: float = cfg["baseX"] * S
+	var mid_x := LANE_GAP / 2.0
+	var z_far := -lane_len - 10.0
+	var z_mid := (z_far + 14.0) / 2.0
+	var z_len := 14.0 - z_far
+	_box(Vector3(mid_x, -0.5, z_mid), Vector3(120.0, 1.0, z_len + 30.0), Color("#4b6b30"))                   # Gras
+	for lane in 2:
+		var cx := lane * LANE_GAP
+		_box(Vector3(cx, -0.04, z_mid + 4.0), Vector3(half * 2.0, 0.1, z_len - 8.0), Color("#a89462"))       # Lane (Sandweg)
+		_box(Vector3(cx, 0.02, z_mid + 4.0), Vector3(half * 0.5, 0.06, z_len - 8.0), Color("#8d7d55"))       # Pflasterstreifen in der Mitte
+		for side in [-1.0, 1.0]:
+			_box(Vector3(cx + side * (half + 1.6), 1.1, z_mid - 6.0), Vector3(3.2, 2.4, lane_len + 2.0), Color("#4c4f55"))   # Felswand
+			_box(Vector3(cx + side * (half + 1.6), 2.45, z_mid - 6.0), Vector3(2.2, 0.5, lane_len + 2.0), Color("#5f636b"))
+	_box(Vector3(mid_x, -0.06, z_mid - 6.0), Vector3(5.0, 0.2, lane_len + 2.0), Color("#1f5fa8"))             # Fluss zwischen den Lanes
+	var spawn_z := -float(cfg["spawnX"]) * S
+	for lane in 2:
+		_box(Vector3(lane * LANE_GAP, 0.03, spawn_z - 2.0), Vector3(half * 2.0, 0.06, 6.0), Color("#6e2a2a"))  # Monster-Spawn
+	# Platz am unteren Ende (Basis): Pflaster, magischer Kreis, Feuerstellen
+	var plaza_z := 7.0
+	var plaza := _cyl(Vector3(mid_x, -0.02, plaza_z), 21.0, 0.1, Color("#8b8272"))
+	plaza.scale = Vector3(1.0, 1.0, 0.55)
+	_cyl(Vector3(mid_x, 0.06, plaza_z), 4.2, 0.05, Color("#2a3a7a"), Color("#4a7aff"))                         # magischer Kreis
+	_cyl(Vector3(mid_x, 0.1, plaza_z), 2.4, 0.06, Color("#3b3f48"))
+	for fx in [-1.0, 1.0]:
+		_cyl(Vector3(mid_x + fx * 10.5, 0.1, plaza_z - 2.0), 1.3, 0.2, Color("#4c4f55"))
+		_cyl(Vector3(mid_x + fx * 10.5, 0.5, plaza_z - 2.0), 0.5, 0.8, Color("#ff7a2a"), Color("#ff5a10"))     # Feuer
+	# Häuser (Monster senden) und Händler-Sockel in einer Reihe am unteren Rand, je Lane
+	for lane in 2:
+		for i in 4:
+			var hx := lane * LANE_GAP + (i - 1.5) * 3.4
+			_house(Vector3(hx, 0.0, plaza_z + 5.0))
+		for sx in [-1.0, 1.0]:
+			_cyl(Vector3(lane * LANE_GAP + sx * 7.0, 0.2, plaza_z - 1.0), 1.1, 0.4, Color("#6d6558"))        # Händler-Sockel
+	# Bäume und Felsen außerhalb der Lanes
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 7
+	var zz := 12.0
+	while zz > z_far:
+		for side in [-1.0, 1.0]:
+			var tx: float = (-14.0 - rng.randf() * 12.0) if side < 0.0 else (LANE_GAP + 14.0 + rng.randf() * 12.0)
+			_tree(Vector3(tx, 0.0, zz + rng.randf() * 4.0), 0.8 + rng.randf() * 0.7)
+		zz -= 7.0
+
+
+func _cyl(pos: Vector3, radius: float, height: float, col: Color, glow: Color = Color(0, 0, 0, 0)) -> MeshInstance3D:
+	var m := MeshInstance3D.new()
+	var c := CylinderMesh.new()
+	c.top_radius = radius
+	c.bottom_radius = radius
+	c.height = height
+	m.mesh = c
+	m.position = pos
+	var mat := _mat(col)
+	if glow.a > 0.0:
+		mat.emission_enabled = true
+		mat.emission = glow
+		mat.emission_energy_multiplier = 1.2
+	m.material_override = mat
+	add_child(m)
+	return m
+
+
+func _house(pos: Vector3) -> void:
+	_box(pos + Vector3(0, 1.0, 0), Vector3(2.6, 2.0, 2.6), Color("#b9955a"))                       # Wände
+	var roof := MeshInstance3D.new()
+	var pm := PrismMesh.new()
+	pm.size = Vector3(3.2, 1.4, 3.0)
+	roof.mesh = pm
+	roof.position = pos + Vector3(0, 2.7, 0)
+	roof.material_override = _mat(Color("#7a4a2a"))
+	add_child(roof)
+
+
+func _tree(pos: Vector3, s: float) -> void:
+	_cyl(pos + Vector3(0, 0.8 * s, 0), 0.25 * s, 1.6 * s, Color("#5a3d22"))
+	for k in 3:
+		var cone := MeshInstance3D.new()
+		var cm := CylinderMesh.new()
+		cm.top_radius = 0.0
+		cm.bottom_radius = (1.7 - k * 0.4) * s
+		cm.height = 2.0 * s
+		cone.mesh = cm
+		cone.position = pos + Vector3(0, (2.0 + k * 1.3) * s, 0)
+		cone.material_override = _mat(Color("#23512a"))
+		add_child(cone)
 
 
 func _box(pos: Vector3, size: Vector3, col: Color) -> MeshInstance3D:
@@ -247,7 +344,7 @@ func _gain_xp(n: float) -> void:
 		hero["xp"] -= _xp_need(hero["lvl"])
 		hero["lvl"] += 1
 		hero["hp"] += float(hero["d"]["hpl"])
-		_float_text("LEVEL %d" % hero["lvl"], Vector3(hero["x"] * S, 3.2, hero["y"] * S), Color("#ffd166"), 48, 1.2)
+		_float_text("LEVEL %d" % hero["lvl"], _wp(hero["x"], hero["y"]) + Vector3(0, 3.2, 0), Color("#ffd166"), 48, 1.2)
 
 
 func _float_text(text: String, pos: Vector3, col: Color, size: int, life: float) -> void:
@@ -260,7 +357,7 @@ func _float_text(text: String, pos: Vector3, col: Color, size: int, life: float)
 func _hit_unit(u: Dictionary, dmg: float) -> void:
 	var d := _reduce(dmg, u["armor"])
 	u["hp"] -= d
-	_float_text(str(int(round(d))), Vector3(u["x"] * S, 1.8, u["y"] * S), Color.WHITE, 30, 0.5)
+	_float_text(str(int(round(d))), _wp(u["x"], u["y"]) + Vector3(0, 1.8, 0), Color.WHITE, 30, 0.5)
 	if u["hp"] <= 0.0:
 		_kill_unit(u)
 
@@ -270,7 +367,7 @@ func _damage_hero(dmg: float) -> void:
 		return
 	var eff := _reduce(dmg, _hero_armor())
 	hero["hp"] -= eff
-	_float_text("-" + str(int(round(eff))), Vector3(hero["x"] * S, 3.0, hero["y"] * S), Color("#ff6b6b"), 30, 0.6)
+	_float_text("-" + str(int(round(eff))), _wp(hero["x"], hero["y"]) + Vector3(0, 3.0, 0), Color("#ff6b6b"), 30, 0.6)
 	if hero["hp"] <= 0.0:
 		hero["hp"] = 0.0
 		hero["deaths"] += 1
@@ -405,22 +502,23 @@ func _process(delta: float) -> void:
 func _sync_visuals(delta: float) -> void:
 	var hn: Node3D = hero["node"]
 	hn.visible = hero["dead"] <= 0.0
-	hn.position = Vector3(hero["x"] * S, 0, hero["y"] * S)
+	hn.position = _wp(hero["x"], hero["y"])
 	var lab: Label3D = hero["label"]
 	lab.text = "%d / %d" % [int(hero["hp"]), int(_hero_max_hp())]
 	for u in units:
 		var n: Node3D = u["node"]
-		n.position = Vector3(u["x"] * S, 0, u["y"] * S)
+		n.position = _wp(u["x"], u["y"])
 	for f in texts.duplicate():
 		f["t"] -= delta
 		f["node"].position.y += 1.5 * delta
 		if f["t"] <= 0.0:
 			f["node"].queue_free()
 			texts.erase(f)
-	var want := hn.position + CAM_OFFSET
+	var off := _cam_offset()
+	var want := hn.position + off
 	cam.position = want if not cam_init else cam.position.lerp(want, minf(1.0, delta * 6.0))
 	cam_init = true
-	cam.look_at(cam.position - CAM_OFFSET)
+	cam.look_at(cam.position - off)
 	var min_t := int(t) / 60
 	hud.text = "Gold %d   Einkommen +%.0f / %ds   Leben %d   Welle %d   Zeit %d:%02d\nLevel %d   XP %d / %d   HP %d / %d   Kills %d   %s" % [
 		int(gold), income, int(cfg["incomeTick"]), lives, wave, min_t, int(t) % 60,
@@ -437,12 +535,17 @@ func _ground_point(screen_pos: Vector2) -> Vector3:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.pressed:   # Mausrad: Kamera näher/weiter weg
+		if event.button_index == MOUSE_BUTTON_WHEEL_UP:
+			cam_dist = clampf(cam_dist - 2.0, 14.0, 50.0)
+		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+			cam_dist = clampf(cam_dist + 2.0, 14.0, 50.0)
 	if over or hero["dead"] > 0.0:
 		return
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_RIGHT:
 		var p := _ground_point(event.position)
-		var gx := p.x / S
-		var gy := p.z / S
+		var gx := -p.z / S
+		var gy := p.x / S
 		var hit: Variant = null
 		var best := 1e9
 		for u in units:
