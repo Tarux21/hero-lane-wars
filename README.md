@@ -47,6 +47,9 @@ measure('damage', ['dStorm'], 'dStd'); // Item-Variante gegen den Standardbuild
 
 Hinweis: Die Messungen streuen um etwa ±10 Prozentpunkte; für aussagekräftige Werte mehrere Messreihen mitteln.
 
+## Gegner-Stile
+`BOT_STYLE` in `index.html` (Ausgewogen, Aggressiv, Wirtschaft). Für Simulationen: `duel('tank','tank',{style:['rush','balanced']})`. Messwerte (je Klasse gespiegelt, Normal): Aggressiv ~49 % gegen Ausgewogen, Wirtschaft ~55 % gegen Ausgewogen, Aggressiv ~42 % gegen Wirtschaft.
+
 ## Spielgefühl (Sound und Effekte)
 Im Block „SPIELGEFÜHL“ in `index.html`: `SFX` (Sounds, per WebAudio erzeugt), `sfx()`, `shake()`, `burst()`. Alles läuft nur über `feelOn()` (nur Spieler, nicht Bot, nicht in der Simulation – `sim2.js` setzt `simMode`).
 

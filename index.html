@@ -125,6 +125,7 @@
     </ol></div>
   <div class="row" style="margin-bottom:12px;align-items:center">
     <label>Schwierigkeit&nbsp;<select id="diffSel"><option value="easy">Leicht</option><option value="normal" selected>Normal</option><option value="hard">Schwer</option><option value="expert">Experte</option></select></label>
+    <label>Gegner-Stil&nbsp;<select id="styleSel"><option value="random" selected>Zufall</option><option value="balanced">Ausgewogen</option><option value="rush">Aggressiv</option><option value="eco">Wirtschaft</option></select></label>
     <label>Gegner-Held&nbsp;<select id="enemySel"><option value="random" selected>Zufall</option><option value="tank">Tank</option><option value="damage">Damage</option><option value="caster">Caster</option></select></label>
   </div>
   <div class="row" id="heroPick"></div>
@@ -387,6 +388,8 @@ function newGame(heroKey){
   P = makeState(heroKey); E = makeState(enemyKey);
   E.diff = diff; E.G.goldMul = diff.goldMul; E.H.mul = diff.heroMul;
   E.build = pickBotBuild(enemyKey);   // der Gegner wählt zufällig einen klassenpassenden Build
+  const sk = document.getElementById('styleSel').value, styles = Object.keys(BOT_STYLE);
+  E.style = sk==='random' ? styles[Math.floor(Math.random()*styles.length)] : sk;   // Spielstil: bestimmt, wann der Gegner Monster schickt
   E.b = {mode:'fight', step:0, trips:0, deaths:0, deathTimes:[], wasDead:false, clock:0, lastSend:0};
   if(CFG.infiniteEnemyLives) E.G.lives = 1e9;
   useInst(P); mouse = P.mouse; viewEnemy = false;
@@ -395,7 +398,7 @@ function newGame(heroKey){
   document.getElementById('start').style.display='none';
   paused = false; settingsPaused = false; gameSpeed = 1; endShown = false; uiT.base = 0; uiT.sp = 0; uiT.lives = null; uiT.warnWave = 0;
   closeOverlays(); clearAlerts(); hideTip(); syncToolbar(); feel.shake = 0; feel.flash = 0;
-  settings.lastHero = heroKey; settings.lastDiff = document.getElementById('diffSel').value; settings.lastEnemy = ek; saveSettings();   // Auswahl merken
+  settings.lastHero = heroKey; settings.lastDiff = document.getElementById('diffSel').value; settings.lastEnemy = ek; settings.lastStyle = sk; saveSettings();   // Auswahl merken
   buildShop(); buildSend(); buildSkills(); buildHelp();
 }
 const buff = n => (H.buffs[n] && H.buffs[n].t>0) ? H.buffs[n] : null;
@@ -1193,7 +1196,7 @@ function updateHud(force){
   const tl =Math.max(0, CFG.incomeTick - G.incomeT).toFixed(1);
   document.getElementById('hud').innerHTML =
     `<span>Gold <b>${Math.floor(G.gold)}</b></span><span>Einkommen <b>+${G.income.toFixed(1)}</b> / ${CFG.incomeTick}s (in ${tl}s)</span>`+
-    `<span>Leben <b>${G.lives}</b> · Gegner <b>${enemyLivesTxt()}</b> <small>(${E.H.d.name}, Lv ${E.H.lvl}, ${E.diff.name})</small></span><span>${waveInfoHtml()} · Zeit ${Math.floor(G.t/60)}:${String(Math.floor(G.t%60)).padStart(2,'0')}</span>`+
+    `<span>Leben <b>${G.lives}</b> · Gegner <b>${enemyLivesTxt()}</b> <small>(${E.H.d.name}, Lv ${E.H.lvl}, ${E.diff.name}, ${(BOT_STYLE[E.style]||BOT_STYLE.balanced).name})</small></span><span>${waveInfoHtml()} · Zeit ${Math.floor(G.t/60)}:${String(Math.floor(G.t%60)).padStart(2,'0')}</span>`+
     `<span>Monster-Stärke ×${hpMult().toFixed(2)}</span>`+
     (comebackBonus(G)>0 ? `<span style="color:#9af0a8" title="Du liegst bei den Leben zurück: mehr Einkommen, damit du aufholen kannst.">Aufholhilfe +${Math.round(comebackBonus(G)*100)} %</span>` : '');
   document.querySelectorAll('#sendPanel button').forEach(b=>b.disabled = G.gold < UNITS[b.dataset.k].cost || G.over);
@@ -1495,14 +1498,20 @@ function botSkills(I, tgt){
     if(nearCount(450)>=2) cast(3);
   }
 }
+// Spielstile des Gegners (Abwechslung zwischen Partien): Faktoren auf den Sende-Anteil je Spielphase (früh/Mitte/spät) und auf die Sende-Pause
+const BOT_STYLE = {
+  balanced: {name:'Ausgewogen', strat:[1,1,1],        every:1,    reserve:1},
+  rush:     {name:'Aggressiv',  strat:[1.25,1.05,.95], every:.85, reserve:.3},   // legt wenig Gold für Items zurück: schickt früh viele Monster
+  eco:      {name:'Wirtschaft', strat:[.6,1,1.2],      every:1.15, reserve:1},   // rüstet zuerst den Helden auf, schickt später mehr
+};   // reserve: Faktor auf das Gold, das der Bot für den nächsten Item-Kauf zurückhält
 function botSend(I, O){
-  const b = I.b;
-  if(G.t < 35 || G.t - b.lastSend < I.diff.sendEvery) return;
+  const b = I.b, st = BOT_STYLE[I.style] || BOT_STYLE.balanced;
+  if(G.t < 35 || G.t - b.lastSend < I.diff.sendEvery*st.every) return;
   const ph = G.t<240 ? 0 : G.t<600 ? 1 : 2;
-  let f = I.diff.strat[ph];
+  let f = Math.min(.95, I.diff.strat[ph]*st.strat[ph]);
   if(O.H.dead>0) f = Math.min(.9, f*1.6);                           // Gegner-Held tot → Druck machen
   if(G.units.filter(u=>u.lane===0).length>22) f *= .4;              // eigene Lane brennt → erst verteidigen
-  const reserve = (inBase() || b.mode==='shop') ? 0 : botNextCost(I)*.7;
+  const reserve = (inBase() || b.mode==='shop') ? 0 : botNextCost(I)*.7*st.reserve;
   let budget = Math.max(0, G.gold - reserve)*f;
   for(let n=0;n<10;n++){
     const w = BOT_SEND_W(G.t), opts = Object.keys(w).filter(k=>w[k]>0 && UNITS[k].cost<=budget);
@@ -1593,6 +1602,7 @@ function toMenu(){
 function markLastHero(){
   document.getElementById('diffSel').value = settings.lastDiff || 'normal';
   document.getElementById('enemySel').value = settings.lastEnemy || 'random';
+  document.getElementById('styleSel').value = settings.lastStyle || 'random';
   document.querySelectorAll('#heroPick button').forEach(b=>b.classList.toggle('last', b.dataset.k===settings.lastHero));
 }
 

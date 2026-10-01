@@ -19,6 +19,7 @@
     updateHud = buildShop = buildSend = buildSkills = stub; simMode = true;   // kein Sound/Wackeln in der Simulation
     const A = makeInst(keyA, diff[0]), B = makeInst(keyB, diff[1]);
     if(o.build){ A.build = o.build[0] ? BOT_VARIANTS[o.build[0]] : undefined; B.build = o.build[1] ? BOT_VARIANTS[o.build[1]] : undefined; }   // Bauplan je Seite (Schlüssel aus BOT_VARIANTS)
+    if(o.style){ A.style = o.style[0]; B.style = o.style[1]; }   // Spielstil je Seite (Schlüssel aus BOT_STYLE)
     P = A; E = B; let lastMin = 0;
     while(A.G.t < maxT){
       const order = rnd()<.5 ? [[A,B],[B,A]] : [[B,A],[A,B]];
