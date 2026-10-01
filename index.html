@@ -5,10 +5,10 @@
 <title>Lane Wars – Prototyp</title>
 <style>
   body{margin:0;background:#14161c;color:#e6e6e6;font:14px system-ui,sans-serif;display:flex;justify-content:center}
-  #wrap{width:1000px;padding:8px 0}
+  #wrap{width:1000px;max-width:100%;padding:8px 0}
   #hud{display:flex;gap:18px;padding:6px 10px;background:#1e222b;border-radius:6px;margin-bottom:6px;flex-wrap:wrap}
   #hud b{color:#ffd166}
-  canvas{display:block;background:#0e1014;border-radius:6px}
+  canvas{display:block;background:#0e1014;border-radius:6px;width:100%;height:auto}
   #game{cursor:crosshair}
   #mini{margin-top:6px}
   .panel{background:#1e222b;border-radius:6px;padding:8px 10px;margin-top:6px}
@@ -1215,7 +1215,7 @@ function showMsg(t,c){ const m=document.getElementById('msg'); m.textContent=t; 
 // ====== EINGABE ======
 function setMouse(e){
   const r = cv.getBoundingClientRect();
-  mouse.x = e.clientX-r.left; mouse.y = e.clientY-r.top;
+  mouse.x = (e.clientX-r.left)*cv.width/r.width; mouse.y = (e.clientY-r.top)*cv.height/r.height;
   mouse.wx = mouse.x + cam.x; mouse.wy = mouse.y - CY;
 }
 cv.addEventListener('mousemove', e=>{ if(cam) setMouse(e); });
@@ -1273,7 +1273,6 @@ function dbgUpdate(){
 }
 if(CFG.debug){
   addEventListener('keydown', e=>{ if(e.key==='F2'){ e.preventDefault(); document.getElementById('dbg').classList.toggle('open'); } });
-  document.getElementById('dbg').classList.add('open');
   const box = document.getElementById('dbg'), head = document.getElementById('dbgHead'); let drag = null;
   head.addEventListener('mousedown', e=>{ const r = box.getBoundingClientRect(); drag = {dx:e.clientX-r.left, dy:e.clientY-r.top}; });
   addEventListener('mousemove', e=>{ if(drag){ box.style.left = (e.clientX-drag.dx)+'px'; box.style.top = (e.clientY-drag.dy)+'px'; box.style.right = 'auto'; } });
