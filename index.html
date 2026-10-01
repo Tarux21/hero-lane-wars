@@ -394,7 +394,7 @@ function newGame(heroKey){
   running = true; last = performance.now();
   document.getElementById('start').style.display='none';
   paused = false; settingsPaused = false; gameSpeed = 1; endShown = false; uiT.base = 0; uiT.sp = 0; uiT.lives = null; uiT.warnWave = 0;
-  closeOverlays(); clearAlerts(); hideTip(); syncToolbar();
+  closeOverlays(); clearAlerts(); hideTip(); syncToolbar(); feel.shake = 0; feel.flash = 0;
   settings.lastHero = heroKey; settings.lastDiff = document.getElementById('diffSel').value; settings.lastEnemy = ek; saveSettings();   // Auswahl merken
   buildShop(); buildSend(); buildSkills(); buildHelp();
 }
@@ -445,7 +445,7 @@ function spawnWave(){
   const isBoss = n === CFG.bossWave && !G.bossSpawned;                        // Bosswelle: einmalig, Boss kommt mit der normalen Welle
   if(isBoss){ G.bossSpawned = true; spawn('boss', 0, (from-CFG.spawnX)+list.length*4+160, CFG.waveSpeedMul); }
   if(isMainG()){
-    showWave(n, isElite, isBoss);
+    showWave(n, isElite, isBoss); sfx(isBoss ? 'boss' : 'wave');
     if(isBoss) uiAlert('BOSSWELLE! Ein Boss kommt mit der Welle. Wer ihn besiegt, bekommt dauerhaft +'+CFG.bossIncome+' Gold pro Welle', 'danger', 7000);
     else if(isElite) uiAlert('ELITE-WELLE! '+CFG.eliteCount+' Elite-Gegner kommen mit der Welle (mehr XP und Gold)', 'danger', 5000);
   }
@@ -457,8 +457,69 @@ function send(type){
   const u = UNITS[type];
   if(G.gold < u.cost || G.over || !E) return;
   G.gold -= u.cost; G.income += u.inc*CFG.incMul; G.stats.sent[type] = (G.stats.sent[type]||0)+1;
-  sendTo(E, type);
+  sendTo(E, type); sfx('send');
   buildSend();
+}
+
+// ====== SPIELGEFÜHL: SOUND UND EFFEKTE ======
+// Alles läuft nur für den Spieler (nicht für den Bot) und nicht in der Simulation (simMode, gesetzt in sim2.js).
+var simMode = false;
+const feelOn = ()=> !simMode && isMainG();
+const feel = {shake:0, flash:0, flashC:'#ff3030'};   // Bildschirmwackeln (Pixel) / Farbblitz (0..1)
+let actx = null;
+function audio(){
+  if(actx === null){ try{ actx = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){ actx = false; } }
+  if(actx && actx.state==='suspended') actx.resume();
+  return actx || null;
+}
+// Ein Ton: Frequenzverlauf f0→f1, Dauer, Wellenform, Lautstärke, Startverzögerung
+function tone(f0, f1, dur, type='sine', vol=.3, delay=0){
+  const a = audio(); if(!a) return;
+  const v = (settings.volume||0)/100; if(v<=0) return;
+  const t0 = a.currentTime + delay, o = a.createOscillator(), g = a.createGain();
+  o.type = type; o.frequency.setValueAtTime(f0, t0); o.frequency.exponentialRampToValueAtTime(Math.max(20,f1), t0+dur);
+  g.gain.setValueAtTime(vol*v, t0); g.gain.exponentialRampToValueAtTime(.0001, t0+dur);
+  o.connect(g).connect(a.destination); o.start(t0); o.stop(t0+dur+.02);
+}
+let noiseBuf = null;
+function noise(dur, f0, f1, vol=.3, delay=0){   // Rauschstoß mit wandernder Filterfrequenz (Treffer, Zauber)
+  const a = audio(); if(!a) return;
+  const v = (settings.volume||0)/100; if(v<=0) return;
+  if(!noiseBuf){ noiseBuf = a.createBuffer(1, a.sampleRate*.5, a.sampleRate); const d = noiseBuf.getChannelData(0); for(let i=0;i<d.length;i++) d[i] = Math.random()*2-1; }
+  const t0 = a.currentTime + delay, s = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain();
+  s.buffer = noiseBuf; f.type = 'bandpass'; f.Q.value = 1.2;
+  f.frequency.setValueAtTime(f0, t0); f.frequency.exponentialRampToValueAtTime(Math.max(40,f1), t0+dur);
+  g.gain.setValueAtTime(vol*v, t0); g.gain.exponentialRampToValueAtTime(.0001, t0+dur);
+  s.connect(f).connect(g).connect(a.destination); s.start(t0); s.stop(t0+dur+.02);
+}
+const SFX = {   // Name: [Mindestabstand in s, Funktion]
+  hit:    [.05, ()=>noise(.07, 1800, 600, .22)],
+  crit:   [.05, ()=>{ noise(.1, 2500, 700, .3); tone(900, 1500, .12, 'square', .12); }],
+  kill:   [.04, ()=>tone(420, 160, .09, 'triangle', .22)],
+  hurt:   [.12, ()=>{ tone(160, 60, .18, 'sawtooth', .28); noise(.12, 400, 120, .2); }],
+  die:    [.5,  ()=>{ tone(260, 40, .7, 'sawtooth', .3); noise(.5, 600, 80, .25); }],
+  level:  [.3,  ()=>[523,659,784,1047].forEach((f,i)=>tone(f, f, .22, 'triangle', .22, i*.08))],
+  cast:   [.08, i=>{ noise(.22, 300+i*250, 1800-i*200, .3); tone(240+i*90, 500+i*160, .2, 'sine', .15); }],
+  leak:   [.2,  ()=>{ tone(330, 150, .28, 'square', .2); tone(250, 110, .3, 'square', .2, .12); }],
+  wave:   [.5,  ()=>{ tone(196, 196, .45, 'sawtooth', .16); tone(247, 247, .45, 'sawtooth', .12); }],
+  boss:   [.5,  ()=>{ tone(90, 50, .8, 'sawtooth', .32); noise(.6, 300, 60, .3); }],
+  send:   [.05, ()=>{ tone(520, 780, .08, 'square', .12); tone(780, 1040, .08, 'square', .1, .06); }],
+  heal:   [.2,  ()=>{ tone(500, 800, .25, 'sine', .2); tone(700, 1100, .25, 'sine', .15, .08); }],
+  win:    [1,   ()=>[523,659,784,1047,1319].forEach((f,i)=>tone(f, f, .3, 'triangle', .26, i*.12))],
+  lose:   [1,   ()=>[392,330,262,196].forEach((f,i)=>tone(f, f*.9, .4, 'sawtooth', .2, i*.18))],
+};
+const sfxAt = {};
+function sfx(name, arg){
+  if(!feelOn()) return;
+  const s = SFX[name]; if(!s) return;
+  const now = performance.now()/1000; if(now - (sfxAt[name]||0) < s[0]) return;
+  sfxAt[name] = now; s[1](arg);
+}
+function shake(px){ if(feelOn() && settings.shake!==false) feel.shake = Math.max(feel.shake, px); }
+function flashScreen(c, a){ if(feelOn()){ feel.flashC = c; feel.flash = Math.max(feel.flash, a); } }
+function burst(x, y, col, n=6){   // kleine Partikel beim Sterben
+  if(!feelOn()) return;
+  for(let i=0;i<n;i++){ const a = Math.random()*6.283, s = 40+Math.random()*90; G.fx.push({k:'dot', x, y, vx:Math.cos(a)*s, vy:Math.sin(a)*s-30, t:.45+Math.random()*.2, c:col, r:2+Math.random()*2}); }
 }
 
 // ====== HELD ======
@@ -468,6 +529,10 @@ function damageHero(dmg, src){
   dmg *= (1 - H.dr);   // verringerter Schaden durch Items (Bollwerk, Wächterhut)
   const eff = reduce(dmg, hArmor());
   H.hp -= eff; H.dmgT = 0;   // Lebensfluss: Zeit seit dem letzten Schaden zurücksetzen
+  if(feelOn()){
+    G.fx.push({k:'text', x:H.x+8, y:H.y-20, t:.6, s:'-'+Math.round(eff), c:'#ff6b6b', sz:Math.round(Math.min(24, 12+eff/12))});
+    sfx('hurt'); if(eff > .08*hMaxHp()) shake(Math.min(8, 2+eff/hMaxHp()*20));
+  }
   const ir = ironPassive();   // Dornen: Anteil des eingehenden Schadens (vor Rüstung) geht an den Angreifer
   if(ir.reflect && src && G.units.includes(src)) hitUnit(src, raw*ir.reflect*CFG.reflectMul);
   // Item-Dornen (einmalig): fester Schaden + Anteil der zusätzlichen Rüstung aus Items an jeden Angreifer
@@ -476,6 +541,7 @@ function damageHero(dmg, src){
   if(H.hp <= 0){
     H.hp = 0; H.deaths++; H.dead = CFG.respawnBase + CFG.respawnPerLevel*H.lvl;
     H.target = null; H.moveTo = null; H.buffs = {}; H.leap = null; cancelBackport();
+    sfx('die'); shake(10); flashScreen('#ff3030', .5);
   }
 }
 function gainXp(n){
@@ -484,9 +550,11 @@ function gainXp(n){
   while(H.lvl < CFG.maxLevel && H.xp >= xpNeed(H.lvl)){
     H.xp -= xpNeed(H.lvl); H.lvl++; H.sp++; up = true;
     H.hp += H.d.hpl;
-    G.fx.push({k:'text', x:H.x, y:H.y-30, t:1.2, s:'LEVEL '+H.lvl, c:'#ffd166'});
+    G.fx.push({k:'text', x:H.x, y:H.y-30, t:1.2, s:'LEVEL '+H.lvl, c:'#ffd166', sz:18});
+    if(feelOn()){ G.fx.push({k:'ring', x:H.x, y:H.y, r:40, t:.6, c:'#ffd166'}); burst(H.x, H.y, '#ffd166', 10); }
   }
   if(up){
+    sfx('level');
     buildSkills();
     if(isMainG()){   // Hinweise für den Spieler
       uiAlert(`LEVEL ${H.lvl}! Skillpunkte frei: ${H.sp}`, 'good');
@@ -497,14 +565,17 @@ function gainXp(n){
 function killUnit(u){
   const i = G.units.indexOf(u); if(i<0) return;
   G.units.splice(i,1);
+  if(feelOn()){ burst(u.x, u.y, UNITS[u.type].col, u.boss ? 24 : u.type==='elite' ? 12 : 6); sfx('kill'); if(u.boss){ sfx('boss'); shake(8); } }
   if(u.lane===0){ if(u.boss){ G.bossIncome += CFG.bossIncome; uiAlert(isMainG() ? 'BOSS BESIEGT! Ab jetzt +'+G.bossIncome+' Gold pro Welle' : 'Gegner hat seinen Boss besiegt (+'+G.bossIncome+' Gold pro Welle für ihn)', isMainG()?'good':'enemy', 6000); }
   const gd = UNITS[u.type].gold ?? CFG.killGold; G.gold += gd; G.stats.gold += gd; G.stats.kills++; gainXp(UNITS[u.type].xp); }
 }
-function hitUnit(u, dmg){
+function hitUnit(u, dmg, o){   // o.crit: kritischer Treffer (größere gelbe Zahl, anderer Ton)
   if(!G.units.includes(u)) return 0;
   const d = reduce(dmg, u.armor);
   u.hp -= d;
-  G.fx.push({k:'text', x:u.x, y:u.y-14, t:.5, s:Math.round(d), c:'#fff'});
+  const crit = !!(o && o.crit);
+  G.fx.push({k:'text', x:u.x, y:u.y-14, t:crit?.8:.5, s:Math.round(d), c:crit?'#ffe066':'#fff', sz:Math.round(Math.min(26, 12+d/10))+(crit?4:0)});
+  if(feelOn()){ u.flash = .08; sfx(crit?'crit':'hit'); }
   if(u.hp <= 0) killUnit(u);
   return d;
 }
@@ -719,6 +790,7 @@ function castSlot(i){
   const res = s.cast(r, {dx, dy, dist, ang:Math.atan2(dy,dx), wx:mouse.wx, wy:mouse.wy});
   H.ampNow = false;
   if(res === false) return;   // false = nicht gewirkt, kein Cooldown
+  sfx('cast', i);
   if(H.key==='caster' && i<3) H.lastElem = ['fire','frost','lightning'][i];
   H.cds[i] = s.cd * (1 - H.cdr);   // Abklingzeitverkürzung durch Items
   if(H.uniq.has('comboAmp')){ H.comboT = amp ? 0 : CFG.comboWindow; if(amp) G.fx.push({k:'text', x:H.x-10, y:H.y-50, t:.7, s:'KOMBO +'+Math.round(CFG.comboAmp*100)+'%', c:'#9fe0ff'}); }
@@ -789,7 +861,7 @@ function drinkPotion(){
   if(H.dead || H.cons.potion<1 || H.potCd>0 || H.hp>=hMaxHp()) return false;
   H.cons.potion--; H.potCd = CFG.potionCd;
   const heal = CFG.potionHeal * hMaxHp(); H.hp = Math.min(hMaxHp(), H.hp + heal);
-  G.fx.push({k:'text', x:H.x-10, y:H.y-34, t:.8, s:'+'+Math.round(heal), c:'#7be07b'});
+  G.fx.push({k:'text', x:H.x-10, y:H.y-34, t:.8, s:'+'+Math.round(heal), c:'#7be07b', sz:16}); sfx('heal');
   buildShop(); return true;
 }
 
@@ -805,7 +877,7 @@ function bossThink(u, dt){
   u.stompT -= dt;
   if(u.stompT <= 0){                                   // Stampfen: Schaden an allem im Umkreis
     u.stompT = CFG.bossStompEvery[ph-1];
-    G.fx.push({k:'ring', x:u.x, y:u.y, r:CFG.bossStompR, t:.5, c:'#ff4d4d'});
+    G.fx.push({k:'ring', x:u.x, y:u.y, r:CFG.bossStompR, t:.5, c:'#ff4d4d'}); sfx('boss'); shake(4);
     if(!H.dead && Math.hypot(H.x-u.x, H.y-u.y) <= CFG.bossStompR + 14) damageHero(u.dmg*CFG.bossStompMul, u);
   }
   u.summonT -= dt;
@@ -896,13 +968,14 @@ function update(dt){
       }
       if(tgt && Math.hypot(tgt.x-H.x,tgt.y-H.y) <= H.d.range + tgt.r && H.atkT <= 0){
         H.atkT = 1/hAs();
-        let dmg = hDmg(); const rg = buff('rage'), tx = tgt.x, ty = tgt.y;
+        let dmg = hDmg(); const rg = buff('rage'), tx = tgt.x, ty = tgt.y; let isCrit = false;
         if(H.critCh>0 && Math.random() < H.critCh){      // kritischer Treffer (Crit-Mantel / Mächtige Klinge)
+          isCrit = true;
           dmg *= CFG.critDmgBase + (H.uniq.has('critDmg') ? CFG.critDmgBonus : 0);
           G.fx.push({k:'text', x:tx, y:ty-28, t:.6, s:'KRIT!', c:'#ffe066'});
           if(H.uniq.has('stormCrit')) H.buffs.critAs = {t:CFG.stormCritTime, as:CFG.stormCritAs};   // Sturmbrecher
         }
-        const dealt = hitUnit(tgt, dmg);
+        const dealt = hitUnit(tgt, dmg, {crit:isCrit});
         if(H.lifesteal>0) H.hp = Math.min(hMaxHp(), H.hp + dealt*H.lifesteal*(H.uniq.has('vengeance') && H.hp<.4*hMaxHp() ? 2 : 1));   // Lebensraub (inkl. Rachsucht)
         if(H.uniq.has('onHitMagic') && G.units.includes(tgt)){                   // Funkenklinge: magischer Zusatzschaden, ignoriert Rüstung
           const md = CFG.sparkFlat + CFG.sparkAp*hSp(); tgt.hp -= md;
@@ -976,11 +1049,17 @@ function update(dt){
       const l = UNITS[u.type].lives;
       G.lives -= l; (G.stats.leak = G.stats.leak || {})[u.type] = (G.stats.leak[u.type]||0) + l;   // Statistik: durchgebrochene Monster nach Typ
       G.units.splice(G.units.indexOf(u),1);
+      if(feelOn()){ sfx('leak'); shake(5); flashScreen('#ff3030', .35); }
     }
   }
   // Effekte
-  for(const f of G.fx){ f.t -= dt; if(f.k==='text') f.y -= 25*dt; }
+  for(const f of G.fx){ f.t -= dt; if(f.k==='text') f.y -= 25*dt; else if(f.k==='dot'){ f.x += f.vx*dt; f.y += f.vy*dt; f.vy += 220*dt; } }
   G.fx = G.fx.filter(f=>f.t>0);
+  if(feelOn()){
+    for(const u of G.units) if(u.flash>0) u.flash -= dt;
+    feel.shake *= Math.exp(-10*dt); if(feel.shake<.2) feel.shake = 0;
+    feel.flash = Math.max(0, feel.flash - 1.2*dt);
+  }
 
   // Kamera
   cam.x += (Math.max(0, Math.min(CFG.laneLen-1000+100, H.x-500)) - cam.x)*Math.min(1, dt*6);
@@ -992,6 +1071,7 @@ function update(dt){
 // ====== ZEICHNEN ======
 function draw(){
   ctx.clearRect(0,0,1000,420);
+  ctx.save(); if(feel.shake>0) ctx.translate((Math.random()*2-1)*feel.shake, (Math.random()*2-1)*feel.shake);
   const ox = -cam.x;
   // Lane
   ctx.fillStyle = '#2a2f3a'; ctx.fillRect(ox, CY-CFG.laneHalf, CFG.laneLen+100, CFG.laneHalf*2);
@@ -1015,7 +1095,7 @@ function draw(){
   for(const u of G.units){
     if(u.lane!==0) continue;
     const sx = ox+u.x, sy = CY+u.y, d = UNITS[u.type];
-    ctx.fillStyle = u.stun>0 ? '#fff' : u.burn>0 ? '#ff7a2a' : u.tormT>0 ? '#c77dff' : u.slow>0 ? '#8fd8ff' : d.col;
+    ctx.fillStyle = (u.stun>0 || u.flash>0) ? '#fff' : u.burn>0 ? '#ff7a2a' : u.tormT>0 ? '#c77dff' : u.slow>0 ? '#8fd8ff' : d.col;
     ctx.beginPath(); ctx.arc(sx, sy, u.r, 0, 7); ctx.fill();
     if(u.boss){ bar(sx-34, sy-u.r-14, 68, 6, u.hp/u.max, '#ff4d4d'); ctx.fillStyle='#fff'; ctx.font='bold 11px sans-serif'; ctx.fillText('BOSS · Phase '+u.phase, sx-32, sy-u.r-18); }
     else bar(sx-12, sy-u.r-7, 24, 3, u.hp/u.max, '#e55');
@@ -1058,10 +1138,21 @@ function draw(){
     else if(f.k==='cone'){ ctx.fillStyle=f.c; ctx.globalAlpha=Math.min(.5,f.t*1.4);
       ctx.beginPath(); ctx.moveTo(ox+f.x,CY+f.y); ctx.arc(ox+f.x,CY+f.y,f.r,f.a-f.half,f.a+f.half); ctx.closePath(); ctx.fill(); ctx.globalAlpha=1; }
     else if(f.k==='line'){ ctx.strokeStyle=f.c; ctx.lineWidth=f.w||2; ctx.globalAlpha=Math.min(1,f.t*4); ctx.beginPath(); ctx.moveTo(ox+f.x,CY+f.y); ctx.lineTo(ox+f.x2,CY+f.y2); ctx.stroke(); ctx.globalAlpha=1; }
-    else { ctx.fillStyle=f.c; ctx.font='bold 13px sans-serif'; ctx.fillText(f.s, ox+f.x-8, CY+f.y); }
+    else if(f.k==='dot'){ ctx.fillStyle=f.c; ctx.globalAlpha=Math.min(1,f.t*3); ctx.beginPath(); ctx.arc(ox+f.x, CY+f.y, f.r, 0, 7); ctx.fill(); ctx.globalAlpha=1; }
+    else { ctx.globalAlpha=Math.min(1,f.t*3); ctx.fillStyle='#000'; ctx.font=`bold ${f.sz||13}px sans-serif`; ctx.fillText(f.s, ox+f.x-7, CY+f.y+1);   // Zahl mit dunklem Schatten, blendet aus
+      ctx.fillStyle=f.c; ctx.fillText(f.s, ox+f.x-8, CY+f.y); ctx.globalAlpha=1; }
   }
   if(H.dead){ ctx.fillStyle='#ff6b6b'; ctx.font='bold 22px sans-serif'; ctx.fillText('Tot – Respawn in '+Math.ceil(H.dead)+'s', 360, 60); }
 
+  ctx.restore();   // Ende Wackeln: Ränder-Effekte und Statusleiste bleiben ruhig
+  // Warnränder: Farbblitz (Leben verloren / Held gestorben) und pulsierender Rand bei wenig Leben
+  const lowHp = !H.dead && H.hp/hMaxHp() < .3;
+  const edge = Math.max(feel.flash, lowHp ? .25 + .15*Math.sin(G.t*6) : 0);
+  if(edge > .01){
+    const gr = ctx.createRadialGradient(500,186,150,500,186,560);
+    gr.addColorStop(0,'#0000'); gr.addColorStop(1, (feel.flash>.01 ? feel.flashC : '#ff3030') + Math.round(Math.min(1,edge)*190).toString(16).padStart(2,'0'));
+    ctx.fillStyle = gr; ctx.fillRect(0,0,1000,372);
+  }
   // Statusleiste
   ctx.fillStyle='#000a'; ctx.fillRect(0,372,1000,48);
   ctx.fillStyle='#fff'; ctx.font='13px sans-serif';
@@ -1555,6 +1646,7 @@ function uiTick(dt){   // Warnungen: Basis in Gefahr, verlorene Leben, ungenutzt
 function showEnd(){
   if(!P || !P.G.over || !running) return;   // nicht anzeigen, wenn du schon im Menü bist
   const win = P.G.lives > 0;
+  sfx(win ? 'win' : 'lose');
   const fmtT = s=>Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0');
   const side = S=>{
     const sent = S.G.stats.sent, total = Object.values(sent).reduce((a,b)=>a+b,0);
@@ -1593,9 +1685,12 @@ function renderSettings(){
   const K = settings.keys;
   document.getElementById('settingsBody').innerHTML =
     Object.keys(KEY_LABELS).map(id=>`<div class="krow"><span>${KEY_LABELS[id]}</span><button data-key="${id}">${rebinding===id ? 'Taste drücken …' : keyName(K[id])}</button></div>`).join('') +
-    `<div class="krow"><span>Lautstärke <small>(Sound folgt; der Wert wird gespeichert)</small></span><input type="range" id="volRange" min="0" max="100" value="${settings.volume}"></div>`;
+    `<div class="krow"><span>Lautstärke <small>(0 = aus)</small></span><input type="range" id="volRange" min="0" max="100" value="${settings.volume}"></div>`+
+    `<div class="krow"><span>Bildschirmwackeln <small>(bei Treffern und Boss)</small></span><input type="checkbox" id="shakeChk" ${settings.shake!==false?'checked':''}></div>`;
   document.querySelectorAll('#settingsBody button[data-key]').forEach(b=>b.onclick=()=>{ rebinding = b.dataset.key; renderSettings(); });
   document.getElementById('volRange').oninput = e=>{ settings.volume = +e.target.value; saveSettings(); };
+  document.getElementById('volRange').onchange = ()=>{ audio(); tone(660, 880, .12, 'triangle', .3); };   // Hörprobe
+  document.getElementById('shakeChk').onchange = e=>{ settings.shake = e.target.checked; saveSettings(); };
 }
 function handleRebind(e, k){
   e.preventDefault();

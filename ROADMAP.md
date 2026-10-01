@@ -7,7 +7,7 @@ Rolle: Projektmanager (Planung, Abnahme) – Claude setzt um und stellt nach jed
 - [x] Einstieg: Kasten „So gewinnst du“ im Startmenü + 5 Einsteiger-Tipps im Spiel (je einmal; Einstellungen → „Tipps erneut zeigen“)
 - [x] Aufholhilfe: ab 3 Leben Rückstand +4 % Einkommen je Leben, max. +20 % (HUD zeigt „Aufholhilfe“). Messung `snowball.js`: Bot-Partien snowballen kaum (Führender nach 3 Min gewinnt ~52 %); Balance und Spieldauer unverändert (~15 Min). Die Hilfe ist ein Netz für menschliche Fehler – bitte im Spiel prüfen.
 - [ ] Offen aus der Messung: Damage liegt bei 38–42 % Siegquote (Ziel 50 %), vom Balancing-Stand 2161de5 unabhängig von der Aufholhilfe
-- [ ] Spielgefühl: Treffer-Feedback, Schadenszahlen, Sounds prüfen
+- [x] Spielgefühl (Stand 1, wartet auf Abnahme): 14 synthetische Sounds (kein Download nötig), Schadenszahlen nach Stärke skaliert (Krit gelb/größer), Trefferblitz, Sterbe-Partikel, Bildschirmwackeln, roter Rand bei wenig Leben/Lebensverlust. Regler in den Einstellungen: Lautstärke, Wackeln an/aus. Nur für den Spieler, nicht in der Simulation.
 - [ ] Bot-Verhalten und Schwierigkeitsstufen mit der Simulation gegenprüfen
 
 ## Phase 2 – Umzug in eine Engine

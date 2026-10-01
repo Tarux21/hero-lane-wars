@@ -16,7 +16,7 @@
 
   window.duel = function(keyA, keyB, o={}){
     const maxT = o.maxT || 1800, dt = .05, diff = o.diff || ['normal','normal'];
-    updateHud = buildShop = buildSend = buildSkills = stub;
+    updateHud = buildShop = buildSend = buildSkills = stub; simMode = true;   // kein Sound/Wackeln in der Simulation
     const A = makeInst(keyA, diff[0]), B = makeInst(keyB, diff[1]);
     if(o.build){ A.build = o.build[0] ? BOT_VARIANTS[o.build[0]] : undefined; B.build = o.build[1] ? BOT_VARIANTS[o.build[1]] : undefined; }   // Bauplan je Seite (Schlüssel aus BOT_VARIANTS)
     P = A; E = B; let lastMin = 0;
@@ -32,7 +32,7 @@
     else winner = A.G.lives===B.G.lives ? 'draw' : (A.G.lives>B.G.lives ? 'A' : 'B');
     const pack = (I,k,d)=>({hero:k, diff:d, lives:I.G.lives, lvl:I.H.lvl, deaths:I.b.deaths, trips:I.b.trips, inc:+I.G.income.toFixed(1), tl:I.tl});
     const res = {winner, time:Math.round(A.G.t), timeout:(A.G.lives>0 && B.G.lives>0), A:pack(A,keyA,diff[0]), B:pack(B,keyB,diff[1])};
-    updateHud = orig.updateHud; buildShop = orig.buildShop; buildSend = orig.buildSend; buildSkills = orig.buildSkills; running = false;
+    updateHud = orig.updateHud; buildShop = orig.buildShop; buildSend = orig.buildSend; buildSkills = orig.buildSkills; running = false; simMode = false;
     return res;
   };
 
