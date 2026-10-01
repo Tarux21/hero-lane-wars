@@ -50,4 +50,4 @@ Hinweis: Die Messungen streuen um etwa ±10 Prozentpunkte; für aussagekräftige
 - Bot-Gegner mit Schwierigkeitsstufen (Leicht bis Experte) und wechselnden Builds
 - Elite-Wellen alle 10 Wellen, Bosswelle auf Welle 20, Wellenvorschau
 - Pause, Tempo ×1–×3, Endbildschirm mit Statistik, Skill-Leiste mit Tooltips, Einstellungen mit Speichern
-- Das Balancing ist nach den letzten Änderungen noch nicht neu abgestimmt.
+- Balancing (Simulation, Stand 2026-10-01): Klassen ca. 50 % Siegquote (Tank/Damage/Caster), Spieldauer ca. 14 Min., Boss wird in ca. 83 % der Partien erreicht, Schwierigkeiten Leicht < Normal < Schwer < Experte, Items und Hüte meist im Bereich 35–65 % gegen den Standardbuild. Schwachpunkt: reine Item-Strategie ohne Monster schicken verliert klar (Tank ca. 10 %).
