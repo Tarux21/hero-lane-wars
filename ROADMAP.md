@@ -14,7 +14,18 @@ Rolle: Projektmanager (Planung, Abnahme) – Claude setzt um und stellt nach jed
 - [x] Testversion v0.3.0-test: Versionsnummer, Feedback-Fenster, Build-Skript `build-testversion.ps1` (ZIP in `dist\`)
 - [ ] Optik: schönere Figuren, Hintergründe, Oberfläche (als Nächstes)
 
-## Phase 2 – Umzug in eine Engine
+> **Richtungsentscheid:** Endziel ist ein 3D-Spiel mit animierten Figuren aus der Vogelperspektive (Look wie LoL/Warcraft). Der Browser-Prototyp wird deshalb nicht mehr optisch ausgebaut, sondern bleibt Referenz für Regeln und Balance. Engine: Godot 4.7 (3D).
+
+## Phase 2 – Umzug nach Godot (läuft)
+- [x] Regelwerk exportiert (`regelwerk/daten.json`, Skript `export-regelwerk.js`)
+- [x] Meilenstein 1: 3D-Szene, Kamera, Held, Wellen, Level, Gold, Leben (siehe `godot/README.md`)
+- [ ] Meilenstein 2: Skills (Q W E R) und Heiltrank, Backport
+- [ ] Meilenstein 3: Shop und Items
+- [ ] Meilenstein 4: Gegner-Bot mit eigener Lane, Monster senden, Aufholhilfe, Schwierigkeiten
+- [ ] Meilenstein 5: Boss, Elite, Sounds und Effekte
+- [ ] Meilenstein 6: echte 3D-Figuren, Animationen, Umgebung, Oberfläche
+
+## Ältere Notiz zu Phase 2
 - Empfehlung: Godot (kostenlos, leicht, gutes 2D, Web-Export). Unity nur, wenn C# und viele Plattformen wichtig sind.
 - Regeln und Zahlen (CFG, UNITS, HEROES, ITEM_LIST) bleiben als Datenbasis erhalten.
 

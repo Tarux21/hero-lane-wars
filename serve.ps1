@@ -5,6 +5,14 @@ $l.Start()
 while ($l.IsListening) {
   $c = $l.GetContext()
   $p = $c.Request.Url.LocalPath.TrimStart('/'); if ($p -eq '') { $p = 'index.html' }
+  # Nur für den Regelwerk-Export: POST /save-regelwerk schreibt genau regelwerk\daten.json (sonst nichts)
+  if ($c.Request.HttpMethod -eq 'POST' -and $p -eq 'save-regelwerk') {
+    $sr = New-Object IO.StreamReader($c.Request.InputStream, [Text.Encoding]::UTF8)
+    $body = $sr.ReadToEnd(); $sr.Close()
+    $dir = Join-Path $root 'regelwerk'; if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir | Out-Null }
+    [IO.File]::WriteAllText((Join-Path $dir 'daten.json'), $body, (New-Object Text.UTF8Encoding($false)))
+    $c.Response.StatusCode = 200; $c.Response.Close(); continue
+  }
   $f = Join-Path $root $p
   if (Test-Path $f -PathType Leaf) {
     $b = [IO.File]::ReadAllBytes($f)

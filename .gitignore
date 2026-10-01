@@ -13,3 +13,8 @@ scratch/
 
 # Testversion-Pakete (werden mit build-testversion.ps1 erzeugt)
 dist/
+
+# Godot
+godot/.godot/
+*.uid
+scratch-shots/

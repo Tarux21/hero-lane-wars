@@ -1,0 +1,1221 @@
+{
+ "_hinweis": "Automatisch aus index.html erzeugt. Quelle der Zahlen für die Godot-Version. Nicht von Hand ändern, sondern in index.html ändern und neu exportieren.",
+ "version": "0.3.0-test",
+ "cfg": {
+  "laneLen": 3000,
+  "laneHalf": 90,
+  "baseX": 230,
+  "spawnX": 2950,
+  "leakX": 30,
+  "speedMul": 1,
+  "startGold": 300,
+  "baseIncome": 24,
+  "incomeTick": 10,
+  "startLives": 20,
+  "comebackDiff": 3,
+  "comebackPerLife": 0.04,
+  "comebackCap": 0.2,
+  "bagSize": 6,
+  "consMax": 5,
+  "sellRatio": 0.7,
+  "potionHeal": 0.4,
+  "potionCd": 15,
+  "critDmgBase": 2,
+  "critDmgBonus": 0.25,
+  "spMulBonus": 0.3,
+  "stormCritAs": 0.4,
+  "stormCritTime": 3,
+  "cdrCap": 0.4,
+  "comboAmp": 0.3,
+  "comboWindow": 5,
+  "auraSlow": 0.2,
+  "auraRadius": 150,
+  "tormentTime": 3,
+  "tormentEvery": 0.5,
+  "tormentFlat": 8,
+  "tormentAp": 0.05,
+  "tormentPct": 0.006,
+  "tormentCd": 6,
+  "ruinPct": 0.05,
+  "ruinMin": 12,
+  "ruinMax": 120,
+  "drCap": 0.4,
+  "sparkFlat": 12,
+  "sparkAp": 0.35,
+  "giantsPct": 0.025,
+  "cleaveItemPct": 0.4,
+  "cleaveMax": 3,
+  "svFactor": 0.4,
+  "hpApRatio": 0.12,
+  "lifeflowDelay": 5,
+  "lifeflowPct": 0.08,
+  "thornFlat": 6,
+  "thornArmorPct": 0.1,
+  "infiniteEnemyLives": false,
+  "waveEvery": 30,
+  "firstWave": 1,
+  "earlyWaves": 4,
+  "earlyWaveEvery": 16,
+  "rampStart": 850,
+  "rampStep": 250,
+  "tankQBase": 25,
+  "tankQcd": 6.5,
+  "armorK": 150,
+  "reflectMul": 1,
+  "innateReflect": 0.15,
+  "xpBase": 30,
+  "xpPer": 30,
+  "whirlHeal": [
+   0,
+   0.004,
+   0.006,
+   0.008,
+   0.01
+  ],
+  "whirlHealCap": 5,
+  "waveBase": 3,
+  "wavePer": 1.2,
+  "waveSpeedMul": 0.85,
+  "backportCast": 4.5,
+  "backportCd": 75,
+  "itemPower": {
+   "sword": 0.8,
+   "armor": 1.3,
+   "heart": 1.2,
+   "gloves": 1.1,
+   "staff": 1.6,
+   "boots": 1
+  },
+  "incMul": 1,
+  "itemMul": 1,
+  "power": {
+   "tank": 0.93,
+   "damage": 1.18,
+   "caster": 0.95
+  },
+  "adEff": {
+   "tank": 0.8,
+   "damage": 1,
+   "caster": 1
+  },
+  "earlyBoost": {
+   "tank": 0,
+   "damage": 0,
+   "caster": 0.7
+  },
+  "unitDmgScale": 0.5,
+  "hpScalePerMin": 0.35,
+  "killGold": 6,
+  "bossWave": 20,
+  "bossIncome": 50,
+  "bossStompR": 150,
+  "bossStompMul": 1.5,
+  "bossStompEvery": [
+   6,
+   5,
+   4
+  ],
+  "bossSummonEvery": [
+   20,
+   14,
+   10
+  ],
+  "bossSpeedMul": [
+   0.8,
+   1,
+   1.3
+  ],
+  "eliteEvery": 10,
+  "eliteCount": 2,
+  "respawnBase": 5,
+  "respawnPerLevel": 2,
+  "debug": true,
+  "elemHp": 700,
+  "elemTime": 60,
+  "elemRange": 320,
+  "shieldHeal": 0.1,
+  "aggroRange": 350,
+  "aggroBehind": 110,
+  "maxLevel": 15,
+  "maxRank": 5,
+  "unlock": [
+   1,
+   2,
+   3,
+   10
+  ]
+ },
+ "units": {
+  "grunt": {
+   "name": "Grunt",
+   "hp": 60,
+   "dmg": 6,
+   "spd": 70,
+   "range": 26,
+   "armor": 0,
+   "cost": 90,
+   "inc": 1.9,
+   "xp": 8,
+   "lives": 1,
+   "r": 9,
+   "col": "#c2c2c2",
+   "key": "Z"
+  },
+  "tank": {
+   "name": "Brocken",
+   "hp": 220,
+   "dmg": 8,
+   "spd": 50,
+   "range": 28,
+   "armor": 6,
+   "cost": 225,
+   "inc": 4.7,
+   "xp": 20,
+   "lives": 1,
+   "r": 13,
+   "col": "#8a6d3b",
+   "key": "X"
+  },
+  "archer": {
+   "name": "Schütze",
+   "hp": 45,
+   "dmg": 10,
+   "spd": 65,
+   "range": 130,
+   "armor": 0,
+   "cost": 180,
+   "inc": 3.8,
+   "xp": 14,
+   "lives": 1,
+   "r": 8,
+   "col": "#6fbf73",
+   "key": "C"
+  },
+  "fast": {
+   "name": "Läufer",
+   "hp": 35,
+   "dmg": 5,
+   "spd": 135,
+   "range": 24,
+   "armor": 0,
+   "cost": 150,
+   "inc": 2.8,
+   "xp": 12,
+   "lives": 1,
+   "r": 7,
+   "col": "#e0c341",
+   "key": "V"
+  },
+  "boss": {
+   "name": "Boss",
+   "hp": 1200,
+   "dmg": 28,
+   "spd": 45,
+   "range": 46,
+   "armor": 20,
+   "cost": 0,
+   "inc": 0,
+   "xp": 400,
+   "gold": 300,
+   "lives": 10,
+   "r": 26,
+   "col": "#ff4d4d",
+   "key": "",
+   "noSend": true
+  },
+  "elite": {
+   "name": "Elite",
+   "hp": 600,
+   "dmg": 25,
+   "spd": 55,
+   "range": 30,
+   "armor": 15,
+   "cost": 720,
+   "inc": 15,
+   "xp": 60,
+   "gold": 40,
+   "lives": 3,
+   "r": 16,
+   "col": "#b04ad1",
+   "key": "N"
+  }
+ },
+ "heroes": {
+  "tank": {
+   "name": "Tank",
+   "desc": "Viel Leben & Rüstung. Schockwelle, Eiserne Haut (Dornen), Schildwurf, Titanenstoß.",
+   "hp": 416,
+   "hpl": 60,
+   "dmg": 22,
+   "dpl": 3.5,
+   "armor": 6.4,
+   "armorl": 0.96,
+   "as": 1,
+   "range": 38,
+   "spd": 175,
+   "col": "#4a90e2"
+  },
+  "damage": {
+   "name": "Damage",
+   "desc": "Hoher Nahkampfschaden. Wirbel (heilt), Kampfrausch, Sprung, Schwertregen.",
+   "hp": 488,
+   "hpl": 65,
+   "dmg": 26,
+   "dpl": 4.5,
+   "armor": 5,
+   "armorl": 1,
+   "as": 1.1,
+   "range": 38,
+   "spd": 195,
+   "col": "#e2584a"
+  },
+  "caster": {
+   "name": "Caster",
+   "desc": "Fernkampf. Feuerfeld, Frostnova, Kettenblitz, Meteoritenregen.",
+   "hp": 260,
+   "hpl": 32,
+   "dmg": 12,
+   "dpl": 1.8,
+   "armor": 1,
+   "armorl": 0.4,
+   "as": 0.9,
+   "range": 230,
+   "spd": 180,
+   "col": "#b06cf0"
+  }
+ },
+ "diff": {
+  "easy": {
+   "name": "Leicht",
+   "react": [
+    0.7,
+    1.1
+   ],
+   "miss": 0.35,
+   "strat": [
+    0.25,
+    0.2,
+    0.22
+   ],
+   "heroMul": 0.75,
+   "goldMul": 0.85,
+   "sendEvery": 9,
+   "retreat": 0.45,
+   "shopGold": 3
+  },
+  "normal": {
+   "name": "Normal",
+   "react": [
+    0.2,
+    0.35
+   ],
+   "miss": 0.05,
+   "strat": [
+    0.6,
+    0.55,
+    0.6
+   ],
+   "heroMul": 1.12,
+   "goldMul": 1.12,
+   "sendEvery": 4,
+   "retreat": 0.3,
+   "shopGold": 1.5
+  },
+  "hard": {
+   "name": "Schwer",
+   "react": [
+    0.14,
+    0.24
+   ],
+   "miss": 0.02,
+   "strat": [
+    0.65,
+    0.6,
+    0.65
+   ],
+   "heroMul": 1.3,
+   "goldMul": 1.3,
+   "sendEvery": 3,
+   "retreat": 0.28,
+   "shopGold": 1.3
+  },
+  "expert": {
+   "name": "Experte",
+   "react": [
+    0.1,
+    0.18
+   ],
+   "miss": 0,
+   "strat": [
+    0.7,
+    0.65,
+    0.7
+   ],
+   "heroMul": 1.5,
+   "goldMul": 1.5,
+   "sendEvery": 2.5,
+   "retreat": 0.25,
+   "shopGold": 1.2
+  }
+ },
+ "bot_style": {
+  "balanced": {
+   "name": "Ausgewogen",
+   "strat": [
+    1,
+    1,
+    1
+   ],
+   "every": 1,
+   "reserve": 1
+  },
+  "rush": {
+   "name": "Aggressiv",
+   "strat": [
+    1.25,
+    1.05,
+    0.95
+   ],
+   "every": 0.85,
+   "reserve": 0.3
+  },
+  "eco": {
+   "name": "Wirtschaft",
+   "strat": [
+    0.6,
+    1,
+    1.2
+   ],
+   "every": 1.15,
+   "reserve": 1
+  }
+ },
+ "elem": {
+  "fire": {
+   "name": "Feuer-Elementar",
+   "col": "#ff6a2a",
+   "label": "Feuer"
+  },
+  "frost": {
+   "name": "Frost-Elementar",
+   "col": "#8fd8ff",
+   "label": "Frost"
+  },
+  "lightning": {
+   "name": "Blitz-Elementar",
+   "col": "#ffe066",
+   "label": "Blitz"
+  }
+ },
+ "items": [
+  {
+   "id": "sword",
+   "group": "basis",
+   "name": "Schwert",
+   "cost": 80,
+   "desc": "+8 Schaden",
+   "stats": {
+    "dmg": 8
+   }
+  },
+  {
+   "id": "armor",
+   "group": "basis",
+   "name": "Rüstung",
+   "cost": 80,
+   "desc": "+6,5 Rüstung",
+   "stats": {
+    "armor": 6.5
+   }
+  },
+  {
+   "id": "heart",
+   "group": "basis",
+   "name": "Herz",
+   "cost": 100,
+   "desc": "+180 Leben",
+   "stats": {
+    "hp": 180
+   }
+  },
+  {
+   "id": "gloves",
+   "group": "basis",
+   "name": "Handschuhe",
+   "cost": 90,
+   "desc": "+27,5% Angriffstempo",
+   "stats": {
+    "as": 0.275
+   }
+  },
+  {
+   "id": "staff",
+   "group": "basis",
+   "name": "Stab",
+   "cost": 110,
+   "desc": "+48 Zauberkraft",
+   "stats": {
+    "sp": 48
+   }
+  },
+  {
+   "id": "bigSword",
+   "group": "teil",
+   "name": "Großes Schwert",
+   "cost": 300,
+   "desc": "+50 Angriffsschaden",
+   "stats": {
+    "dmg": 50
+   }
+  },
+  {
+   "id": "rake",
+   "group": "teil",
+   "name": "Harke",
+   "cost": 200,
+   "desc": "+30 Angriffsschaden",
+   "stats": {
+    "dmg": 30
+   }
+  },
+  {
+   "id": "critCloak",
+   "group": "teil",
+   "name": "Crit-Mantel",
+   "cost": 200,
+   "desc": "+25 % Chance auf kritische Treffer",
+   "stats": {
+    "crit": 0.25
+   }
+  },
+  {
+   "id": "bigStaff",
+   "group": "teil",
+   "name": "Großer Stab",
+   "cost": 350,
+   "desc": "+64 Zauberkraft",
+   "stats": {
+    "sp": 64
+   }
+  },
+  {
+   "id": "cloth",
+   "group": "teil",
+   "name": "Stoffrüstung",
+   "cost": 100,
+   "desc": "+15 Rüstung",
+   "stats": {
+    "armor": 15
+   }
+  },
+  {
+   "id": "thornArmor",
+   "group": "teil",
+   "name": "Dornenrüstung",
+   "cost": 300,
+   "desc": "+20 Rüstung. Einmalig – Dornen: Wirst du von einem normalen Angriff getroffen, wird 6 (+10 % der zusätzlichen Rüstung) Schaden zurückgeworfen.",
+   "stats": {
+    "armor": 20
+   },
+   "unique": [
+    "thorns"
+   ]
+  },
+  {
+   "id": "windCloak",
+   "group": "teil",
+   "name": "Windumhang",
+   "cost": 250,
+   "desc": "+25 % Angriffstempo",
+   "stats": {
+    "as": 0.25
+   }
+  },
+  {
+   "id": "timeAmulet",
+   "group": "teil",
+   "name": "Zeitamulett",
+   "cost": 300,
+   "desc": "−15 % Abklingzeit auf alle Skills",
+   "stats": {
+    "cdr": 0.15
+   }
+  },
+  {
+   "id": "lifeStone",
+   "group": "teil",
+   "name": "Lebensstein",
+   "cost": 350,
+   "desc": "+250 Leben",
+   "stats": {
+    "hp": 250
+   }
+  },
+  {
+   "id": "regenBand",
+   "group": "teil",
+   "name": "Regenerationsband",
+   "cost": 250,
+   "desc": "+1 % maximales Leben pro Sekunde",
+   "stats": {
+    "regen": 0.01
+   }
+  },
+  {
+   "id": "ruby",
+   "group": "teil",
+   "name": "Rubinkristall",
+   "cost": 200,
+   "desc": "+150 Leben",
+   "stats": {
+    "hp": 150
+   }
+  },
+  {
+   "id": "tome",
+   "group": "teil",
+   "name": "Wälzer",
+   "cost": 200,
+   "desc": "+30 Zauberkraft",
+   "stats": {
+    "sp": 30
+   }
+  },
+  {
+   "id": "wand",
+   "group": "teil",
+   "name": "Zauberstab",
+   "cost": 250,
+   "desc": "+45 Zauberkraft",
+   "stats": {
+    "sp": 45
+   }
+  },
+  {
+   "id": "bloodGem",
+   "group": "teil",
+   "name": "Blutkristall",
+   "cost": 220,
+   "desc": "+10 % Lebensraub",
+   "stats": {
+    "ls": 0.1
+   }
+  },
+  {
+   "id": "dagger",
+   "group": "teil",
+   "name": "Dolch",
+   "cost": 180,
+   "desc": "+20 % Angriffstempo",
+   "stats": {
+    "as": 0.2
+   }
+  },
+  {
+   "id": "spellGem",
+   "group": "teil",
+   "name": "Zauberblut-Kristall",
+   "cost": 220,
+   "desc": "+10 % Zauberraub (ein Teil deines Fähigkeitsschadens heilt dich)",
+   "stats": {
+    "sv": 0.1
+   }
+  },
+  {
+   "id": "coinPouch",
+   "group": "teil",
+   "name": "Münzbeutel",
+   "cost": 250,
+   "desc": "+0,4 Gold pro Sekunde",
+   "stats": {
+    "gps": 0.4
+   }
+  },
+  {
+   "id": "hat",
+   "group": "hut",
+   "slot": "hat",
+   "name": "Lederhut",
+   "cost": 150,
+   "desc": "+35 Lauftempo. Wird zu einem Spezialhut aufgewertet.",
+   "stats": {
+    "spd": 35
+   }
+  },
+  {
+   "id": "hatWind",
+   "group": "hut",
+   "slot": "hat",
+   "name": "Hut des Wirbelwinds",
+   "parts": [
+    "hat"
+   ],
+   "cost": 450,
+   "desc": "+50 Lauftempo, +35 % Angriffstempo.",
+   "stats": {
+    "spd": 50,
+    "as": 0.35
+   }
+  },
+  {
+   "id": "hatSage",
+   "group": "hut",
+   "slot": "hat",
+   "name": "Hut des Weisen",
+   "parts": [
+    "hat"
+   ],
+   "cost": 450,
+   "desc": "+45 Lauftempo, −10 % Abklingzeit, +25 Zauberkraft.",
+   "stats": {
+    "spd": 45,
+    "cdr": 0.1,
+    "sp": 25
+   }
+  },
+  {
+   "id": "hatGuard",
+   "group": "hut",
+   "slot": "hat",
+   "name": "Wächterhut",
+   "parts": [
+    "hat"
+   ],
+   "cost": 450,
+   "desc": "+45 Lauftempo, +25 Rüstung, erlittener Schaden −8 %.",
+   "stats": {
+    "spd": 45,
+    "armor": 25,
+    "dr": 0.08
+   }
+  },
+  {
+   "id": "hatBlood",
+   "group": "hut",
+   "slot": "hat",
+   "name": "Blutroter Hut",
+   "parts": [
+    "hat"
+   ],
+   "cost": 450,
+   "desc": "+45 Lauftempo, +100 Leben, +10 % Lebensraub, +15 % Zauberraub.",
+   "stats": {
+    "spd": 45,
+    "hp": 100,
+    "ls": 0.1,
+    "sv": 0.15
+   }
+  },
+  {
+   "id": "hatTravel",
+   "group": "hut",
+   "slot": "hat",
+   "name": "Hut des Reisenden",
+   "parts": [
+    "hat"
+   ],
+   "cost": 450,
+   "desc": "+70 Lauftempo. Der Backport wirkt 40 % schneller.",
+   "stats": {
+    "spd": 70,
+    "bpRed": 0.4
+   }
+  },
+  {
+   "id": "mightyBlade",
+   "group": "fertig",
+   "name": "Mächtige Klinge",
+   "parts": [
+    "bigSword",
+    "rake",
+    "critCloak"
+   ],
+   "cost": 300,
+   "desc": "+80 Angriffsschaden, +25 % kritische Trefferchance. Einmalig – kritische Treffer verursachen 25 % mehr Schaden.",
+   "stats": {
+    "dmg": 80,
+    "crit": 0.25
+   },
+   "unique": [
+    "critDmg"
+   ]
+  },
+  {
+   "id": "arcaneCrown",
+   "group": "fertig",
+   "name": "Zauberkrone",
+   "parts": [
+    "bigStaff",
+    "bigStaff"
+   ],
+   "cost": 300,
+   "desc": "+128 Zauberkraft. Einmalig – erhöht deine gesamte Zauberkraft um 30 %.",
+   "stats": {
+    "sp": 128
+   },
+   "unique": [
+    "spMul"
+   ]
+  },
+  {
+   "id": "strongArmor",
+   "group": "zwischen",
+   "name": "Starke Rüstung",
+   "parts": [
+    "cloth",
+    "cloth"
+   ],
+   "cost": 100,
+   "desc": "+40 Rüstung.",
+   "stats": {
+    "armor": 40
+   }
+  },
+  {
+   "id": "thornShirt",
+   "group": "zwischen",
+   "name": "Dornenhemd",
+   "parts": [
+    "cloth",
+    "thornArmor"
+   ],
+   "cost": 150,
+   "desc": "+35 Rüstung. Einmalig – Dornen: Wirst du von einem normalen Angriff getroffen, wird 6 (+10 % der zusätzlichen Rüstung) Schaden zurückgeworfen.",
+   "stats": {
+    "armor": 35
+   },
+   "unique": [
+    "thorns"
+   ]
+  },
+  {
+   "id": "thornPlate",
+   "group": "fertig",
+   "name": "Dornenpanzerweste",
+   "parts": [
+    "strongArmor",
+    "thornShirt"
+   ],
+   "cost": 200,
+   "desc": "+85 Rüstung. Einmalig – Dornen: Wirst du von einem normalen Angriff getroffen, wird 6 (+10 % der zusätzlichen Rüstung) Schaden zurückgeworfen.",
+   "stats": {
+    "armor": 85
+   },
+   "unique": [
+    "thorns"
+   ]
+  },
+  {
+   "id": "stormBreaker",
+   "group": "fertig",
+   "name": "Sturmbrecher",
+   "parts": [
+    "rake",
+    "critCloak",
+    "windCloak"
+   ],
+   "cost": 350,
+   "desc": "+48 Angriffsschaden, +22 % Krit-Chance, +30 % Angriffstempo. Einmalig – kritische Treffer geben dir 3 s lang +40 % Angriffstempo.",
+   "stats": {
+    "dmg": 48,
+    "crit": 0.22,
+    "as": 0.3
+   },
+   "unique": [
+    "stormCrit"
+   ]
+  },
+  {
+   "id": "timeStaff",
+   "group": "fertig",
+   "name": "Zeitzauberstab",
+   "parts": [
+    "bigStaff",
+    "timeAmulet"
+   ],
+   "cost": 350,
+   "desc": "+90 Zauberkraft, −20 % Abklingzeit. Einmalig – Nach einer Fähigkeit macht die nächste innerhalb von 5 s 30 % mehr Schaden.",
+   "stats": {
+    "sp": 90,
+    "cdr": 0.2
+   },
+   "unique": [
+    "comboAmp"
+   ]
+  },
+  {
+   "id": "titanPlate",
+   "group": "fertig",
+   "name": "Titanenpanzer",
+   "parts": [
+    "cloth",
+    "lifeStone",
+    "regenBand"
+   ],
+   "cost": 300,
+   "desc": "+30 Rüstung, +420 Leben, +1,5 % Leben/s Regeneration. Einmalig – Gegner im Umkreis von 150 Pixeln sind 20 % langsamer.",
+   "stats": {
+    "armor": 30,
+    "hp": 420,
+    "regen": 0.015
+   },
+   "unique": [
+    "slowAura"
+   ]
+  },
+  {
+   "id": "guise",
+   "group": "zwischen",
+   "name": "Maske der Erscheinung",
+   "parts": [
+    "ruby",
+    "tome"
+   ],
+   "cost": 150,
+   "desc": "+150 Leben, +30 Zauberkraft.",
+   "stats": {
+    "hp": 150,
+    "sp": 30
+   }
+  },
+  {
+   "id": "tormentMask",
+   "group": "fertig",
+   "name": "Quälende Maske",
+   "parts": [
+    "wand",
+    "guise"
+   ],
+   "cost": 250,
+   "desc": "+75 Zauberkraft, +150 Leben. Einmalig – Qual: Fähigkeitsschaden verbrennt Gegner 3 s lang (alle 0,5 s ein Schaden aus festem Wert, Zauberkraft und maximalem Leben des Ziels). Ein Ziel kann nur alle 6 s erneut betroffen werden.",
+   "stats": {
+    "sp": 75,
+    "hp": 150
+   },
+   "unique": [
+    "torment"
+   ]
+  },
+  {
+   "id": "cutlass",
+   "group": "zwischen",
+   "name": "Entersäbel",
+   "parts": [
+    "rake",
+    "bloodGem"
+   ],
+   "cost": 130,
+   "desc": "+35 Angriffsschaden, +10 % Lebensraub.",
+   "stats": {
+    "dmg": 35,
+    "ls": 0.1
+   }
+  },
+  {
+   "id": "ruinBlade",
+   "group": "fertig",
+   "name": "Schneide des gefallenen Monarchen",
+   "parts": [
+    "cutlass",
+    "windCloak"
+   ],
+   "cost": 300,
+   "desc": "+50 Angriffsschaden, +25 % Angriffstempo, +12 % Lebensraub. Einmalig – Angriffe verursachen zusätzlich 5 % des aktuellen Lebens des Ziels als Schaden (mindestens 12, höchstens 120).",
+   "stats": {
+    "dmg": 50,
+    "as": 0.25,
+    "ls": 0.12
+   },
+   "unique": [
+    "ruin"
+   ]
+  },
+  {
+   "id": "lifeSpring",
+   "group": "fertig",
+   "name": "Lebensquell-Harnisch",
+   "parts": [
+    "lifeStone",
+    "ruby",
+    "regenBand"
+   ],
+   "cost": 300,
+   "desc": "+1000 Leben, +2 % Leben/s Regeneration. Einmalig – Lebensfluss: Hast du 5 s lang keinen Schaden erlitten, regenerierst du 8 % deines maximalen Lebens pro Sekunde.",
+   "stats": {
+    "hp": 1000,
+    "regen": 0.02
+   },
+   "unique": [
+    "lifeflow"
+   ]
+  },
+  {
+   "id": "cleaver",
+   "group": "fertig",
+   "name": "Splitteraxt",
+   "parts": [
+    "bigSword",
+    "dagger"
+   ],
+   "cost": 520,
+   "desc": "+60 Angriffsschaden, +25 % Angriffstempo. Einmalig – Basisangriffe treffen auch bis zu 3 Gegner im Umkreis von 80 Pixeln mit 40 % Schaden.",
+   "stats": {
+    "dmg": 60,
+    "as": 0.25
+   },
+   "unique": [
+    "cleave"
+   ]
+  },
+  {
+   "id": "sparkBlade",
+   "group": "fertig",
+   "name": "Funkenklinge",
+   "parts": [
+    "dagger",
+    "wand",
+    "windCloak"
+   ],
+   "cost": 320,
+   "desc": "+45 % Angriffstempo, +60 Zauberkraft, +15 Angriffsschaden. Einmalig – Treffer-Zauber: Basisangriffe verursachen zusätzlich 12 + 35 % deiner Zauberkraft als magischen Schaden (ignoriert Rüstung).",
+   "stats": {
+    "as": 0.45,
+    "sp": 60,
+    "dmg": 15
+   },
+   "unique": [
+    "onHitMagic"
+   ]
+  },
+  {
+   "id": "soulDrinker",
+   "group": "fertig",
+   "name": "Seelentrinker",
+   "parts": [
+    "bloodGem",
+    "spellGem",
+    "ruby"
+   ],
+   "cost": 360,
+   "desc": "+12 % Lebensraub, +22 % Zauberraub, +250 Leben, +20 Rüstung, +40 Angriffsschaden, +45 Zauberkraft. Einmalig – Rachsucht: Unter 40 % Leben ist dein Lebens- und Zauberraub verdoppelt.",
+   "stats": {
+    "ls": 0.12,
+    "sv": 0.22,
+    "hp": 250,
+    "armor": 20,
+    "dmg": 40,
+    "sp": 45
+   },
+   "unique": [
+    "vengeance"
+   ]
+  },
+  {
+   "id": "bulwark",
+   "group": "fertig",
+   "name": "Eisernes Bollwerk",
+   "parts": [
+    "strongArmor",
+    "ruby"
+   ],
+   "cost": 450,
+   "desc": "+90 Rüstung, +400 Leben, erlittener Schaden −15 %.",
+   "stats": {
+    "armor": 90,
+    "hp": 400,
+    "dr": 0.15
+   }
+  },
+  {
+   "id": "giantsMight",
+   "group": "fertig",
+   "name": "Gigantenschlag",
+   "parts": [
+    "lifeStone",
+    "bigSword"
+   ],
+   "cost": 350,
+   "desc": "+55 Angriffsschaden, +300 Leben. Einmalig – Basisangriffe verursachen zusätzlich 2,5 % deines maximalen Lebens als Schaden.",
+   "stats": {
+    "dmg": 55,
+    "hp": 300
+   },
+   "unique": [
+    "giants"
+   ]
+  },
+  {
+   "id": "moonstone",
+   "group": "fertig",
+   "name": "Seelenreif",
+   "parts": [
+    "guise",
+    "regenBand"
+   ],
+   "cost": 250,
+   "desc": "+500 Leben, +60 Zauberkraft, +1 % Leben/s. Einmalig – Lebenskraft: +12 % deiner zusätzlichen Leben als Zauberkraft.",
+   "stats": {
+    "hp": 500,
+    "sp": 60,
+    "regen": 0.01
+   },
+   "unique": [
+    "hpAp"
+   ]
+  },
+  {
+   "id": "merchantChain",
+   "group": "fertig",
+   "name": "Händlerkette",
+   "parts": [
+    "coinPouch",
+    "coinPouch"
+   ],
+   "cost": 300,
+   "desc": "+1,1 Gold pro Sekunde, +100 Leben.",
+   "stats": {
+    "gps": 1.1,
+    "hp": 100
+   }
+  },
+  {
+   "id": "potion",
+   "group": "verbrauch",
+   "name": "Heiltrank",
+   "cost": 120,
+   "consumable": true,
+   "desc": "Heilt 40 % deines maximalen Lebens (Taste F, 15 s Abklingzeit zwischen zwei Tränken)."
+  }
+ ],
+ "skills": {
+  "tank": [
+   {
+    "name": "Schockwelle",
+    "cd": 6.5,
+    "max": 5,
+    "info": [
+     "Kegel nach vorne: Schaden + Betäubung",
+     "Rang 3: schleudert Gegner zurück",
+     "Rang 5: zweite, stärkere Welle"
+    ]
+   },
+   {
+    "name": "Eiserne Haut",
+    "passive": true,
+    "max": 5,
+    "info": [
+     "Passiv, immer aktiv: Rüstung + Dornen. Reflektiert 20% (Rang 1) bis 60% (Rang 5) des erlittenen Schadens an jeden Angreifer",
+     "Rang 3: viel mehr Rüstung, Regeneration 1% Leben/Sek.",
+     "Rang 5: sehr viel Rüstung, Regeneration 2,5% Leben/Sek."
+    ]
+   },
+   {
+    "name": "Schildwurf",
+    "cd": 10,
+    "max": 5,
+    "info": [
+     "Schild prallt von Gegner zu Gegner (3 Ziele) und heilt dich 10%, wenn er zurückkehrt",
+     "Rang 3: prallt von 5 Gegnern ab",
+     "Rang 5: Getroffene bluten 3 Sek. (5% ihres Lebens/Sek.)"
+    ]
+   },
+   {
+    "name": "Titanenstoß",
+    "cd": 50,
+    "max": 1,
+    "info": [
+     "Gewaltiger Schlag: hoher Schaden, 3 Sek. Betäubung, Rückstoß"
+    ]
+   }
+  ],
+  "damage": [
+   {
+    "name": "Wirbel",
+    "cd": 5,
+    "max": 5,
+    "at": [
+     1,
+     2
+    ],
+    "info": [
+     "Kreisschaden um den Helden",
+     "Ab Rang 2: heilt pro getroffenem Gegner, bis zu 5 (0,4% → 1% des max. Lebens)"
+    ]
+   },
+   {
+    "name": "Kampfrausch",
+    "cd": 20,
+    "max": 5,
+    "at": [
+     1,
+     3,
+     5
+    ],
+    "info": [
+     "Mehr Angriffs- und Lauftempo für 6 Sek.",
+     "Rang 3: hält 10 Sek.",
+     "Rang 5: Angriffe treffen Gegner im Umkreis"
+    ]
+   },
+   {
+    "name": "Sprung",
+    "cd": 10,
+    "max": 5,
+    "info": [
+     "Springt zur Maus (Reichweite 420), Aufprall macht Schaden",
+     "Rang 3: Landung hinterlässt ein Schadensfeld",
+     "Rang 5: Aufprall betäubt Gegner im Umkreis"
+    ]
+   },
+   {
+    "name": "Schwertregen",
+    "cd": 50,
+    "max": 1,
+    "info": [
+     "5 Schwerter stürzen auf Gegner, jeder Einschlag hinterlässt 8 Sek. ein Blitzfeld"
+    ]
+   }
+  ],
+  "caster": [
+   {
+    "name": "Feuerfeld",
+    "cd": 10,
+    "max": 5,
+    "info": [
+     "Feld macht jede Sek. Schaden (5 Sek.)",
+     "Rang 3: Feld jagt die Gegner",
+     "Rang 5: erst Meteor, danach jagt das Feld in voller Stärke"
+    ]
+   },
+   {
+    "name": "Frostnova",
+    "cd": 12,
+    "max": 5,
+    "info": [
+     "Frostkegel nach vorne: Schaden + Verlangsamung",
+     "Rang 3: betäubt kurz (0,8 Sek.)",
+     "Rang 5: Frostbann 1,6 Sek."
+    ]
+   },
+   {
+    "name": "Kettenblitz",
+    "cd": 8,
+    "max": 5,
+    "info": [
+     "Springt von Gegner zu Gegner (4–8 Ziele). Krit 10%: doppelter Schaden + 0,5 Sek. Betäubung",
+     "Rang 3: Krit-Chance 15%",
+     "Rang 5: Krit-Chance 30%, kein Schadensverlust pro Sprung"
+    ]
+   },
+   {
+    "name": "Elementar",
+    "cd": 90,
+    "max": 1,
+    "info": [
+     "Beschwört einen Elementar passend zum zuletzt benutzten Skill (Q Feuer · W Frost · E Blitz)",
+     "Kämpft 60 Sek. an der Beschwörungsstelle und wirkt alle 6–10 Sek. seine Fähigkeit"
+    ]
+   }
+  ]
+ }
+}
