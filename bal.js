@@ -44,3 +44,23 @@
     const s={tank:(acc['tank vs damage']+acc['tank vs caster'])/2, damage:((100-acc['tank vs damage'])+acc['damage vs caster'])/2, caster:((100-acc['tank vs caster'])+(100-acc['damage vs caster']))/2};
     return {pairs:Object.fromEntries(Object.entries(acc).map(([k,v])=>[k,Math.round(v)+'%'])), siegquote:Object.entries(s).map(([k,v])=>k+' '+Math.round(v)+'%').join(' | '), avgTime:Math.round(Object.values(tm).reduce((a,b)=>a+b,0)/3), timeouts:Object.values(to).reduce((a,b)=>a+b,0)+'/'+(reps*3*N)}; };
 })();
+
+// ===== Zusätzliche Messfunktionen (Spieldauer, Siegquoten, Diagnose) =====
+(function(){
+  window.paceTest=(N=12,diff=['normal','normal'])=>{ const R=[]; for(const [a,b] of [['tank','damage'],['tank','caster'],['damage','caster']]) for(let i=0;i<N;i++){ const r=duel(a,b,{diff}); R.push({t:r.time,wave:Math.max(P.G.wave,E.G.wave),boss:P.G.bossSpawned||E.G.bossSpawned,to:r.timeout}); }
+    const avg=f=>+(R.reduce((a,r)=>a+f(r),0)/R.length).toFixed(1);
+    return {games:R.length,zeitSek:avg(r=>r.t),zeitMin:+(avg(r=>r.t)/60).toFixed(1),welle:avg(r=>r.wave),bossErreicht:Math.round(100*R.filter(r=>r.boss).length/R.length)+'%',timeout:R.filter(r=>r.to).length}; };
+  window.quotes=(reps,N)=>{ const acc={td:0,tc:0,dc:0}; for(let i=0;i<reps;i++){ acc.td+=duels('tank','damage',N,{}).winA/reps; acc.tc+=duels('tank','caster',N,{}).winA/reps; acc.dc+=duels('damage','caster',N,{}).winA/reps; }
+    return {tank:(acc.td+acc.tc)/2, damage:((100-acc.td)+acc.dc)/2, caster:((100-acc.tc)+(100-acc.dc))/2, pairs:{td:Math.round(acc.td),tc:Math.round(acc.tc),dc:Math.round(acc.dc)}}; };
+  window.diag=(a,b,N=8)=>{ const S={A:{d:0,l:0,lv:0,k:0,g:0},B:{d:0,l:0,lv:0,k:0,g:0},t:0,wA:0}; for(let i=0;i<N;i++){ const r=duel(a,b,{}); for(const [k,S0] of [['A',P],['B',E]]){ const x=S[k]; x.d+=S0.H.deaths; x.l+=CFG.startLives-Math.max(0,S0.G.lives); x.lv+=S0.H.lvl; x.k+=S0.G.stats.kills; x.g+=S0.G.stats.gold; } S.t+=r.time; if(r.winner==='A') S.wA++; }
+    const f=x=>({tode:+(x.d/N).toFixed(1),lebenVerloren:+(x.l/N).toFixed(1),level:+(x.lv/N).toFixed(1),kills:Math.round(x.k/N)}); return {duell:a+' vs '+b,A:f(S.A),B:f(S.B),zeit:Math.round(S.t/N),siegA:S.wA+'/'+N}; };
+})();
+
+// ===== Automatisches Einregeln der Held-Defensive (Leben/Rüstung je Klasse) =====
+(function(){
+  window.baseHeroes = {tank:{...HEROES.tank}, damage:{...HEROES.damage}, caster:{...HEROES.caster}};
+  window.defS = {tank:1, damage:1, caster:1};
+  window.applyDef = ()=>{ for(const h of ['tank','damage','caster']){ const b=baseHeroes[h], s=defS[h]; Object.assign(HEROES[h], b, {hp:Math.round(b.hp*s), hpl:+(b.hpl*s).toFixed(1), armor:+(b.armor*s).toFixed(1), armorl:+(b.armorl*s).toFixed(2)}); } };
+  window.fitDef = (iters=2,N=10,k=0.008)=>{ const log=[]; for(let i=0;i<iters;i++){ applyDef(); const q=quotes(1,N); log.push({def:{...defS}, siege:{tank:Math.round(q.tank),damage:Math.round(q.damage),caster:Math.round(q.caster)}});
+      for(const h of ['tank','damage','caster']) defS[h]=+Math.min(3,Math.max(.15,defS[h]*Math.exp(-k*(q[h]-50)))).toFixed(3); } return log; };
+})();

@@ -183,6 +183,8 @@ const CFG = {
   earlyWaves: 4, earlyWaveEvery: 16,        // die ersten Wellen kommen enger hintereinander
   rampStart: 850, rampStep: 250,            // Wellen spawnen anfangs nah an der Basis und Welle für Welle weiter weg (bis spawnX)
   tankQBase: 25, tankQcd: 6.5,   // Tank Schockwelle: Grundschaden / Abklingzeit
+  armorK: 150,                 // Rüstungskurve: größer = Rüstung wirkt schwächer (50: 100 Rüstung = 67 %, 100: = 50 %)
+  reflectMul: 1.0,             // Balance-Regler: Stärke aller Dornen/Reflexion (Eiserne Haut, Dornen-Items)
   innateReflect: 0.15,         // Tank: Dornen-Anteil schon ohne Skillpunkt in Eiserne Haut
   xpBase: 30, xpPer: 18,      // XP bis zum nächsten Level = xpBase + xpPer × Level
   whirlHeal: [0,.004,.006,.008,.010], // Wirbel-Heilung je Rang (Anteil des max. Lebens pro getroffenem Gegner)
@@ -193,9 +195,10 @@ const CFG = {
   backportCd: 75,
   itemPower: {sword:.8, armor:1.3, heart:1.2, gloves:1.1, staff:1.6, boots:1},   // Stärke je Item (Balance-Regler; Beschreibungen im Shop passend halten)
   incMul: 1, itemMul: 1,   // Balance-Regler: Einkommen pro gesendetem Monster / Stärke aller Items
-  power: {tank:2.10, damage:0.98, caster:1.17},
+  power: {tank:1.00, damage:1.00, caster:1.00},
   adEff: {tank:0.5, damage:1, caster:1},   // Wirkung von Angriffsschaden-Items je Klasse (Balance-Regler)   // Skillschaden-Faktor je Held (nur zum Balancen)
-  hpScalePerMin: 0.70,   // Monster werden mit der Zeit stärker
+  unitDmgScale: 0.5,         // wie stark der Schaden der Monster mit der Zeit mitwächst (relativ zu ihrem Leben)
+  hpScalePerMin: 0.35,   // Monster werden mit der Zeit stärker
   killGold: 6,                // Gold pro besiegtem normalem Gegner (Elite: eigener Wert in UNITS.gold)
   bossWave: 20, bossIncome: 50,     // Bosswelle: einmalig mit der normalen Welle; Killer bekommt dauerhaft +50 Gold pro Welle
   bossStompR: 150, bossStompMul: 1.5, bossStompEvery: [6,5,4], bossSummonEvery: [20,14,10], bossSpeedMul: [0.8,1.0,1.3],   // Boss-Phasen (bei 100/66/33 % Leben)
@@ -218,8 +221,8 @@ const UNITS = {
   elite:  {name:'Elite',   hp:600, dmg:25, spd:55,  range:30,  armor:15, cost:720, inc:15,  xp:60, gold:40, lives:3, r:16, col:'#b04ad1', key:'N'},
 };
 const HEROES = {
-  tank:   {name:'Tank',   desc:'Viel Leben & Rüstung. Schockwelle, Eiserne Haut (Dornen), Schildwurf, Titanenstoß.', hp:520, hpl:75, dmg:22, dpl:3.5, armor:8, armorl:1.2, as:1.0, range:38, spd:175, col:'#4a90e2'},
-  damage: {name:'Damage', desc:'Hoher Nahkampfschaden. Wirbel (heilt), Kampfrausch, Sprung, Schwertregen.', hp:390, hpl:52, dmg:26, dpl:4.5, armor:4, armorl:0.8, as:1.1, range:38, spd:195, col:'#e2584a'},
+  tank:   {name:'Tank',   desc:'Viel Leben & Rüstung. Schockwelle, Eiserne Haut (Dornen), Schildwurf, Titanenstoß.', hp:416, hpl:60, dmg:22, dpl:3.5, armor:6.4, armorl:0.96, as:1.0, range:38, spd:175, col:'#4a90e2'},
+  damage: {name:'Damage', desc:'Hoher Nahkampfschaden. Wirbel (heilt), Kampfrausch, Sprung, Schwertregen.', hp:488, hpl:65, dmg:26, dpl:4.5, armor:5, armorl:1.0, as:1.1, range:38, spd:195, col:'#e2584a'},
   caster: {name:'Caster', desc:'Fernkampf. Feuerfeld, Frostnova, Kettenblitz, Meteoritenregen.', hp:260, hpl:32, dmg:12, dpl:1.8, armor:1, armorl:0.4, as:0.9, range:230, spd:180, col:'#b06cf0'},
 };
 // ====== ITEMS (Rucksack-System wie in League of Legends) ======
@@ -397,7 +400,7 @@ const hAs    = ()=>H.d.as * (1 + H.bonusAs + (buff('rage')?buff('rage').as:0) + 
 const hSpd  = ()=>H.d.spd + H.bonusSpd + (buff('rage')?buff('rage').spd:0);
 const hSp    = ()=>(H.bonusSp + (H.uniq.has('hpAp') ? H.bonusHp*CFG.hpApRatio : 0)) * (1 + (H.uniq.has('spMul') ? CFG.spMulBonus : 0));   // Zauberkrone: +30 % auf die gesamte Zauberkraft
 const inBase = ()=>H.x < CFG.baseX && !H.dead;
-const reduce = (dmg,armor)=>dmg*(1-armor/(armor+50));
+const reduce = (dmg,armor)=>dmg*(1-armor/(armor+CFG.armorK));   // Rüstung: Schadensverringerung = Rüstung/(Rüstung+armorK)
 const xpNeed = l=>CFG.xpBase + CFG.xpPer*l;
 const hpMult = ()=>1 + (G.t/60)*CFG.hpScalePerMin;
 const clampY = y=>Math.max(-CFG.laneHalf+10, Math.min(CFG.laneHalf-10, y));
@@ -406,7 +409,7 @@ const clampY = y=>Math.max(-CFG.laneHalf+10, Math.min(CFG.laneHalf-10, y));
 function spawn(type, lane, offX=0, spdMul=1){   // lane 0 = deine Lane (Gegner laufen auf deine Basis), 1 = Gegnerlane
   const u = UNITS[type], m = hpMult();
   G.units.push({type, lane, x:CFG.spawnX + offX + Math.random()*30, y:(Math.random()*2-1)*(CFG.laneHalf-16),
-    hp:u.hp*m, max:u.hp*m, dmg:u.dmg*(1+0.5*(m-1)), spd:u.spd*spdMul*CFG.speedMul, range:u.range, armor:u.armor, r:u.r,
+    hp:u.hp*m, max:u.hp*m, dmg:u.dmg*(1+CFG.unitDmgScale*(m-1)), spd:u.spd*spdMul*CFG.speedMul, range:u.range, armor:u.armor, r:u.r,
     atkT:0, stun:0, slow:0, ...(type==='boss' ? {boss:true, phase:1, base:u.spd*spdMul*CFG.speedMul, stompT:5, summonT:12} : {})});
 }
 // Wellenarten und Vorschau auf die nächste Welle
@@ -457,9 +460,9 @@ function damageHero(dmg, src){
   const eff = reduce(dmg, hArmor());
   H.hp -= eff; H.dmgT = 0;   // Lebensfluss: Zeit seit dem letzten Schaden zurücksetzen
   const ir = ironPassive();   // Dornen: Anteil des eingehenden Schadens (vor Rüstung) geht an den Angreifer
-  if(ir.reflect && src && G.units.includes(src)) hitUnit(src, raw*ir.reflect);
+  if(ir.reflect && src && G.units.includes(src)) hitUnit(src, raw*ir.reflect*CFG.reflectMul);
   // Item-Dornen (einmalig): fester Schaden + Anteil der zusätzlichen Rüstung aus Items an jeden Angreifer
-  if(src && G.units.includes(src) && H.uniq.has('thorns')) hitUnit(src, CFG.thornFlat + CFG.thornArmorPct*H.bonusArmor);
+  if(src && G.units.includes(src) && H.uniq.has('thorns')) hitUnit(src, (CFG.thornFlat + CFG.thornArmorPct*H.bonusArmor)*CFG.reflectMul);
   if(H.bp>0) cancelBackport();
   if(H.hp <= 0){
     H.hp = 0; H.deaths++; H.dead = CFG.respawnBase + CFG.respawnPerLevel*H.lvl;
@@ -954,7 +957,7 @@ function update(dt){
     // Leak
     if(u.x <= CFG.leakX){
       const l = UNITS[u.type].lives;
-      G.lives -= l;
+      G.lives -= l; (G.stats.leak = G.stats.leak || {})[u.type] = (G.stats.leak[u.type]||0) + l;   // Statistik: durchgebrochene Monster nach Typ
       G.units.splice(G.units.indexOf(u),1);
     }
   }
@@ -1678,6 +1681,11 @@ requestAnimationFrame(loop);
 </script>
 </body>
 </html>
+
+
+
+
+
 
 
 
