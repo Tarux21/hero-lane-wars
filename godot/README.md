@@ -55,3 +55,9 @@ Godot_console.exe --path godot --resolution 1280x720 -- --autoplay --sim=60 --sh
 
 ## 3D-Figuren (Platzhalter)
 Helden (Krieger, Schurke, Magier) und Monster (GreenDemon, Cyclops, Skull, Bat, Demon, YellowDragon) stammen von **Quaternius** (CC0, Pakete „RPG Characters" und „Cute Animated Monsters"), Ordner `godot/assets/quaternius/`. Sie werden zur Laufzeit aus den glTF-Dateien geladen (`_make_figure` in `game.gd`) und laufen, stehen oder greifen an. Zuordnung: `HERO_MODEL` und `UNIT_MODEL` oben bei `_spawn_unit`. Tausch gegen andere Modelle: Datei ablegen, Zuordnung ändern.
+
+## Fähigkeiten-Effekte (Caster, Stand Meilenstein 6)
+- `scripts/fx.gd`: Partikel, Licht, Blitze, Kristalle, Zauberkreise, alles im Code erzeugt (reine Optik, ändert keine Spielwerte, nutzt nicht den Spiel-Zufall). Aufgerufen aus `skills.gd` über `g.vfx`.
+- `scripts/sfx_caster.gd`: selbst berechnete Klänge (Feuer, Frost, Blitz, Elementare). Zum Anhören: Ordner `Caster-Sounds/` (WAV-Dateien, mit `godot --headless --path godot --script res://tools/sfxtest.gd -- --wav` neu erzeugbar).
+- Bildertest: `-- --hero=caster --team=1 --fxtest=q|w|e|rfire|rfrost|rlightning --rank=1..5 --shot=Prefix` (Skript `tools/fxrun.sh`), speichert Bilder in Zeitabständen.
+- Tank und Damage haben noch die alten einfachen Effekte.

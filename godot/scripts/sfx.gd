@@ -3,6 +3,7 @@ extends RefCounted
 ## Die Klänge entsprechen dem Browser-Prototyp (index.html: SFX, tone, noise).
 
 const RATE := 22050
+const SfxCaster := preload("res://scripts/sfx_caster.gd")
 # Name -> [Mindestabstand in s, Stimmen]. Stimme: ["t", f0, f1, dauer, form, lautstärke, verzögerung] oder ["n", dauer, f0, f1, lautstärke, verzögerung]
 const DEFS := {
 	"hit":   [0.05, [["n", 0.07, 1800, 600, 0.22, 0.0]]],
@@ -35,7 +36,9 @@ func _init(host: Node) -> void:
 	# "cast" gibt es je Skill-Platz in 4 Klangfarben
 	for i in 4:
 		streams["cast%d" % i] = _make([["n", 0.22, 300 + i * 250, maxf(60.0, 1800 - i * 200), 0.30, 0.0], ["t", 240 + i * 90, 500 + i * 160, 0.2, "sine", 0.15, 0.0]])
-	for i in 8:
+	for nm in SfxCaster.NAMES:
+		streams[nm] = _wav(SfxCaster.build(nm))
+	for i in 12:
 		var pl := AudioStreamPlayer.new()
 		host.add_child(pl)
 		players.append(pl)
@@ -56,6 +59,11 @@ func _make(voices: Array) -> AudioStreamWAV:
 			_tone(buf, float(v[1]), float(v[2]), float(v[3]), str(v[4]), float(v[5]), float(v[6]))
 		else:
 			_noise(buf, float(v[1]), float(v[2]), float(v[3]), float(v[4]), float(v[5]))
+	return _wav(buf)
+
+
+func _wav(buf: PackedFloat32Array) -> AudioStreamWAV:
+	var n := buf.size()
 	var bytes := PackedByteArray()
 	bytes.resize(n * 2)
 	for i in n:
@@ -112,10 +120,10 @@ func _noise(buf: PackedFloat32Array, dur: float, f0: float, f1: float, vol: floa
 		buf[start + i] += bp * _env(i, count, vol) * 1.2
 
 
-func play(name: String) -> void:
+func play(name: String, vol: float = 1.0, pitch: float = 1.0) -> void:
 	if volume <= 0.0 or not streams.has(name):
 		return
-	var min_gap: float = DEFS[name][0] if DEFS.has(name) else 0.08
+	var min_gap: float = DEFS[name][0] if DEFS.has(name) else float(SfxCaster.GAPS.get(name, 0.08))
 	var now := Time.get_ticks_msec() / 1000.0
 	if now - float(last.get(name, 0.0)) < min_gap:
 		return
@@ -123,5 +131,6 @@ func play(name: String) -> void:
 	var pl: AudioStreamPlayer = players[next_player]
 	next_player = (next_player + 1) % players.size()
 	pl.stream = streams[name]
-	pl.volume_db = linear_to_db(clampf(volume, 0.01, 1.0))
+	pl.volume_db = linear_to_db(clampf(volume * vol, 0.01, 1.0))
+	pl.pitch_scale = pitch
 	pl.play()

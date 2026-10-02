@@ -1,0 +1,8 @@
+Die Klaenge der Caster-Faehigkeiten (werden im Spiel genauso erzeugt). Zum Anhoeren einfach doppelklicken.
+fire_cast = Feuerfeld wirken        fire_ignite = Feuerfeld zuendet     meteor_fall / meteor_hit = Meteor (Rang 5)
+frost_cast = Frostnova              frost_zone = Frostfeld (Frost-Elementar)
+zap / zap_crit = Kettenblitz Glied / Krit
+summon_fire / summon_frost / summon_lightning = Elementar rufen (R)
+flame_jet = Flammenstrahl des Feuer-Elementars    elem_vanish = Elementar verschwindet
+elem_shot_* = Normalangriffe der Elementare
+Erzeugen: Godot --headless --path godot --script res://tools/sfxtest.gd -- --wav

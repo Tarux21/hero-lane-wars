@@ -12,6 +12,7 @@ const SkillsLib := preload("res://scripts/skills.gd")
 const ItemsLib := preload("res://scripts/items.gd")
 const BotLib := preload("res://scripts/bot.gd")
 const SfxLib := preload("res://scripts/sfx.gd")
+const FxLib := preload("res://scripts/fx.gd")
 const GoldenRunner := preload("res://scripts/golden_runner.gd")
 const GoldenEconomyRunner := preload("res://scripts/golden_economy_runner.gd")
 const GoldenBossRunner := preload("res://scripts/golden_boss_runner.gd")
@@ -45,6 +46,8 @@ var zones: Array = []                 # Schadensfelder am Boden
 var timers: Array = []                # zeitverzögerte Skill-Effekte
 var elems: Array = []                 # Caster-Elementare
 var fx_list: Array = []               # Skill-Effekte (Ringe, Kegel, Linien), blenden aus
+var fx_nodes: Array = []              # Partikel-/Licht-Effekte (fx.gd): {node, t}
+var vfx: FxLib                        # Fähigkeiten-Effekte
 var skillbar: Array = []              # Oberfläche: die 4 Skill-Plätze
 var alerts_box: VBoxContainer         # Meldungen oben in der Mitte
 var tips_seen: Dictionary = {}         # schon gezeigte Einsteiger-Tipps (gespeichert)
@@ -103,6 +106,8 @@ var golden_boss := false
 var botplay := false                  # Test: auch dein Held wird vom Bot gesteuert (ganze Partien Bot gegen Bot)
 var golden_eco_filter := ""
 var menu_shot := ""
+var fxtest := ""                     # Test: Effekt einer Fähigkeit zeigen (q, w, e, rfire, rfrost, rlightning) und Bilder speichern
+var fx_rank := 3
 var menu_test := false                # Test: Menü per Skript bedienen (Spiel starten drücken)
 var menu_go: Button
 var mini: Control                    # Minimap
@@ -194,10 +199,19 @@ func _ready() -> void:
 			direct = true
 		elif a == "--menu-test":
 			menu_test = true
+		elif a.begins_with("--fxtest="):
+			fxtest = a.substr(9)
+			no_bots = true
+			direct = true
+		elif a.begins_with("--rank="):
+			fx_rank = int(a.substr(7))
 		elif a.begins_with("--menushot="):
 			menu_shot = a.substr(11)
 	if direct:
 		_start_game()
+		if fxtest != "":
+			_fxtest(fxtest, shot_path)
+			return
 		if selftest:
 			set_process(false)
 			_selftest()
@@ -261,6 +275,7 @@ func _start_game() -> void:
 	_setup_sides()
 	_build_world()
 	_spawn_hero()
+	vfx = FxLib.new(self)
 	if not no_bots and snd == null:
 		snd = SfxLib.new(self)               # Sounds nur im echten Spiel (nicht in Tests)
 		_load_tips()
@@ -1267,8 +1282,39 @@ func sfx(name: String) -> void:
 
 
 func sfx_cast(p: Dictionary, i: int) -> void:
-	if p == hero:
+	if p == hero and p["key"] != "caster":      # der Caster hat eigene Klänge je Fähigkeit (sfx_p)
 		sfx("cast%d" % i)
+
+
+## Klang einer Fähigkeit: nur für deine Seite hörbar (Mitspieler leiser). vol 0..1, pitch 1 = normal.
+func sfx_p(p: Dictionary, name: String, vol: float = 1.0, pitch: float = 1.0) -> void:
+	if snd != null and not test_mode and p["side"]["idx"] == hero["side"]["idx"]:
+		snd.play(name, vol * (1.0 if p == hero else 0.45), pitch)
+
+
+## Wie sfx_p, aber nach `delay` Sekunden (Echtzeit, nur Optik/Ton)
+func sfx_after(p: Dictionary, name: String, delay: float, vol: float = 1.0, pitch: float = 1.0) -> void:
+	if test_mode or snd == null:
+		return
+	get_tree().create_timer(delay).timeout.connect(func(): sfx_p(p, name, vol, pitch))
+
+
+## Bildschirmwackeln, wenn ein Einschlag nahe beim Helden liegt
+func shake_near(pos: Vector3, px: float) -> void:
+	if test_mode or hero.is_empty():
+		return
+	var d: float = pos.distance_to((hero["node"] as Node3D).position)
+	shake(px * clampf(1.0 - d / 40.0, 0.0, 1.0))
+
+
+## Zauberpose: Figur dreht sich zum Ziel und spielt die Angriffsanimation neu ab
+func cast_pose(p: Dictionary, tx: float, ty: float) -> void:
+	var fig: Dictionary = p.get("fig", {})
+	if fig.is_empty():
+		return
+	fig["force"] = 0.55
+	fig["face"] = Vector2(tx, ty)
+	fig["cur"] = ""
 
 
 ## Bildschirmwackeln (px) und roter Blitz (0..1); nur für deine Seite
@@ -1294,13 +1340,21 @@ func add_zone(z: Dictionary) -> void:
 		zones.append(z)
 		return
 	var node := MeshInstance3D.new()
-	var cm := CylinderMesh.new()
-	cm.top_radius = float(z["r"]) * S
-	cm.bottom_radius = cm.top_radius
-	cm.height = 0.04
-	node.mesh = cm
 	var col := Color.html(z["c"])
 	var mat := _fx_mat(col)
+	if z.has("kind"):                    # Feld mit Partikeln (Feuer, Frost): weiche Bodenfläche statt Scheibe
+		var qm := QuadMesh.new()
+		qm.size = Vector2.ONE * float(z["r"]) * S * 2.0
+		qm.orientation = PlaneMesh.FACE_Y
+		node.mesh = qm
+		mat = vfx._flat_mat(vfx.tex_disc, col, true)
+		z["a0"] = 0.3
+	else:
+		var cm := CylinderMesh.new()
+		cm.top_radius = float(z["r"]) * S
+		cm.bottom_radius = cm.top_radius
+		cm.height = 0.04
+		node.mesh = cm
 	node.material_override = mat
 	z["node"] = node
 	z["mat"] = mat
@@ -1308,6 +1362,8 @@ func add_zone(z: Dictionary) -> void:
 	add_child(node)
 	node.position = _wp(z["x"], z["y"]) + Vector3(0, 0.1, 0)
 	zones.append(z)
+	if z.has("kind"):
+		vfx.zone_attach(z)
 
 
 func set_elementar(e: Dictionary) -> void:
@@ -1318,21 +1374,10 @@ func set_elementar(e: Dictionary) -> void:
 		e["node"] = null
 		elems.append(e)
 		return
-	var node := Node3D.new()
-	var body := MeshInstance3D.new()
-	var sm := SphereMesh.new()
-	sm.radius = 0.8
-	sm.height = 1.6
-	body.mesh = sm
-	body.position.y = 1.0
 	var col := Color.html(skills.ELEM_COL[e["type"]])
-	var mat := _mat(col)
-	mat.emission_enabled = true
-	mat.emission = col
-	body.material_override = mat
-	node.add_child(body)
+	var node: Node3D = vfx.make_elemental(str(e["type"]))
 	var lab := _label3d("", 28, col)
-	lab.position.y = 2.4
+	lab.position.y = 3.0
 	node.add_child(lab)
 	add_child(node)
 	e["node"] = node
@@ -1374,7 +1419,7 @@ func fx_ring(x: float, y: float, r: float, life: float, col: String) -> void:
 	_fx_add(node, mat, life, c, 0.5)
 
 
-func fx_cone(x: float, y: float, ang: float, r: float, half: float, life: float, col: String) -> void:
+func fx_cone(x: float, y: float, ang: float, r: float, half: float, life: float, col: String, alpha0: float = 0.5) -> void:
 	if test_mode:
 		return
 	var st := SurfaceTool.new()
@@ -1392,7 +1437,7 @@ func fx_cone(x: float, y: float, ang: float, r: float, half: float, life: float,
 	var mat := _fx_mat(c)
 	node.material_override = mat
 	node.position = _wp(x, y) + Vector3(0, 0.14, 0)
-	_fx_add(node, mat, life, c, 0.5)
+	_fx_add(node, mat, life, c, alpha0)
 
 
 func fx_line(x: float, y: float, x2: float, y2: float, life: float, col: String, w: float) -> void:
@@ -1425,13 +1470,27 @@ func _update_fx(delta: float) -> void:
 			var c: Color = f["col"]
 			c.a = f["a0"] * f["t"] / f["t0"]
 			f["mat"].albedo_color = c
+	var fog_x: float = lane_xs[lanes_per_team - 1] + lane_half_g * S + WALL
+	for n in fx_nodes.duplicate():       # Partikel und Lichter: nach Ablauf entfernen, auf der Gegner-Seite ausblenden
+		if not is_instance_valid(n["node"]):
+			fx_nodes.erase(n)
+			continue
+		n["t"] -= delta
+		if n["t"] <= 0.0:
+			n["node"].queue_free()
+			fx_nodes.erase(n)
+		else:
+			n["node"].visible = n["node"].position.x < fog_x
 	for z in zones:
 		var c: Color = z["col"]
-		c.a = 0.22 + 0.1 * sin(t * 6.0)
+		c.a = float(z.get("a0", 0.22)) + 0.1 * sin(t * 6.0)
 		z["mat"].albedo_color = c
 		z["node"].position = _wp(z["x"], z["y"], z["side"]) + Vector3(0, 0.1, 0)
+		z["node"].visible = z["node"].position.x < fog_x
+	vfx.tick(delta, t)
 	for e in elems:
 		e["node"].position = _wp(e["x"], e["y"], e["p"]["side"]["idx"])
+		e["node"].visible = e["node"].position.x < fog_x
 		e["label"].text = "%s  %d  (%ds)" % [str(e["type"]).capitalize(), int(e["hp"]), int(e["t"])]
 
 
@@ -1903,7 +1962,7 @@ func _step_zones(dt: float) -> void:
 				if zunits.has(u) and Vector2(u["x"] - z["x"], u["y"] - z["y"]).length() <= z["r"] + u["r"]:
 					skills.affect(z["p"], u, z["dmg"], z.get("o", {}))
 		if z["t"] <= 0.0:
-			_free(z["node"])
+			vfx.zone_end(z)
 			zones.erase(z)
 
 
@@ -2337,6 +2396,7 @@ func _animate(e: Dictionary, node: Node3D, side_idx: int, delta: float, attack_a
 	fig["hold"] = hold
 	var moving := hold > 0.0
 	var want_yaw: float = fig["yaw"]
+	var force: float = fig.get("force", 0.0)
 	var mt: Variant = e.get("move_to")
 	var tg: Variant = e.get("target")
 	if mt is Dictionary and mt.has("x"):
@@ -2347,9 +2407,15 @@ func _animate(e: Dictionary, node: Node3D, side_idx: int, delta: float, attack_a
 		want_yaw = atan2(vx, vz)
 	elif tg is Dictionary and tg.has("x"):
 		want_yaw = atan2((tg["y"] - vis.y), -(tg["x"] - vis.x))
+	if force > 0.0:                                     # Zauberpose: zum Ziel drehen und Angriff zeigen
+		fig["force"] = force - delta
+		var fc: Vector2 = fig["face"]
+		want_yaw = atan2(fc.y - vis.y, -(fc.x - vis.x))
 	fig["yaw"] = lerp_angle(fig["yaw"], want_yaw, 1.0 - exp(-delta * 30.0))
 	(fig["inner"] as Node3D).rotation.y = fig["yaw"]
 	var anim := move_anim if moving else (attack_anim if (tg != null or e.get("type") != null) else idle_anim)
+	if force > 0.0:
+		anim = attack_anim
 	_play_anim(fig, anim)
 	var ap: AnimationPlayer = fig["anim"]
 	if ap != null:
@@ -2713,6 +2779,59 @@ func _selftest() -> void:
 			break
 	check.call("Monster aus Lane 2 erreichen den Kristall in der Mitte (y=%.0f, Mitte=%.0f)" % [gr["y"], team_mid_y], units.is_empty() or absf(gr["y"] - team_mid_y) < absf(lane_off_g[1] - team_mid_y))
 	print("SELFTEST " + ("OK" if ok else "FEHLER"))
+	get_tree().quit()
+
+
+# ---------------------------------------------------------------- Effekt-Test (--fxtest=q|w|e|rfire|rfrost|rlightning --hero=caster --shot=Prefix)
+## Stellt den Helden vor eine Gruppe stehender Monster, wirkt die Fähigkeit und speichert Bilder (Echtzeit) in Abständen.
+func _fxtest(which: String, prefix: String) -> void:
+	for s in sides:
+		s["wave_t"] = 1e9
+	hero["bonus_hp"] = 1e6
+	hero["hp"] = skills.h_max_hp(hero)
+	hero["lvl"] = 12
+	hero["ranks"] = [fx_rank, fx_rank, fx_rank, 1]
+	hero["x"] = 1000.0
+	hero["y"] = 0.0
+	for i in 9:
+		_spawn_unit("grunt", 0.0, 1.0, 0)
+		var u: Dictionary = units[units.size() - 1]
+		u["x"] = 1000.0 + 170.0 + (i % 3) * 55.0 + (i / 3) * 40.0
+		u["y"] = -90.0 + (i / 3) * 70.0 + (i % 3) * 20.0
+		u["stun"] = 1e6
+	cam_dist = 26.0
+	cam_free = true
+	cam_focus = _wp(1130.0, 0.0, 0)
+	for i in 40:
+		await get_tree().process_frame
+	var m := {"dx": 300.0, "dy": 0.0, "dist": 300.0, "ang": 0.0, "wx": 1250.0, "wy": 0.0}
+	if which.begins_with("r"):
+		hero["last_elem"] = which.substr(1)
+		m["wx"] = 1000.0
+	var slot: int = {"q": 0, "w": 1, "e": 2}.get(which, 3)
+	if which == "q" and fx_rank >= 5:
+		m["wx"] = 1280.0
+	skills.cast_slot(hero, slot, m)
+	var t0 := Time.get_ticks_msec()
+	var k := 0
+	var marks := [0.12, 0.3, 0.55, 0.9, 1.4, 2.2, 3.2]
+	while k < marks.size():
+		await get_tree().process_frame
+		if (Time.get_ticks_msec() - t0) / 1000.0 >= marks[k]:
+			get_viewport().get_texture().get_image().save_png("%s_%d.png" % [prefix, k])
+			k += 1
+	if which.begins_with("r"):                        # Elementar: Fähigkeit auslösen
+		for e in elems:
+			e["ab_t"] = 0.0
+			e["atk_t"] = 0.0
+		t0 = Time.get_ticks_msec()
+		k = 0
+		while k < 4:
+			await get_tree().process_frame
+			if (Time.get_ticks_msec() - t0) / 1000.0 >= [0.15, 0.4, 0.8, 1.3][k]:
+				get_viewport().get_texture().get_image().save_png("%s_b%d.png" % [prefix, k])
+				k += 1
+	print("FXTEST fertig")
 	get_tree().quit()
 
 

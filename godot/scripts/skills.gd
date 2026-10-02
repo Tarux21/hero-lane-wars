@@ -102,17 +102,18 @@ func _dist(u: Dictionary, x: float, y: float) -> float:
 	return Vector2(u["x"] - x, u["y"] - y).length()
 
 
-func circle_hit(p: Dictionary, cx: float, cy: float, radius: float, dmg: float, o: Dictionary = {}, col: String = "") -> int:
+func circle_hit(p: Dictionary, cx: float, cy: float, radius: float, dmg: float, o: Dictionary = {}, col: String = "", ring: bool = true) -> int:
 	var n := 0
 	for u in g.units_of(p).duplicate():
 		if g.units_of(p).has(u) and _dist(u, cx, cy) <= radius + u["r"]:
 			affect(p, u, dmg, o)
 			n += 1
-	g.fx_ring(cx, cy, radius, 0.45, col if col != "" else str(p["d"]["col"]))
+	if ring:
+		g.fx_ring(cx, cy, radius, 0.45, col if col != "" else str(p["d"]["col"]))
 	return n
 
 
-func cone_hit(p: Dictionary, ox: float, oy: float, ang: float, range_: float, half: float, dmg: float, o: Dictionary = {}, col: String = "") -> void:
+func cone_hit(p: Dictionary, ox: float, oy: float, ang: float, range_: float, half: float, dmg: float, o: Dictionary = {}, col: String = "", a0: float = 0.5) -> void:
 	var ux := cos(ang)
 	var uy := sin(ang)
 	for u in g.units_of(p).duplicate():
@@ -125,18 +126,22 @@ func cone_hit(p: Dictionary, ox: float, oy: float, ang: float, range_: float, ha
 			continue
 		if d < 1.0 or acos(clampf((vx * ux + vy * uy) / d, -1.0, 1.0)) <= half:
 			affect(p, u, dmg, o)
-	g.fx_cone(ox, oy, ang, range_, half, 0.4, col if col != "" else str(p["d"]["col"]))
+	g.fx_cone(ox, oy, ang, range_, half, 0.4, col if col != "" else str(p["d"]["col"]), a0)
 
 
 ## Kettenblitz: springt ab `first` von Gegner zu Gegner. Krit = doppelter Schaden + 0,5 s Betäubung.
-func chain_lightning(p: Dictionary, from: Vector2, first: Dictionary, count: int, dmg: float, crit: float, falloff: float, jump: float = 170.0) -> void:
+func chain_lightning(p: Dictionary, from: Vector2, first: Dictionary, count: int, dmg: float, crit: float, falloff: float, jump: float = 170.0, hand: bool = false) -> void:
 	var cur: Variant = first
 	var hit: Array = []
+	var link := 0
+	var side_i: int = p["side"]["idx"]
 	while cur != null and count > 0:
 		count -= 1
 		var is_crit: bool = g.rand() < crit
 		hit.append(cur)
-		g.fx_line(from.x, from.y, cur["x"], cur["y"], 0.25, "#ffe066" if is_crit else "#9fe0ff", 4.0 if is_crit else 2.0)
+		g.vfx.bolt_later(link * 0.08, from.x, from.y, cur["x"], cur["y"], side_i, is_crit, hand and link == 0)
+		g.sfx_after(p, "zap_crit" if is_crit else "zap", link * 0.08, 0.8, 1.0 + 0.04 * link)
+		link += 1
 		from = Vector2(cur["x"], cur["y"])
 		if is_crit:
 			g.fx_text(cur["x"], cur["y"] - 28.0, "KRIT!", "#ffe066", 0.7, 34)
@@ -230,10 +235,7 @@ func _cast(p: Dictionary, i: int, r: int, m: Dictionary) -> bool:
 		"caster":
 			match i:
 				0: return _cas_q(p, r, m)
-				1:
-					cone_hit(p, p["x"], p["y"], m["ang"], 200.0 + 15.0 * (r - 1), 0.62, dmg_of(p, 20.0, 10.0, r, 0.3, 0.0),
-						{"slow": 3.0 + 0.5 * (r - 1), "stun": 1.6 if r >= 5 else (0.8 if r >= 3 else 0.0)})
-					return true
+				1: return _cas_w(p, r, m)
 				2: return _cas_e(p, r, m)
 				3: return _cas_r(p)
 	return false
@@ -365,18 +367,34 @@ func _dmg_r(p: Dictionary) -> bool:
 
 
 # ---- Caster
+func _cas_w(p: Dictionary, r: int, m: Dictionary) -> bool:
+	var ang: float = m["ang"]
+	var range_ := 200.0 + 15.0 * (r - 1)
+	cone_hit(p, p["x"], p["y"], ang, range_, 0.62, dmg_of(p, 20.0, 10.0, r, 0.3, 0.0),
+		{"slow": 3.0 + 0.5 * (r - 1), "stun": 1.6 if r >= 5 else (0.8 if r >= 3 else 0.0)}, "#9fdcff", 0.2)
+	g.vfx.cast_burst(p, Color("#8fd8ff"), p["x"] + cos(ang) * 100.0, p["y"] + sin(ang) * 100.0)
+	g.vfx.frost_breath(p, ang, range_, 0.62, r)
+	g.sfx_p(p, "frost_cast")
+	return true
+
+
 func _cas_q(p: Dictionary, r: int, m: Dictionary) -> bool:
 	var pt := ground_point(p, m, 380.0)
 	var radius := 90.0 + 6.0 * (r - 1)
 	var tick := dmg_of(p, 9.0, 5.0, r, 0.2, 0.08)
 	var follow: String = "enemy" if r >= 3 else ""
+	g.vfx.cast_burst(p, Color("#ff8a3a"), pt.x, pt.y)
+	g.vfx.fireball(p, pt.x, pt.y, r >= 5)
+	g.sfx_p(p, "fire_cast")
 	if r >= 5:                                                               # nur ein Feld: es entsteht erst nach dem Meteoreinschlag
-		g.fx_ring(pt.x, pt.y, 100.0, 0.9, "#ffcc66")
+		g.sfx_p(p, "meteor_fall")
+		g.sfx_after(p, "meteor_hit", 0.9)
 		g.later(0.9, func():
-			circle_hit(p, pt.x, pt.y, 100.0, dmg_of(p, 120.0, 0.0, 1, 0.8, 0.3), {}, "#ff5a2a")
-			g.add_zone({"x": pt.x, "y": pt.y, "r": radius, "t": 6.0, "tick": 0.0, "every": 1.0, "dmg": tick, "c": "#ff7a2a", "follow": follow, "p": p}))
+			circle_hit(p, pt.x, pt.y, 100.0, dmg_of(p, 120.0, 0.0, 1, 0.8, 0.3), {}, "#ff5a2a", false)
+			g.add_zone({"x": pt.x, "y": pt.y, "r": radius, "t": 6.0, "tick": 0.0, "every": 1.0, "dmg": tick, "c": "#ff7a2a", "follow": follow, "p": p, "kind": "fire"}))
 	else:
-		g.add_zone({"x": pt.x, "y": pt.y, "r": radius, "t": 5.0, "tick": 0.0, "every": 1.0, "dmg": tick, "c": "#ff7a2a", "follow": follow, "p": p})
+		g.sfx_after(p, "fire_ignite", 0.28)
+		g.add_zone({"x": pt.x, "y": pt.y, "r": radius, "t": 5.0, "tick": 0.0, "every": 1.0, "dmg": tick, "c": "#ff7a2a", "follow": follow, "p": p, "kind": "fire", "fx_delay": 0.28})
 	return true
 
 
@@ -385,7 +403,8 @@ func _cas_e(p: Dictionary, r: int, m: Dictionary) -> bool:
 	if pool.is_empty():
 		return true                                                          # Prototyp: kein Ziel, aber Cooldown läuft trotzdem
 	pool.sort_custom(func(a, b): return _dist(a, m["wx"], m["wy"]) < _dist(b, m["wx"], m["wy"]))
-	chain_lightning(p, Vector2(p["x"], p["y"]), pool[0], 3 + r, dmg_of(p, 40.0, 18.0, r, 0.6, 0.0), CRIT_BY_RANK[r - 1], 1.0 if r >= 5 else 0.9)
+	g.vfx.cast_burst(p, Color("#9fc8ff"), pool[0]["x"], pool[0]["y"])
+	chain_lightning(p, Vector2(p["x"], p["y"]), pool[0], 3 + r, dmg_of(p, 40.0, 18.0, r, 0.6, 0.0), CRIT_BY_RANK[r - 1], 1.0 if r >= 5 else 0.9, 170.0, true)
 	return true
 
 
@@ -396,7 +415,9 @@ func _cas_r(p: Dictionary) -> bool:
 	var t: String = p["last_elem"]
 	g.set_elementar({"type": t, "x": p["x"] + 35.0, "y": p["y"], "hp": float(cfg["elemHp"]), "max": float(cfg["elemHp"]), "t": float(cfg["elemTime"]),
 		"atk_t": 1.0, "ab_t": 2.0, "e_rank": maxi(1, p["ranks"][2]), "sp": h_sp(p), "p": p})     # nur ein Elementar gleichzeitig
-	g.fx_ring(p["x"] + 35.0, p["y"], 45.0, 0.7, str(ELEM_COL[t]))
+	g.vfx.cast_burst(p, Color.html(ELEM_COL[t]), p["x"] + 35.0, p["y"])
+	g.vfx.summon(p["x"] + 35.0, p["y"], p["side"]["idx"], t)
+	g.sfx_p(p, "summon_" + t)
 	return true
 
 
@@ -410,10 +431,14 @@ func elem_ability(e: Dictionary) -> bool:
 	if e["type"] == "fire":
 		var ang := atan2(tgt["y"] - e["y"], tgt["x"] - e["x"])
 		cone_hit(p, e["x"], e["y"], ang, 260.0, 0.6, 45.0 + 0.5 * sp, {"burn": 6.0, "burn_dps": 16.0 + 0.3 * sp}, "#ff6a2a")
+		g.vfx.flame_jet(e["x"], e["y"], p["side"]["idx"], ang, 260.0, 0.6)
+		g.sfx_p(p, "flame_jet", 0.7)
 	elif e["type"] == "frost":
 		var pool: Array = g.pick_random(g.units_of(p).filter(func(u): return _dist(u, e["x"], e["y"]) <= float(cfg["elemRange"])), 3)
+		if not pool.is_empty():
+			g.sfx_p(p, "frost_zone", 0.8)
 		for u in pool:
-			g.add_zone({"x": u["x"], "y": u["y"], "r": 75.0, "t": 5.0, "tick": 0.0, "every": 1.0, "dmg": 7.0 + 0.2 * sp, "c": "#8fd8ff", "o": {"slow": 1.5}, "p": p})
+			g.add_zone({"x": u["x"], "y": u["y"], "r": 75.0, "t": 5.0, "tick": 0.0, "every": 1.0, "dmg": 7.0 + 0.2 * sp, "c": "#8fd8ff", "o": {"slow": 1.5}, "p": p, "kind": "frost"})
 	else:
 		var er: int = e["e_rank"]
 		chain_lightning(p, Vector2(e["x"], e["y"]), tgt, 3 + er + 3, dmg_of(p, 40.0, 18.0, er, 0.6, 0.0) * 0.8, CRIT_BY_RANK[er - 1], 1.0 if er >= 5 else 0.9, 210.0)
@@ -425,13 +450,16 @@ func update_elem(e: Dictionary, dt: float) -> bool:
 	e["t"] -= dt
 	if e["hp"] <= 0.0 or e["t"] <= 0.0:
 		g.fx_ring(e["x"], e["y"], 35.0, 0.5, str(ELEM_COL[e["type"]]))
+		g.vfx.elem_vanish(e["x"], e["y"], e["p"]["side"]["idx"], str(e["type"]))
+		g.sfx_p(e["p"], "elem_vanish", 0.7)
 		return false
 	e["atk_t"] -= dt
 	if e["atk_t"] <= 0.0:
 		var t: Variant = nearest_enemy(e["p"], e["x"], e["y"], 170.0)
 		if t != null:
 			e["atk_t"] = 1.2
-			g.fx_line(e["x"], e["y"], t["x"], t["y"], 0.12, str(ELEM_COL[e["type"]]), 2.0)
+			g.vfx.elem_shot(str(e["type"]), e["x"], e["y"], t["x"], t["y"], e["p"]["side"]["idx"])
+			g.sfx_p(e["p"], "elem_shot_" + str(e["type"]), 0.5)
 			g.hit_unit(t, 8.0 + 0.15 * e["sp"], e["p"])
 		else:
 			e["atk_t"] = 0.3
