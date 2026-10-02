@@ -2307,6 +2307,8 @@ func _step_hero(p: Dictionary, dt: float) -> void:
 				sfx_p(p, "caster_shot", 0.55)
 			else:
 				fx_line(p["x"], p["y"], tx, ty, 0.12, str(p["d"]["col"]), 2.0)
+		elif p["key"] == "tank":
+			sfx_p(p, "tank_shot", 0.7)                 # Nahkampf-Schlag des Tanks
 
 
 

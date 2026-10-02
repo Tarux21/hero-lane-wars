@@ -16,6 +16,8 @@ my @jobs = (
  ["541479*", "elem_shot_frost.wav", 0.0, 0.7, 0.003, 0.25, 0.85, 0, 0],               # Frost-Elementar Autoangriff
  ["442827*", "caster_shot.wav", 0.0, 0.65, 0.003, 0.25, 0.85, 0, 0],              # Autoangriff Magier
  ["442827*", "elem_shot_fire.wav", 0.0, 0.65, 0.003, 0.25, 0.85, 0, 0],           # Autoangriff Feuer-Elementar
+ ["240640*", "tank_shot.wav", 0.0, 0.35, 0.002, 0.08, 0.85, 0, 0],                  # Tank Autoangriff
+ ["815336*", "tank_q.wav", 0.0, 1.6, 0.002, 0.5, 0.95, 0, 0],                    # Tank Schockwelle
 );
 sub resolve { my $p = shift; $p =~ s/\*$//; opendir(my $d, $in) or die "Ordner $in fehlt"; my ($m) = grep { index($_, $p) == 0 } readdir $d; die "keine Datei $p*" unless $m; return $m; }
 my %cache;

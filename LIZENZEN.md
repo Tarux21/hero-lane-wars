@@ -20,11 +20,16 @@ Alles, was wir nicht selbst gemacht haben, steht hier mit Quelle, Lizenz und Än
 | `summon_lightning.wav` (Blitz-Elementar) | „custom_electrical_lance_impact_02152026" von **Artninja**, https://freesound.org/people/artninja/sounds/845385/ | **CC BY 4.0** | 2 s aus 6,4 s ausgeschnitten, Stereo zu Mono, Vorlauf davor, ausgeblendet |
 | `elem_shot_lightning.wav` (Autoangriff Blitz-Elementar) | „Sähköisiä räsähdyksiä …" (electrical short crackling) von **YleArkisto**, https://freesound.org/people/ylearkisto/sounds/367700/ | **CC BY 4.0** | drittes Knistern (0,6 s) aus 14,6 s ausgeschnitten, Stereo zu Mono, ausgeblendet |
 | `elem_shot_frost.wav` (Autoangriff Frost-Elementar) | „Magic Ice Spell Impact & Punch" von **EminYILDIRM**, https://freesound.org/people/EminYILDIRIM/sounds/541479/ | **CC BY 4.0** | erste 0,7 s, Stereo zu Mono, ausgeblendet |
+| `tank_shot.wav` (Autoangriff Tank) | „Metallic Whoosh.wav" von **MissCellany**, https://freesound.org/people/MissCellany/sounds/240640/ | **CC0** | unverändert bis auf Ein-/Ausblenden und Lautstärke |
+| `tank_q.wav` (Schockwelle Tank) | „superhero_earth_impact_hit_07062025" von **Artninja**, https://freesound.org/people/Artninja/sounds/815336/ | **CC BY 4.0** (Hinweis unten) | auf 1,6 s gekürzt, Stereo zu Mono, ausgeblendet |
 | `caster_shot.wav`, `elem_shot_fire.wav` (Autoangriff Magier und Feuer-Elementar) | „Fireball" von **qubodup**, https://freesound.org/people/qubodup/sounds/442827/ | **CC BY** (laut Seite 3.0, bitte vor Veröffentlichung nochmal prüfen) | auf 0,65 s gekürzt, Stereo zu Mono, ausgeblendet |
 
 ### Namensnennung (Text für Abspann)
-„Frostnova-Sound: f_Synth_Wind_Whoosh_6 von cyclonek; Kettenblitz-Sound: electricspark von knova; Feuer-Elementar-Sound: Fire Spell 01 von DiscoverSound; Blitz-Elementar-Sound: custom_electrical_lance_impact_02152026 von Artninja ; Blitz-Elementar-Angriff: Sähköisiä räsähdyksiä von YleArkisto; Frost-Elementar-Angriff: Magic Ice Spell Impact & Punch von EminYILDIRM; Feuerball-Angriff: Fireball von qubodup (alle freesound.org, CC BY, bearbeitet).“
+„Frostnova-Sound: f_Synth_Wind_Whoosh_6 von cyclonek; Kettenblitz-Sound: electricspark von knova; Feuer-Elementar-Sound: Fire Spell 01 von DiscoverSound; Blitz-Elementar-Sound: custom_electrical_lance_impact_02152026 von Artninja ; Blitz-Elementar-Angriff: Sähköisiä räsähdyksiä von YleArkisto; Frost-Elementar-Angriff: Magic Ice Spell Impact & Punch von EminYILDIRM; Tank-Schockwelle: superhero_earth_impact_hit_07062025 von Artninja; Feuerball-Angriff: Fireball von qubodup (alle freesound.org, CC BY, bearbeitet).“
 
 ## Hinweise
 - Neue Dateien: Quelle, Lizenz und Änderungen hier eintragen, **bevor** sie ins Repository kommen. Sounds von Pixabay (Pixabay-Lizenz) nicht unverändert ins öffentliche Repository legen.
 - Unbearbeitete Roh-Downloads liegen im Ordner `Sounds/` (nicht im Repository).
+
+## Achtung: Artninja-Sounds sind Zusammenstellungen
+Die beiden Sounds von **Artninja** (`summon_lightning.wav`, `tank_q.wav`) sind laut Beschreibung Mischungen aus mehreren fremden Aufnahmen. Bei `superhero_earth_impact_hit_07062025` nennt Artninja darunter auch Quellen mit **CC BY-NC 4.0** (nur nicht-kommerziell), das Ergebnis wird aber unter CC BY 4.0 angeboten. **Vor einer kommerziellen Veröffentlichung klären** (zum Beispiel bei Artninja nachfragen) oder die beiden Sounds durch CC0-Sounds ersetzen.
