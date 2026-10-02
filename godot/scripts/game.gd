@@ -14,6 +14,7 @@ const BotLib := preload("res://scripts/bot.gd")
 const SfxLib := preload("res://scripts/sfx.gd")
 const FxLib := preload("res://scripts/fx.gd")
 const HudStein := preload("res://scripts/hud_stein.gd")
+const MainMenuLib := preload("res://scripts/main_menu.gd")
 const ShopLib := preload("res://scripts/shop_stein.gd")
 const GoldenRunner := preload("res://scripts/golden_runner.gd")
 const GoldenEconomyRunner := preload("res://scripts/golden_economy_runner.gd")
@@ -357,45 +358,13 @@ func _spawn_others() -> void:
 func _show_menu() -> void:
 	menu_layer = CanvasLayer.new()
 	add_child(menu_layer)
-	var bg := ColorRect.new()
-	bg.color = Color("#10131a")
-	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
-	menu_layer.add_child(bg)
-	var center := CenterContainer.new()
-	center.set_anchors_preset(Control.PRESET_FULL_RECT)
-	menu_layer.add_child(center)
-	var box := VBoxContainer.new()
-	box.add_theme_constant_override("separation", 14)
-	center.add_child(box)
-	var title := Label.new()
-	title.text = "HERO LANE WARS"
-	title.add_theme_font_size_override("font_size", 44)
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	box.add_child(title)
-	box.add_child(_menu_row("Spielmodus", [["1 gegen 1", 1], ["2 gegen 2", 2], ["4 gegen 4", 4]], team_size, func(v): team_size = v))
-	var hero_opts := []
-	for k in ["tank", "damage", "caster"]:
-		hero_opts.append([str(Data.heroes[k]["name"]), k])
-	box.add_child(_menu_row("Held", hero_opts, hero_key, func(v): hero_key = v))
-	var diff_opts := []
-	for k in ["easy", "normal", "hard", "expert"]:
-		diff_opts.append([str(Data.raw["diff"][k]["name"]), k])
-	box.add_child(_menu_row("Schwierigkeit", diff_opts, diff_key, func(v): diff_key = v))
 	bot_style = "random"                  # Gegner-Stil und Build werden je Gegner zufällig gemischt (kein Menüpunkt)
-	var info := Label.new()
-	info.text = "1 gegen 1: je eine Lane pro Spieler   |   2 gegen 2: eine breite Lane pro Team\n4 gegen 4: Doppel-Lane pro Team (zur anderen Lane kommt ihr nur über die Basis: Backport!)"
-	info.modulate = Color("#9aa3b5")
-	info.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	box.add_child(info)
-	var go := Button.new()
-	go.text = "Spiel starten"
-	go.custom_minimum_size = Vector2(260, 54)
-	go.add_theme_font_size_override("font_size", 22)
-	menu_go = go
-	go.pressed.connect(func():
+	var mm := MainMenuLib.new()
+	mm.g = self
+	menu_go = mm.build(menu_layer)
+	menu_go.pressed.connect(func():
 		menu_layer.queue_free()
 		_start_game())
-	box.add_child(go)
 
 
 ## Eine Zeile mit Auswahl-Knöpfen (nur einer aktiv). opts = [[Beschriftung, Wert], ...]
