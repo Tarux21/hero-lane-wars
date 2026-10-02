@@ -41,7 +41,7 @@ func _init() -> void:
 	for name in variants:
 		var v: Array = variants[name]                 # [thud, crack, boom, debris, rumble]
 		var buf := PackedFloat32Array()
-		buf.resize(int(1.7 * OUT))
+		buf.resize(int(1.0 * OUT))
 		_add(buf, thud, 0.0, v[0])
 		_add(buf, crack, 0.0, v[1])
 		_add(buf, low_boom, 0.0, v[2])
@@ -56,8 +56,8 @@ func _init() -> void:
 		for i in n:
 			var x := buf[i] / peak * 1.0
 			var fade := 1.0
-			if i > n - int(0.45 * OUT):
-				fade = float(n - 1 - i) / (0.45 * OUT)
+			if i > n - int(0.4 * OUT):
+				fade = float(n - 1 - i) / (0.4 * OUT)
 			buf[i] = tanh(x * 1.3) / tanh(1.3) * 0.95 * fade
 		_save(dir.path_join("Vorschlag-Tank-Schockwelle-%s.wav" % name), buf)
 		_save(ProjectSettings.globalize_path("res://assets/sounds/tank_q.wav"), buf)      # Spiel nutzt diese Fassung
