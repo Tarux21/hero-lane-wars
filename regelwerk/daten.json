@@ -60,6 +60,8 @@
   "rampStep": 250,
   "tankQBase": 25,
   "tankQcd": 6.5,
+  "tankRRange": 310,
+  "tankRHalf": 0.68,
   "armorK": 150,
   "reflectMul": 1,
   "innateReflect": 0.15,
@@ -1124,7 +1126,7 @@
     "cd": 50,
     "max": 1,
     "info": [
-     "Gewaltiger Schlag: hoher Schaden, 3 Sek. Betäubung, Rückstoß"
+     "Gewaltiger Schlag als Erdbeben-Kegel nach vorne: hoher Schaden, 3 Sek. Betäubung, Rückstoß"
     ]
    }
   ],

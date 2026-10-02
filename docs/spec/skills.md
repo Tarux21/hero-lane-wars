@@ -125,7 +125,7 @@ Skills werden von der Eingabe **zwischen** zwei `update`-Aufrufen gewirkt (Taste
 
 ### 2.4 R – Titanenstoß (Zeile 739–740)
 
-- Cooldown 50 s, max. Rang 1, ab Level 10. **Kreis um den Helden**: `circleHit(H.x, H.y, 190, dmgOf(200, 0, 1, 0, 1), {stun: 3, knock: 120})`. Schaden `(200 + hDmg) * power * mul * amp * early`; Betäubung 3 s (Boss: 0.9 s), Rückstoß 120. Immer erfolgreich.
+- Cooldown 50 s, max. Rang 1, ab Level 10. **Kegel nach vorn in Richtung Mauszeiger** (seit Oktober 2026, Entscheidung des Projektmanagers; vorher Kreis, Radius 190): `coneHit(H.x, H.y, m.ang, CFG.tankRRange, CFG.tankRHalf, dmgOf(200, 0, 1, 0, 1), {stun: 3, knock: 120})` mit `tankRRange = 310`, `tankRHalf = 0.68` rad. Schaden `(200 + hDmg) * power * mul * amp * early`; Betäubung 3 s (Boss: 0.9 s), Rückstoß 120. Immer erfolgreich.
 
 ## 3. Damage (`SK.damage`, Zeile 742–773)
 

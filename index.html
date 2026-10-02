@@ -204,6 +204,7 @@ const CFG = {
   earlyWaves: 4, earlyWaveEvery: 16,        // die ersten Wellen kommen enger hintereinander
   rampStart: 850, rampStep: 250,            // Wellen spawnen anfangs nah an der Basis und Welle für Welle weiter weg (bis spawnX)
   tankQBase: 25, tankQcd: 6.5,   // Tank Schockwelle: Grundschaden / Abklingzeit
+  tankRRange: 310, tankRHalf: .68,   // Tank Titanenstoß: Kegel nach vorn (Reichweite / Halbwinkel in rad)
   armorK: 150,                 // Rüstungskurve: größer = Rüstung wirkt schwächer (50: 100 Rüstung = 67 %, 100: = 50 %)
   reflectMul: 1.0,             // Balance-Regler: Stärke aller Dornen/Reflexion (Eiserne Haut, Dornen-Items)
   innateReflect: 0.15,         // Tank: Dornen-Anteil schon ohne Skillpunkt in Eiserne Haut
@@ -736,8 +737,8 @@ const SK = {
              G.fx.push({k:'text', x:H.x-10, y:H.y-34, t:.8, s:'+'+Math.round(heal), c:'#7be07b'}); } });
        };
        hop({x:H.x, y:H.y}, first, targets); }},
-    {name:'Titanenstoß', cd:50, max:1, info:['Gewaltiger Schlag: hoher Schaden, 3 Sek. Betäubung, Rückstoß'],
-     cast(r){ circleHit(H.x,H.y,190,dmgOf(200,0,1,0,1),{stun:3, knock:120}); }},
+    {name:'Titanenstoß', cd:50, max:1, info:['Gewaltiger Schlag als Erdbeben-Kegel nach vorne: hoher Schaden, 3 Sek. Betäubung, Rückstoß'],
+     cast(r,m){ coneHit(H.x,H.y,m.ang,CFG.tankRRange,CFG.tankRHalf,dmgOf(200,0,1,0,1),{stun:3, knock:120}); }},
   ],
   damage: [
     {name:'Wirbel', cd:5, max:5, at:[1,2], info:['Kreisschaden um den Helden','Ab Rang 2: heilt pro getroffenem Gegner, bis zu 5 (0,4% → 1% des max. Lebens)'],
@@ -1412,6 +1413,7 @@ const BOT_CLASS = {
 };
 const BOT_SEND_W = t => t<480 ? {grunt:3,tank:3,archer:2,fast:1,elite:0} : {grunt:1,tank:3,archer:2,fast:1,elite:3};
 const nearCount = r => { let n=0; for(const u of G.units) if(u.lane===0 && Math.hypot(u.x-H.x,u.y-H.y)<=r) n++; return n; };
+const nearCone = (range, half, tgt) => { const ang = Math.atan2(tgt.y-H.y, tgt.x-H.x); let n=0; for(const u of G.units){ if(u.lane!==0) continue; const vx=u.x-H.x, vy=u.y-H.y, d=Math.hypot(vx,vy); if(d>range+u.r) continue; if(d<1 || Math.acos(Math.max(-1,Math.min(1,(vx*Math.cos(ang)+vy*Math.sin(ang))/d)))<=half) n++; } return n; };   // Gegner im Kegel Richtung Ziel
 const dist2 = (a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 
 // Bauplan je Klasse: Reihenfolge der Käufe (fertige Items kombinieren die Teile im Rucksack automatisch)
@@ -1498,7 +1500,7 @@ function botSkills(I, tgt){
   if(H.key==='tank'){
     if(nearCount(240)>=1) cast(0);
     if(nearCount(450)>=1) cast(2);
-    if(nearCount(190)>=3 || (hp<.4 && nearCount(190)>=1)) cast(3);
+    if(nearCone(CFG.tankRRange, CFG.tankRHalf, tgt)>=3 || (hp<.4 && nearCone(CFG.tankRRange, CFG.tankRHalf, tgt)>=1)) cast(3);
   } else if(H.key==='damage'){
     if(nearCount(115)>=2 || (hp<.6 && nearCount(115)>=1)) cast(0);
     if(nearCount(220)>=3 || (nearCount(220)>=1 && hp<.5)) cast(1);
@@ -1734,7 +1736,7 @@ const TIP = {
     r=>`Schaden ${rd(dmgOf(CFG.tankQBase,8,r,0,.5))} · Reichweite ${200+15*(r-1)} · Betäubung ${f1(.8+.12*(r-1))} s${r>=3?' · Rückstoß':''}${r>=5?' · 2. Welle '+rd(dmgOf(CFG.tankQBase,8,r,0,.5)*1.25):''}`,
     r=>{ const x = IRON[r-1]; return `Rüstung +${x.armor} · Dornen ${Math.round(x.reflect*100)} % des erlittenen Schadens · Regeneration ${f1(x.regen*100)} %/s`; },
     r=>`Schaden ${rd(dmgOf(35,14,r,0,.8))} · ${r>=3?5:3} Ziele · danach Heilung ${Math.round(CFG.shieldHeal*100)} % Leben${r>=5?' · Blutung 5 %/s (3 s)':''}`,
-    r=>`Schaden ${rd(dmgOf(200,0,1,0,1))} im Umkreis 190 · Betäubung 3 s · Rückstoß`],
+    r=>`Schaden ${rd(dmgOf(200,0,1,0,1))} im Kegel nach vorn (Reichweite ${CFG.tankRRange}) · Betäubung 3 s · Rückstoß`],
   damage:[
     r=>`Schaden ${rd(dmgOf(30,10,r,0,.7))} · Radius ${95+5*(r-1)} · Heilung ${f1(CFG.whirlHeal[r-1]*100)} % Leben je Gegner (max. ${CFG.whirlHealCap})`,
     r=>`Angriffstempo +${Math.round((.4+.12*(r-1))*100)} % · Lauftempo +40 · ${r>=3?10:6} s${r>=5?' · Angriffe treffen im Umkreis mit':''}`,

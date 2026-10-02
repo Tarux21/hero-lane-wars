@@ -121,6 +121,21 @@ func near_count(p: Dictionary, r: float) -> int:
 	return n
 
 
+## Gegner im Kegel von p in Richtung tgt (wie nearCone im Prototyp)
+func near_cone(p: Dictionary, range_: float, half: float, tgt: Dictionary) -> int:
+	var ang := atan2(tgt["y"] - p["y"], tgt["x"] - p["x"])
+	var n := 0
+	for u in g.units_of(p):
+		var vx: float = u["x"] - p["x"]
+		var vy: float = u["y"] - p["y"]
+		var d := sqrt(vx * vx + vy * vy)
+		if d > range_ + u["r"]:
+			continue
+		if d < 1.0 or acos(clampf((vx * cos(ang) + vy * sin(ang)) / d, -1.0, 1.0)) <= half:
+			n += 1
+	return n
+
+
 func cast_skills(p: Dictionary, tgt: Dictionary) -> void:
 	var b: Dictionary = p["bot_state"]
 	var miss: float = float(b["diff"]["miss"])
@@ -140,7 +155,9 @@ func cast_skills(p: Dictionary, tgt: Dictionary) -> void:
 			cast.call(0)
 		if near_count(p, 450.0) >= 1:
 			cast.call(2)
-		if near_count(p, 190.0) >= 3 or (hp < 0.4 and near_count(p, 190.0) >= 1):
+		var tr := float(g.cfg["tankRRange"])
+		var th := float(g.cfg["tankRHalf"])
+		if near_cone(p, tr, th, tgt) >= 3 or (hp < 0.4 and near_cone(p, tr, th, tgt) >= 1):
 			cast.call(3)
 	elif p["key"] == "damage":
 		if near_count(p, 115.0) >= 2 or (hp < 0.6 and near_count(p, 115.0) >= 1):
