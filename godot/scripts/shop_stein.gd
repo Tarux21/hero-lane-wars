@@ -170,6 +170,7 @@ func _build_rec_page() -> Control:
 
 func _rec_card(id: String, note: String) -> Control:
 	var pc := PanelContainer.new()
+	pc.gui_input.connect(func(ev: InputEvent): _on_item_input(ev, id, false))
 	pc.add_theme_stylebox_override("panel", HudStein.box(pal["dark"], pal["border"].darkened(0.3), 2, 3, 6))
 	var hb := HBoxContainer.new()
 	hb.add_theme_constant_override("separation", 10)
@@ -338,17 +339,15 @@ func _tile(id: String, size: float) -> Control:
 	b.add_theme_stylebox_override("pressed", HudStein.box(col.darkened(0.4), pal["hi"], 2, 3, 2))
 	b.tooltip_text = g._item_tip(id)
 	var iid: String = id
-	b.pressed.connect(func(): _select(iid))
-	b.gui_input.connect(func(ev: InputEvent):
-		if ev is InputEventMouseButton and ev.pressed and ev.button_index == MOUSE_BUTTON_RIGHT:
-			_select(iid)
-			_buy_selected())
+	b.gui_input.connect(func(ev: InputEvent): _on_item_input(ev, iid, false))
 	vb.add_child(b)
 	var pl := Label.new()
 	pl.text = str(int(g.items.item[id]["cost"]) if not g.items.item[id].has("parts") else g.items.total_cost(id))
 	pl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	pl.add_theme_font_size_override("font_size", 11)
 	pl.add_theme_color_override("font_color", Color("#f2c94c"))
+	pl.mouse_filter = Control.MOUSE_FILTER_STOP
+	pl.gui_input.connect(func(ev: InputEvent): _on_item_input(ev, iid, false))
 	vb.add_child(pl)
 	tiles.append({"id": id, "btn": b, "box": vb, "frame": col})
 	return vb
@@ -430,14 +429,12 @@ func _small_tile(id: String, size: float, in_tree: bool = false) -> Control:
 	b.add_theme_stylebox_override("pressed", HudStein.box(col.darkened(0.4), pal["hi"], 2, 3, 2))
 	b.tooltip_text = g._item_tip(id)
 	var iid: String = id
+	b.gui_input.connect(func(ev: InputEvent): _on_item_input(ev, iid, in_tree))
 	if in_tree:
-		b.pressed.connect(func(): _select(iid, false))
 		if id == sel:
 			var hb := HudStein.box(col, pal["hi"], 3, 3, 2)
 			b.add_theme_stylebox_override("normal", hb)
 			b.add_theme_stylebox_override("hover", hb)
-	else:
-		b.pressed.connect(func(): _select(iid))
 	vb.add_child(b)
 	var pl := Label.new()
 	var it: Dictionary = g.items.item[id]
@@ -445,6 +442,8 @@ func _small_tile(id: String, size: float, in_tree: bool = false) -> Control:
 	pl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	pl.add_theme_font_size_override("font_size", 11)
 	pl.add_theme_color_override("font_color", Color("#f2c94c"))
+	pl.mouse_filter = Control.MOUSE_FILTER_STOP
+	pl.gui_input.connect(func(ev: InputEvent): _on_item_input(ev, iid, in_tree))
 	vb.add_child(pl)
 	return vb
 
@@ -470,6 +469,52 @@ func _tree_node(id: String, size: float, depth: int) -> Control:
 			row.add_child(_tree_node(str(part), maxf(30.0, size - 3.0 * (depth + 1)), depth + 1))
 		vb.add_child(row)
 	return vb
+
+
+## Maus auf einem Item (Kachel, Preis, Zeile): Klick wählt aus, Doppelklick kauft die fehlenden Teile soweit das Gold reicht, Rechtsklick kauft das Item
+func _on_item_input(ev: InputEvent, id: String, in_tree: bool) -> void:
+	if not (ev is InputEventMouseButton) or not ev.pressed:
+		return
+	if ev.button_index == MOUSE_BUTTON_RIGHT:
+		_select(id, not in_tree)
+		_buy_selected()
+	elif ev.button_index == MOUSE_BUTTON_LEFT:
+		if ev.double_click:
+			_auto_buy_item(id)
+		else:
+			_select(id, not in_tree)
+
+
+## Doppelklick: das ganze Item kaufen, wenn das Gold reicht. Sonst der Reihe nach die Teile, die noch fehlen und die man bezahlen kann
+## (Beispiel: Sturmbrecher mit 400 Gold kauft Harke und Crit-Mantel, der Windumhang fehlt dann noch)
+func _auto_buy_item(id: String) -> void:
+	if g.hero.is_empty():
+		return
+	var before: Array = (g.hero["bag"] as Array).duplicate()
+	var gold_before: float = g.hero["gold"]
+	_auto_buy(id)
+	if g.hero["bag"] == before and g.hero["gold"] == gold_before:
+		var why: String = g.items.buy_reason(g.hero, id)
+		g._flash_msg(why if why != "" else "Nichts zu kaufen")
+	_select(sel, false)
+
+
+func _auto_buy(id: String) -> void:
+	var it: Dictionary = g.items.item[id]
+	if not it.has("parts") or g.items.can_buy(g.hero, id):
+		g.items.buy(g.hero, id)                          # Grundteil oder komplett bezahlbar
+		return
+	var counted := {}
+	for part in it["parts"]:
+		var p := str(part)
+		counted[p] = int(counted.get(p, 0)) + 1
+		var have := 0
+		for b in g.hero["bag"]:
+			if b == p:
+				have += 1
+		if have >= int(counted[p]):
+			continue                                     # dieses Teil liegt schon im Rucksack
+		_auto_buy(p)
 
 
 func _buy_selected() -> void:

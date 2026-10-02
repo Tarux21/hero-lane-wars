@@ -3009,6 +3009,22 @@ func _selftest() -> void:
 	check.call("Anzeige: Fenster-Modus wird gemerkt", display_mode == 0)
 	var tip_txt: String = ui._skill_tip(0, skills.skill_def(hero, 0), 0, 5, 1)
 	check.call("Oberfläche: Hinweis enthält Name und Rang-1-Zahlen", tip_txt.contains(str(skills.skill_def(hero, 0)["name"])) and tip_txt.contains("Schaden"))
+	# Shop: Doppelklick kauft fehlende Teile soweit das Gold reicht (Sturmbrecher mit 400 Gold: Harke + Crit-Mantel)
+	var sv_bag: Array = (hero["bag"] as Array).duplicate()
+	var sv_gold: float = hero["gold"]
+	var sv_x: float = hero["x"]
+	hero["bag"] = []
+	hero["gold"] = 400.0
+	hero["x"] = 100.0
+	shop._auto_buy_item("stormBreaker")
+	check.call("Shop: Doppelklick mit 400 Gold kauft Harke und Crit-Mantel", hero["bag"] == ["rake", "critCloak"] and absf(hero["gold"]) < 0.01)
+	hero["gold"] = 2000.0
+	shop._auto_buy_item("stormBreaker")
+	check.call("Shop: Doppelklick kauft den Rest (Windumhang) und baut den Sturmbrecher", hero["bag"] == ["stormBreaker"] and absf(hero["gold"] - 1400.0) < 0.01)
+	hero["bag"] = sv_bag
+	hero["gold"] = sv_gold
+	hero["x"] = sv_x
+	items.recalc(hero)
 	_dbg("god", 0)
 	var hp0: float = hero["hp"]
 	_damage_hero(hero, 50.0)
