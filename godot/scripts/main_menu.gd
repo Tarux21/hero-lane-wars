@@ -20,8 +20,10 @@ var nav_btns: Dictionary = {}
 var mode_info: Label
 var preview: VBoxContainer
 var go_btn: Button
+var preview_panel: Control
 var bg_rect: ColorRect
 var panels: Array = []                      # alle Felder, werden mit der Klassenfarbe neu umrandet
+var cards: Dictionary = {}
 
 
 func build(layer: CanvasLayer) -> Button:
@@ -39,7 +41,9 @@ func build(layer: CanvasLayer) -> Button:
 	area.add_theme_constant_override("margin_top", 36)
 	area.add_theme_constant_override("margin_bottom", 36)
 	root.add_child(area)
+	area.mouse_filter = Control.MOUSE_FILTER_IGNORE            # sonst fängt die Fläche die Klicks auf die Menüliste ab
 	var stack := Control.new()
+	stack.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	area.add_child(stack)
 	pages["single"] = _single_page()
 	pages["multi"] = _note_page("Multiplayer", "Online-Spiele kommen später.")
@@ -47,8 +51,8 @@ func build(layer: CanvasLayer) -> Button:
 	for k in pages:
 		(pages[k] as Control).set_anchors_preset(Control.PRESET_FULL_RECT)
 		stack.add_child(pages[k])
-	_show_page("single")
-	_apply_class(str(g.hero_key))
+	_show_page("")                                              # zuerst ist nur das Hintergrundbild mit der Menüliste zu sehen
+	_style_all(HudStein.PALETTES["stone"])
 	return go_btn
 
 
@@ -66,6 +70,7 @@ func _nav() -> Control:
 	title.custom_minimum_size = Vector2(0, 150)
 	vb.add_child(title)
 	var group := ButtonGroup.new()
+	group.allow_unpress = true                                 # nochmal klicken klappt das Fenster wieder zu
 	for e in [["single", "Singleplayer"], ["multi", "Multiplayer"], ["options", "Optionen"]]:
 		var b := Button.new()
 		b.text = e[1]
@@ -76,7 +81,7 @@ func _nav() -> Control:
 		b.add_theme_font_size_override("font_size", 20)
 		b.focus_mode = Control.FOCUS_NONE
 		var pk: String = e[0]
-		b.pressed.connect(func(): _show_page(pk))
+		b.pressed.connect(func(): _show_page(pk if b.button_pressed else ""))
 		if pk == "multi":
 			b.tooltip_text = "Kommt später"
 		vb.add_child(b)
@@ -98,7 +103,8 @@ func _nav() -> Control:
 func _show_page(k: String) -> void:
 	for p in pages:
 		(pages[p] as Control).visible = p == k
-	(nav_btns[k] as Button).button_pressed = true
+	if k != "":
+		(nav_btns[k] as Button).button_pressed = true
 
 
 func _label(txt: String, size: int = 14, dim: bool = false) -> Label:
@@ -114,7 +120,9 @@ func _single_page() -> Control:
 	var hb := HBoxContainer.new()
 	hb.add_theme_constant_override("separation", 18)
 	hb.add_child(_settings_panel())
-	hb.add_child(_preview_panel())
+	preview_panel = _preview_panel()
+	preview_panel.visible = false                              # erscheint erst, wenn eine Klasse angeklickt wird
+	hb.add_child(preview_panel)
 	return hb
 
 
@@ -181,6 +189,8 @@ func _settings_panel() -> Control:
 	go_btn.custom_minimum_size = Vector2(0, 58)
 	go_btn.add_theme_font_size_override("font_size", 24)
 	go_btn.focus_mode = Control.FOCUS_NONE
+	go_btn.disabled = true                                      # erst nach der Klassenwahl
+	go_btn.tooltip_text = "Wähle zuerst eine Klasse"
 	vb.add_child(go_btn)
 	return pc
 
@@ -192,7 +202,8 @@ func _class_card(key: String, group: ButtonGroup) -> Control:
 	b.custom_minimum_size = Vector2(0, 112)
 	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	b.focus_mode = Control.FOCUS_NONE
-	b.button_pressed = key == g.hero_key
+	b.button_pressed = false
+	cards[key] = b
 	var vb := VBoxContainer.new()
 	vb.set_anchors_preset(Control.PRESET_FULL_RECT)
 	vb.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -226,13 +237,20 @@ func _preview_panel() -> Control:
 
 
 ## Klasse gewählt: Hauptmenü in die Klassenfarbe tauchen und die Vorschau neu aufbauen
-func _apply_class(key: String) -> void:
-	g.hero_key = key
-	var pal: Dictionary = HudStein.PALETTES[key]
+func _style_all(pal: Dictionary) -> void:
 	g.get_window().theme = HudStein.make_theme(pal)
 	bg_rect.color = (pal["dark"] as Color).darkened(0.35)
 	for pn in panels:
 		(pn as PanelContainer).add_theme_stylebox_override("panel", HudStein.box(pal["bg"], pal["border"], 3, 4, 16))
+
+
+func _apply_class(key: String) -> void:
+	g.hero_key = key
+	var pal: Dictionary = HudStein.PALETTES[key]
+	_style_all(pal)
+	preview_panel.visible = true
+	go_btn.disabled = false
+	go_btn.tooltip_text = ""
 	for c in preview.get_children():
 		c.queue_free()
 	var h: Dictionary = Data.heroes[key]
@@ -338,3 +356,10 @@ func _options_page() -> Control:
 	shake.toggled.connect(func(on: bool): g.set_shake_on(on))
 	vb.add_child(shake)
 	return pc
+
+
+## Test: Knopf für einen Mausklick (Menüliste: single, multi, options; Klassenkarte: class_tank ...)
+func target(key: String) -> Control:
+	if key.begins_with("class_"):
+		return cards[key.substr(6)]
+	return nav_btns[key]

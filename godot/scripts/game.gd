@@ -119,6 +119,8 @@ var golden_boss := false
 var botplay := false                  # Test: auch dein Held wird vom Bot gesteuert (ganze Partien Bot gegen Bot)
 var golden_eco_filter := ""
 var menu_shot := ""
+var menu_click := ""                  # Test: Menü per echten Mausklicks bedienen, z. B. --menuclick=options oder single,class_tank
+var menu_obj
 var fxtest := ""                     # Test: Effekt einer Fähigkeit zeigen (q, w, e, rfire, rfrost, rlightning) und Bilder speichern
 var fx_rank := 3
 var menu_test := false                # Test: Menü per Skript bedienen (Spiel starten drücken)
@@ -231,6 +233,8 @@ func _ready() -> void:
 			direct = true
 		elif a.begins_with("--rank="):
 			fx_rank = int(a.substr(7))
+		elif a.begins_with("--menuclick="):
+			menu_click = a.substr(12)
 		elif a.begins_with("--menushot="):
 			menu_shot = a.substr(11)
 	if direct:
@@ -282,6 +286,24 @@ func _ready() -> void:
 				get_viewport().get_texture().get_image().save_png(menu_shot)
 			get_tree().quit()
 			return
+		if menu_click != "":              # Test: echte Mausklicks auf Menü-Knöpfe
+			for key in menu_click.split(","):
+				for i in 4:
+					await get_tree().process_frame
+				var tgt: Control = menu_obj.target(key)
+				var pos: Vector2 = tgt.get_global_rect().get_center()
+				var mv := InputEventMouseMotion.new()
+				mv.position = pos
+				mv.global_position = pos
+				Input.parse_input_event(mv)
+				for down in [true, false]:
+					var ev := InputEventMouseButton.new()
+					ev.button_index = MOUSE_BUTTON_LEFT
+					ev.pressed = down
+					ev.position = pos
+					ev.global_position = pos
+					Input.parse_input_event(ev)
+					await get_tree().process_frame
 		if menu_shot != "":               # Test: Menü-Bild speichern und beenden
 			for i in 5:
 				await get_tree().process_frame
@@ -361,6 +383,7 @@ func _show_menu() -> void:
 	bot_style = "random"                  # Gegner-Stil und Build werden je Gegner zufällig gemischt (kein Menüpunkt)
 	var mm := MainMenuLib.new()
 	mm.g = self
+	menu_obj = mm
 	menu_go = mm.build(menu_layer)
 	menu_go.pressed.connect(func():
 		menu_layer.queue_free()
@@ -1852,7 +1875,7 @@ func _load_volume() -> float:
 ## Beim Start: gespeicherte Anzeige anwenden, aber nicht in Tests und Bild-Läufen (feste Auflösung)
 func _apply_saved_display() -> void:
 	for a in OS.get_cmdline_user_args():
-		for t in ["--sim", "--shot", "--selftest", "--golden", "--fxtest", "--menushot", "--menu-test", "--shopshot", "--itemcatalog", "--dbgshot", "--uimenu", "--uitip", "--botplay", "--autoplay"]:
+		for t in ["--sim", "--shot", "--selftest", "--golden", "--fxtest", "--menushot", "--menuclick", "--menu-test", "--shopshot", "--itemcatalog", "--dbgshot", "--uimenu", "--uitip", "--botplay", "--autoplay"]:
 			if a.begins_with(t):
 				return
 	var cf := ConfigFile.new()
