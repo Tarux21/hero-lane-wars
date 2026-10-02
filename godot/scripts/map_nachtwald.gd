@@ -166,12 +166,134 @@ func _motes(center: Vector3, extents: Vector3, amount: int, col: Color, size: fl
 
 
 ## Alles Dekorative setzen. Aufruf aus game.gd nach dem Bau der Spielfläche.
+## Szenen am Wegrand: Name -> [Radius (Platzbedarf), Größe von, Größe bis]
+const SCENES := {
+	"skel_sit": [0.95, 0.9, 1.1], "skel_impaled": [0.8, 0.9, 1.1], "skel_hang": [1.5, 0.85, 1.0], "cage_skel": [1.0, 0.9, 1.1],
+	"wagon": [2.0, 0.8, 0.95], "barrels": [1.4, 0.9, 1.1], "tent": [1.6, 0.85, 1.0], "campfire": [1.7, 0.8, 1.0],
+	"banner": [0.8, 0.9, 1.1], "sword_grave": [1.1, 0.9, 1.1], "totem": [0.9, 0.85, 1.05], "stone_circle": [2.3, 0.6, 0.75],
+}
+
+
+## Hindernis (Platz für ein Modell) eintragen, damit später gesetzte Bäume nicht hineinwachsen
+func _reserve(x: float, z: float, r: float) -> void:
+	var k0 := Vector2i(int(floor(x / 3.0)), int(floor(z / 3.0)))
+	if not tree_hash.has(k0):
+		tree_hash[k0] = []
+	tree_hash[k0].append(Vector3(x, z, r))
+
+
+## Ist an der Stelle noch Platz (kein Baum, keine Szene)?
+func _free(x: float, z: float, r: float) -> bool:
+	var cx := int(floor(x / 3.0))
+	var cz := int(floor(z / 3.0))
+	for ix in range(cx - 1, cx + 2):
+		for iz in range(cz - 1, cz + 2):
+			var key := Vector2i(ix, iz)
+			if tree_hash.has(key):
+				for o in tree_hash[key]:
+					var dx: float = x - o.x
+					var dz: float = z - o.y
+					var minr: float = (r + o.z) * 0.8
+					if dx * dx + dz * dz < minr * minr:
+						return false
+	return true
+
+
+## Alles Dekorative setzen. Aufruf aus game.gd nach dem Bau der Spielfläche.
 func decorate(wall_xs: Array, river_x: float, lane_xs: Array, half: float, x_min: float, x_max: float) -> void:
 	var z_near := 10.0
 	var z_far: float = -float(g.cfg["laneLen"]) * g.S - 6.0
 	var gap_z: float = -float(g.WALL_OPEN_BASE) * g.S                        # bis hierhin ist die Basis offen (keine Bäume in der Lücke)
-	# Baumwände statt Felswänden: drei Reihen über die Breite der Wand, die Bäume stehen nie ineinander (Raster-Prüfung).
-	# Lücken nur in der offenen Basis zwischen den Lanes eines Teams.
+	var own_n: int = int(g.lanes_per_team)
+	var own_right: float = lane_xs[own_n - 1] + half + float(g.WALL)         # Außenkante der Baumwand rechts (eigene Seite)
+	var scenes: Dictionary = {}                                              # Name -> Transformliste
+	var torches: Array = []
+	var pillars: Array = []
+	var shrooms: Array = []
+	var skulls: Array = []
+	var braziers: Array = []
+	var eyes: Array = []
+
+	# 1) Am Lane-Rand (außerhalb der Lane, in der Baumwand): Knochensäulen, Feuerschalen, Pilze, Schädelhaufen. Die Lane selbst bleibt frei.
+	for cx in lane_xs:
+		for side in [-1.0, 1.0]:
+			var gapped_side: bool = own_n == 2 and side > 0.0 and absf(cx - lane_xs[0]) < 0.01     # Wand mit Lücke (4v4): erst ab dem Ende der Lücke
+			var out_x: float = cx + side * (half + 0.95)
+			var zp := -16.0
+			var idx := 0
+			while zp > z_far + 6.0:
+				if not (gapped_side and zp > gap_z) and _free(out_x, zp, 0.7):
+					pillars.append(_t(out_x, zp, rng.randf_range(0.95, 1.2), -side * PI / 2.0))
+					_reserve(out_x, zp, 0.7)
+				var bz: float = zp - 11.0
+				if idx % 3 == 1 and not (gapped_side and bz > gap_z) and _free(out_x, bz, 0.6):
+					braziers.append(_t(out_x, bz, 1.0))
+					_reserve(out_x, bz, 0.6)
+					_light(Vector3(out_x, 2.2, bz), Color("#ff8a3a"), 1.7, 11.0)
+				zp -= rng.randf_range(20.0, 26.0)
+				idx += 1
+			var zs := -4.0
+			var k := 0
+			while zs > z_far:
+				var sx: float = cx + side * (half + 0.3)
+				if not (gapped_side and zs > gap_z) and _free(sx, zs, 0.5):
+					shrooms.append(_t(sx, zs, rng.randf_range(0.5, 0.85)))
+					_reserve(sx, zs, 0.5)
+					if k % 3 == 0:
+						_light(Vector3(sx, 0.8, zs), Color("#6aff5a"), 0.9, 6.0)
+				var skx: float = cx + side * (half + 1.7)
+				var skz: float = zs - 3.0
+				if k % 5 == 2 and not (gapped_side and skz > gap_z) and _free(skx, skz, 0.9):
+					skulls.append(_t(skx, skz, 1.0))
+					_reserve(skx, skz, 0.9)
+				zs -= rng.randf_range(7.0, 10.5)
+				k += 1
+
+	# 2) Randstreifen neben der Baumwand (vorher kahl): links der eigenen Lanes und zwischen Baumwand und Lava.
+	#    Jede Szene kommt je Streifen genau einmal vor, bunt gemischt von oben nach unten (kein Nachbar gleich).
+	var strips := [
+		{"x0": x_min - 4.6, "x1": x_min - 0.5, "face": -PI / 2.0},                       # links: Lane liegt rechts davon (+x)
+		{"x0": own_right + 0.6, "x1": river_x - 4.5, "face": PI / 2.0},                  # rechts: Lane liegt links davon (-x)
+	]
+	for si in strips.size():
+		var st: Dictionary = strips[si]
+		var names: Array = SCENES.keys()
+		for i in range(names.size() - 1, 0, -1):                                       # mischen (fester Zufall)
+			var j := rng.randi_range(0, i)
+			var tmp = names[i]
+			names[i] = names[j]
+			names[j] = tmp
+		var span: float = (z_near - 12.0) - (z_far + 4.0)
+		var step: float = span / float(names.size())
+		var zc0: float = z_near - 12.0
+		for i in names.size():
+			var nm: String = names[i]
+			var info: Array = SCENES[nm]
+			var zz: float = zc0 - step * (float(i) + 0.5) + rng.randf_range(-step * 0.15, step * 0.15)
+			var lo: float = float(st["x0"]) + float(info[0])
+			var hi: float = float(st["x1"]) - float(info[0])
+			var xx: float = (float(st["x0"]) + float(st["x1"])) / 2.0 if lo >= hi else rng.randf_range(lo, hi)
+			if not scenes.has(nm):
+				scenes[nm] = []
+			scenes[nm].append(_t(xx, zz, rng.randf_range(float(info[1]), float(info[2])), float(st["face"]) + rng.randf_range(-0.5, 0.5)))
+			_reserve(xx, zz, float(info[0]))
+		# Fackeln am Rand zur Baumwand, in den Lücken zwischen den Szenen
+		var zt: float = z_near - 20.0
+		while zt > z_far + 6.0:
+			var tx: float = float(st["x1"]) - 0.4 if float(st["face"]) < 0.0 else float(st["x0"]) + 0.4
+			if _free(tx, zt, 0.5):
+				torches.append(_t(tx, zt, 1.0))
+				_reserve(tx, zt, 0.5)
+				_light(Vector3(tx, 2.6, zt), Color("#ff9a3a"), 1.5, 9.0)
+			zt -= rng.randf_range(24.0, 30.0)
+		# leuchtende Augen im Dickicht am äußeren Rand des Streifens
+		var ze: float = z_near - 14.0
+		while ze > z_far + 6.0:
+			var ex: float = float(st["x0"]) + 0.3 if float(st["face"]) < 0.0 else float(st["x1"]) - 0.3
+			eyes.append(_t(ex + rng.randf_range(-0.4, 0.4), ze, rng.randf_range(0.9, 1.3), float(st["face"]) + PI))
+			ze -= rng.randf_range(11.0, 17.0)
+
+	# 3) Bäume: Baumwände, Wald außen, Reihen am Fluss; füllen auch die Streifen zwischen den Szenen. Bäume stehen nie ineinander.
 	for w in wall_xs:
 		var gapped: bool = bool(w["gapped"])
 		var wx: float = w["x"]
@@ -185,20 +307,26 @@ func decorate(wall_xs: Array, river_x: float, lane_xs: Array, half: float, x_min
 					var s := rng.randf_range(0.55, 0.9)
 					if _place_tree(wx + off + rng.randf_range(-0.4, 0.4), z + rng.randf_range(-0.6, 0.6), s, rng.randf() < 0.45):
 						break
-	# Wald außen links und rechts der Karte
 	for side in [-1.0, 1.0]:
 		var edge: float = x_min - 2.0 if side < 0.0 else x_max + 2.0
-		var zz := z_near + 4.0
-		while zz > z_far - 8.0:
-			zz -= 2.4
+		var zz2 := z_near + 4.0
+		while zz2 > z_far - 8.0:
+			zz2 -= 2.4
 			var d := 0.0
 			for row in 8:
 				d += rng.randf_range(2.0, 3.4)
 				for attempt in 2:
 					var s2 := rng.randf_range(0.7, 1.3)
-					if _place_tree(edge + side * d, zz + rng.randf_range(-1.2, 1.2), s2, rng.randf() < 0.5):
+					if _place_tree(edge + side * d, zz2 + rng.randf_range(-1.2, 1.2), s2, rng.randf() < 0.5):
 						break
-	# Baumreihen zwischen den Wänden und dem Fluss (Ufer bleibt frei)
+	for st2 in strips:                                                                 # Streifen mit Bäumen füllen (freie Stellen)
+		var zf: float = z_near
+		while zf > z_far:
+			zf -= 1.6
+			for attempt in 3:
+				var fx: float = rng.randf_range(float(st2["x0"]), float(st2["x1"]))
+				if _place_tree(fx, zf + rng.randf_range(-0.8, 0.8), rng.randf_range(0.55, 0.95), rng.randf() < 0.5):
+					break
 	var zr := z_near
 	while zr > z_far:
 		zr -= rng.randf_range(2.8, 4.6)
@@ -208,37 +336,9 @@ func decorate(wall_xs: Array, river_x: float, lane_xs: Array, half: float, x_min
 	_scatter("tree_dead", dead_xf)
 	_scatter("tree_pine", pine_xf)
 
-	# Knochensäulen und Pilze an den Lane-Rändern, Feuerschalen mit Licht
-	var pillars: Array = []
-	var shrooms: Array = []
+	# 4) Steine verstreut, Lava-Ufer
 	var rocks: Array = []
-	var skulls: Array = []
-	var braziers: Array = []
 	var lava_rocks: Array = []
-	for cx in lane_xs:
-		for side in [-1.0, 1.0]:
-			var edge_x: float = cx + side * (half - 0.7)
-			var zp := -16.0
-			var idx := 0
-			while zp > z_far + 6.0:
-				pillars.append(_t(edge_x, zp, rng.randf_range(0.95, 1.2), 0.0 if side < 0.0 else PI))
-				if idx % 3 == 1:
-					braziers.append(_t(edge_x - side * 0.2, zp - 12.0, 1.0))
-					_light(Vector3(edge_x - side * 0.2, 2.0, zp - 12.0), Color("#ff8a3a"), 1.7, 11.0)
-				zp -= rng.randf_range(20.0, 26.0)
-				idx += 1
-			var zs := -4.0
-			var k := 0
-			while zs > z_far:
-				var sx: float = cx + side * (half + 0.2)
-				shrooms.append(_t(sx, zs, rng.randf_range(0.5, 0.85)))
-				if k % 3 == 0:
-					_light(Vector3(sx, 0.8, zs), Color("#6aff5a"), 0.9, 6.0)
-				if k % 5 == 2:
-					skulls.append(_t(cx + side * (half - 1.6), zs - 3.0, 1.0))
-				zs -= rng.randf_range(7.0, 10.5)
-				k += 1
-	# Steine verstreut, Lava-Ufer
 	for i in 120:
 		var rx := rng.randf_range(x_min - 20.0, x_max + 20.0)
 		var rz := rng.randf_range(z_far, z_near)
@@ -246,7 +346,7 @@ func decorate(wall_xs: Array, river_x: float, lane_xs: Array, half: float, x_min
 		for cx2 in lane_xs:
 			if absf(rx - cx2) < half + 1.5:
 				on_lane = true
-		if not on_lane and absf(rx - river_x) > 4.0:
+		if not on_lane and absf(rx - river_x) > 4.0 and _free(rx, rz, 0.8):
 			rocks.append(_t(rx, rz, rng.randf_range(0.7, 1.8)))
 	var zl := z_near
 	while zl > z_far:
@@ -258,16 +358,22 @@ func decorate(wall_xs: Array, river_x: float, lane_xs: Array, half: float, x_min
 	_scatter("skull_pile", skulls, false)
 	_scatter("brazier", braziers, false)
 	_scatter("lava_rock", lava_rocks, false)
+	for nm in scenes:
+		_scatter(nm, scenes[nm], false)
+	_scatter("torch", torches, false)
+	_scatter("eyes", eyes, false)
 
-	# Basis: Knochenbögen links und rechts des Platzes, Schädelhaufen, Feuerschalen
+	# 5) Basis: Knochenbögen links und rechts des Platzes, Schädelhaufen
 	var mid_x: float = (lane_xs[0] + lane_xs[lane_xs.size() - 1]) / 2.0
 	var arches: Array = []
+	var base_skulls: Array = []
 	for sd in [-1.0, 1.0]:
 		arches.append(_t(mid_x + sd * ((x_max - x_min) / 2.0 + 3.0), 4.0, 1.6, PI / 2.0))
-		skulls.append(_t(mid_x + sd * ((x_max - x_min) / 2.0 + 1.0), 10.0, 1.2))
+		base_skulls.append(_t(mid_x + sd * ((x_max - x_min) / 2.0 + 1.0), 10.0, 1.2))
 	_scatter("bone_arch", arches)
+	_scatter("skull_pile", base_skulls, false)
 
-	# Lava: Licht entlang des Flusses, aufsteigende Glut; Sporen im Wald
+	# 6) Lava: Licht entlang des Flusses, aufsteigende Glut; Sporen im Wald
 	var zc: float = (z_near + z_far) / 2.0
 	var zl2: float = z_near - 10.0
 	while zl2 > z_far:

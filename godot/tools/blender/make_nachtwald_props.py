@@ -50,6 +50,12 @@ def make_materials():
     M["iron"] = mat("Eisen", (0.12, 0.12, 0.14), rough=0.6)
     M["crack"] = mat("RissGlut", (0.5, 0.2, 0.8), emit=(0.7, 0.35, 1.0), strength=2.5)
     M["moss"] = mat("Moos", (0.1, 0.25, 0.12))
+    M["wood"] = mat("Holz", (0.24, 0.15, 0.09))
+    M["wood2"] = mat("HolzAlt", (0.16, 0.11, 0.08))
+    M["cloth"] = mat("StoffRot", (0.34, 0.07, 0.08))
+    M["cloth2"] = mat("StoffBraun", (0.28, 0.20, 0.12))
+    M["rust"] = mat("Rost", (0.38, 0.22, 0.12), rough=0.7)
+    M["eyeglow"] = mat("AugenGlut", (1.0, 0.8, 0.2), emit=(1.0, 0.75, 0.15), strength=5.0)
 
 
 def finish(obj, m):
@@ -308,8 +314,228 @@ def lava_rock():
     box((0.5, 0.5, 0.12), (0, 0, 0.3), m="ember")
 
 
+# ---------------------------------------------------------------- Szenen am Wegrand (Vorderseite = Blender +Y)
+def ribcage(cx, cy, z0, z1, width=0.3, pairs=5, tilt=0.0):
+    """Wirbelsäule mit Rippenpaaren von z0 bis z1"""
+    path([(cx, cy, z0), (cx, cy + tilt * 0.5, (z0 + z1) / 2), (cx, cy + tilt, z1)], 0.07, 0.06, "bone", 5)
+    for k in range(pairs):
+        t = (k + 0.5) / pairs
+        z = z0 + (z1 - z0) * t
+        w = width * (1.0 - abs(t - 0.45) * 0.9)
+        for sx in (-1, 1):
+            path([(cx, cy + tilt * t, z), (cx + sx * w, cy + tilt * t + 0.12, z - 0.03), (cx + sx * w * 0.8, cy + tilt * t + 0.26, z - 0.1)], 0.035, 0.02, "bone", 4)
+
+
+def pelvis(cx, cy, z):
+    box((0.34, 0.16, 0.16), (cx, cy, z), m="bone")
+    for sx in (-1, 1):
+        sphere(0.11, (cx + sx * 0.17, cy, z - 0.02), m="bone", seg=5, rings=4)
+
+
+def skel_sit():
+    rnd = random.Random(31)
+    pelvis(0, 0, 0.2)
+    ribcage(0, -0.08, 0.3, 0.95, 0.27, 5, -0.2)
+    skull((0.02, -0.28, 1.12), 0.9)
+    for sx in (-1, 1):
+        bone((sx * 0.14, 0.05, 0.22), (sx * 0.17, 0.78, 0.26), 0.07, 0.1)          # Oberschenkel
+        bone((sx * 0.17, 0.78, 0.26), (sx * 0.2, 0.86, -0.02 + 0.07), 0.055, 0.09)    # Schienbein
+        box((0.1, 0.22, 0.05), (sx * 0.2, 0.96, 0.04), m="bone")                      # Fuß
+        bone((sx * 0.22, -0.12, 0.82), (sx * 0.34, 0.25, 0.4), 0.05, 0.08)           # Oberarm
+        bone((sx * 0.34, 0.25, 0.4), (sx * 0.3, 0.55, 0.12), 0.045, 0.07)            # Unterarm
+    limb((0.62, 0.55, 0.0), (0.9, 0.9, 0.55), 0.05, 0.05, "rust", 4)                  # Schwert daneben
+    box((0.28, 0.04, 0.04), (0.84, 0.82, 0.48), m="rust")
+    box((0.5, 0.35, 0.05), (0.05, 0.1, 0.02), m="cloth2")                              # Stofffetzen
+
+
+def skel_impaled():
+    rnd = random.Random(32)
+    limb((0, 0, 0), (0, 0, 3.0), 0.09, 0.07, "wood", 6)
+    limb((0, 0, 3.0), (0, 0, 3.5), 0.07, 0.0, "wood", 6)
+    ribcage(0, 0.1, 1.5, 2.3, 0.28, 5, 0.1)
+    pelvis(0, 0.1, 1.38)
+    skull((0, 0.1, 2.62), 0.9)
+    for sx in (-1, 1):
+        bone((sx * 0.12, 0.1, 1.35), (sx * 0.2, 0.18, 0.55), 0.06, 0.09)
+        bone((sx * 0.2, 0.18, 0.55), (sx * 0.22, 0.2, 0.0), 0.05, 0.08)
+        bone((sx * 0.24, 0.1, 2.25), (sx * 0.62, 0.15, 1.9), 0.045, 0.07)
+        bone((sx * 0.62, 0.15, 1.9), (sx * 0.74, 0.2, 1.45), 0.04, 0.07)
+    for k in range(5):
+        a = k * 1.3
+        sphere(0.2, (0.5 * math.cos(a), 0.5 * math.sin(a), 0.1), (1, 1, 0.5), "stone", 5, 4)      # Steine am Fuß
+
+
+def skel_hang():
+    for sx in (-1, 1):
+        limb((sx * 1.0, 0, 0), (sx * 1.0, 0, 3.3), 0.11, 0.09, "wood", 6)
+    limb((-1.15, 0, 3.25), (1.15, 0, 3.25), 0.09, 0.09, "wood", 6)
+    limb((-0.9, 0, 3.1), (-0.5, 0, 3.25), 0.05, 0.05, "wood2", 4)                    # Strebe
+    limb((0, 0, 3.25), (0, 0, 2.55), 0.025, 0.025, "cloth2", 4)                       # Strick
+    ribcage(0, 0, 1.55, 2.3, 0.25, 5, 0.0)
+    pelvis(0, 0, 1.45)
+    skull((0, 0, 2.56), 0.85)
+    for sx in (-1, 1):
+        bone((sx * 0.11, 0, 1.4), (sx * 0.13, 0.05, 0.62), 0.06, 0.09)
+        bone((sx * 0.13, 0.05, 0.62), (sx * 0.14, 0.08, 0.02), 0.05, 0.08)
+        bone((sx * 0.24, 0, 2.2), (sx * 0.3, 0.05, 1.6), 0.045, 0.07)
+        bone((sx * 0.3, 0.05, 1.6), (sx * 0.32, 0.08, 1.05), 0.04, 0.07)
+    box((0.9, 0.5, 0.1), (0, 0, 0.04), m="stone")
+
+
+def cage_skel():
+    limb((0, -0.9, 0), (0, -0.9, 3.3), 0.1, 0.08, "wood", 6)
+    limb((0, -0.9, 3.3), (0, -0.05, 3.3), 0.08, 0.08, "wood", 6)
+    limb((0, 0, 3.3), (0, 0, 2.95), 0.025, 0.025, "iron", 4)
+    for k in range(9):                                                                              # Gitterstäbe
+        a = k * math.tau / 9
+        limb((0.42 * math.cos(a), 0.42 * math.sin(a), 1.7), (0.42 * math.cos(a), 0.42 * math.sin(a), 2.95), 0.025, 0.025, "iron", 4)
+    for z in (1.75, 2.35, 2.92):
+        cone(0.44, 0.44, 0.05, (0, 0, z), m="iron", verts=12)
+    sphere(0.22, (0, 0, 2.05), (1, 1, 0.5), "bonedark", 6, 4)
+    ribcage(0, 0, 1.85, 2.25, 0.18, 3, 0.0)
+    skull((0.02, -0.02, 2.5), 0.7)
+    cone(0.44, 0.0, 0.2, (0, 0, 1.6), m="iron", verts=12)
+
+
+def wagon():
+    rnd = random.Random(41)
+    box((2.3, 1.2, 0.18), (0, 0, 0.85), (0.0, 0.08, 0.05), "wood")                              # Ladefläche
+    for sy in (-1, 1):
+        box((2.3, 0.1, 0.5), (0, sy * 0.58, 1.12), (0.0, 0.08, 0.05), "wood2")                   # Seitenbretter
+    box((0.1, 1.2, 0.5), (-1.12, 0, 1.12), m="wood2")
+    for k in range(4):                                                                              # zerbrochene Latten
+        limb((0.9 + 0.1 * k, -0.5 + 0.3 * k, 1.1), (1.15 + 0.1 * k, -0.4 + 0.3 * k, 1.55), 0.04, 0.03, "wood2", 4)
+    for sy in (-1,):                                                                                # ein Rad steht, eines fehlt
+        cone(0.62, 0.62, 0.12, (-0.5, sy * 0.75, 0.62), (math.pi / 2, 0, 0), "wood2", 12)
+        cone(0.14, 0.14, 0.2, (-0.5, sy * 0.75, 0.62), (math.pi / 2, 0, 0), "iron", 8)
+        for k in range(6):
+            a = k * math.pi / 6
+            limb((-0.5 + 0.55 * math.cos(a), sy * 0.8, 0.62 + 0.55 * math.sin(a)), (-0.5 - 0.55 * math.cos(a), sy * 0.8, 0.62 - 0.55 * math.sin(a)), 0.04, 0.04, "wood", 4)
+    cone(0.62, 0.62, 0.12, (0.4, 1.1, 0.35), (0.3, 0.2, 0.5), "wood2", 12)                        # abgefallenes Rad
+    for sy in (-1, 1):                                                                              # Deichsel
+        limb((1.0, sy * 0.35, 0.6), (2.6, sy * 0.3, 0.05), 0.07, 0.06, "wood", 5)
+    limb((0.9, 0.2, 0.9), (1.2, 0.2, 0.2), 0.05, 0.04, "wood2", 4)
+    for k in range(3):
+        sphere(0.3, (-0.4 + 0.4 * k, rnd.uniform(-0.2, 0.2), 1.1), (1, 1, 0.8), "cloth2", 6, 4)  # Säcke
+    skull((0.6, 0.3, 1.1), 0.6)
+
+
+def barrels():
+    for (x, y, h, r) in [(0, 0, 0.9, 0.42), (0.85, 0.15, 0.9, 0.42), (0.35, 0.8, 0.8, 0.38)]:
+        cone(r, r, h, (x, y, h / 2), m="wood", verts=10)
+        for z in (0.15, 0.75 * h):
+            cone(r + 0.02, r + 0.02, 0.07, (x, y, z), m="iron", verts=10)
+        cone(r - 0.04, r - 0.04, 0.03, (x, y, h), m="wood2", verts=10)
+    box((0.7, 0.7, 0.6), (-0.7, 0.55, 0.3), (0, 0, 0.5), "wood2")
+    box((0.6, 0.6, 0.5), (-0.65, 0.5, 0.85), (0, 0, 0.1), "wood")
+    sphere(0.32, (1.3, -0.5, 0.25), (1, 1, 0.8), "cloth2", 6, 4)
+    limb((1.5, 0.5, 0.05), (1.9, 0.9, 0.5), 0.04, 0.04, "wood2", 4)
+
+
+def tent():
+    rnd = random.Random(51)
+    for sx in (-1, 1):                                                                              # zusammengesunkenes Zelt
+        box((2.0, 0.05, 1.5), (0, sx * 0.55, 0.65), (sx * -0.9, 0, 0), "cloth2")
+    box((0.05, 1.2, 1.2), (-1.0, 0, 0.5), (0, 0, 0.1), "cloth")
+    limb((-1.0, 0, 0.0), (-1.0, 0, 1.35), 0.05, 0.05, "wood", 4)
+    limb((1.0, 0, 0.0), (0.9, 0.1, 1.0), 0.05, 0.04, "wood2", 4)
+    limb((0.9, 0.1, 1.0), (1.3, 0.3, 1.3), 0.04, 0.03, "wood2", 4)
+    box((1.2, 0.04, 0.05), (0.2, 0.0, 1.15), (0, 0, 0.1), "wood2")
+    for k in range(4):                                                                              # Fetzen
+        box((0.4, 0.3, 0.02), (0.9 + 0.3 * k, 0.9 - 0.4 * k, 0.03), (0, 0, k), "cloth")
+    limb((-0.6, -1.0, 0.0), (-0.6, -1.0, 0.5), 0.04, 0.04, "wood", 4)
+
+
+def campfire():
+    rnd = random.Random(61)
+    for k in range(9):
+        a = k * math.tau / 9
+        box((0.34, 0.26, 0.24), (0.85 * math.cos(a), 0.85 * math.sin(a), 0.12), (0, 0, a + 0.3), "stone")
+    for k in range(4):
+        a = k * 0.9 + 0.3
+        limb((0.7 * math.cos(a), 0.7 * math.sin(a), 0.2), (-0.6 * math.cos(a), -0.6 * math.sin(a), 0.32), 0.1, 0.08, "bark", 5)
+    cone(0.7, 0.0, 0.03, (0, 0, 0.2), m="ember", verts=10)
+    for k in range(3):
+        a = k * 2.1
+        box((0.12, 0.12, 0.12), (0.3 * math.cos(a), 0.3 * math.sin(a), 0.3), (0.3, 0.3, a), "ember")
+    limb((1.5, 0.3, 0.0), (1.2, 0.3, 1.0), 0.04, 0.04, "wood2", 4)                                  # Bratspieß
+    limb((1.2, 0.3, 1.0), (-0.1, 0.3, 1.0), 0.03, 0.03, "wood2", 4)
+    skull((-1.4, -0.8, 0.28), 0.6)
+
+
+def banner():
+    limb((0, 0, 0), (0, 0, 3.8), 0.08, 0.06, "wood", 6)
+    limb((-0.7, 0, 3.4), (0.7, 0, 3.4), 0.05, 0.05, "wood", 5)
+    box((1.15, 0.04, 1.6), (0, 0.02, 2.55), (0.04, 0, 0.0), "cloth")
+    for k in range(4):                                                                              # zerfetzter Saum
+        box((0.2, 0.04, 0.3 + 0.1 * (k % 2)), (-0.45 + 0.3 * k, 0.02, 1.62 - 0.05 * (k % 2)), (0, 0, 0.1 * (k - 2)), "cloth")
+    skull((0, 0.08, 2.7), 0.8)
+    limb((0, 0, 3.8), (0, 0, 4.2), 0.06, 0.0, "iron", 4)
+    box((1.0, 0.6, 0.1), (0, 0, 0.04), m="stone")
+
+
+def sword_grave():
+    rnd = random.Random(71)
+    for k, (x, y, tilt) in enumerate([(0, 0, 0.12), (0.55, 0.3, -0.2), (-0.5, 0.35, 0.3)]):
+        box((0.1, 0.03, 1.4), (x, y, 0.75), (tilt, 0, 0.3 * k), "rust")
+        box((0.5, 0.06, 0.07), (x - tilt * 0.4, y, 1.35), (tilt, 0, 0.3 * k), "iron")
+        limb((x - tilt * 0.45, y, 1.38), (x - tilt * 0.55, y, 1.7), 0.035, 0.035, "wood", 4)
+    sphere(0.28, (0.0, 0.7, 0.2), (1, 1, 0.9), "rust", 6, 4)                                       # Helm
+    box((0.18, 0.04, 0.24), (0.0, 0.52, 0.22), m="eye")
+    for k in range(8):
+        a = k * math.tau / 8
+        sphere(0.2, (0.8 * math.cos(a), 0.8 * math.sin(a), 0.1), (1, 1, 0.6), "stone", 5, 4)
+
+
+def totem():
+    limb((0, 0, 0), (0, 0, 3.4), 0.14, 0.12, "wood", 7)
+    for z, s in ((0.9, 1.0), (1.8, 0.9), (2.7, 1.1)):
+        skull((0, 0.12, z), s, horns=(z > 2.5))
+        cone(0.2, 0.2, 0.06, (0, 0, z - 0.35), m="bonedark", verts=8)
+    for sx in (-1, 1):
+        for k in range(3):
+            limb((sx * 0.14, 0, 3.1 - 0.12 * k), (sx * (0.5 + 0.05 * k), 0.05, 2.5 - 0.3 * k), 0.035, 0.0, "cloth" if k % 2 else "bonedark", 4)    # Federn und Bänder
+    limb((0, 0, 3.4), (0, 0, 3.9), 0.1, 0.0, "bonedark", 5)
+    for k in range(4):
+        a = k * 1.6
+        sphere(0.2, (0.5 * math.cos(a), 0.5 * math.sin(a), 0.1), (1, 1, 0.6), "stone", 5, 4)
+
+
+def stone_circle():
+    rnd = random.Random(81)
+    for k in range(7):
+        a = k * math.tau / 7
+        h = rnd.uniform(1.4, 2.2)
+        box((0.55, 0.35, h), (1.6 * math.cos(a), 1.6 * math.sin(a), h / 2), (rnd.uniform(-0.1, 0.1), rnd.uniform(-0.1, 0.1), a), "stone")
+        box((0.2, 0.05, h * 0.5), (1.6 * math.cos(a) * 0.93, 1.6 * math.sin(a) * 0.93, h * 0.55), (0, 0, a), "crack")
+    cone(0.9, 0.9, 0.12, (0, 0, 0.06), m="stone2", verts=10)
+    for k in range(6):
+        a = k * math.pi / 3
+        box((0.7, 0.06, 0.04), (0.4 * math.cos(a), 0.4 * math.sin(a), 0.14), (0, 0, a), "crack")
+    cone(0.18, 0.0, 0.5, (0, 0, 0.4), m="crack", verts=6)
+
+
+def torch():
+    limb((0, 0, 0), (0, 0, 2.2), 0.07, 0.06, "wood", 6)
+    cone(0.2, 0.12, 0.3, (0, 0, 2.3), m="iron", verts=8)
+    cone(0.16, 0.0, 0.55, (0, 0, 2.7), m="fire", verts=6)
+    cone(0.1, 0.0, 0.4, (0.07, 0.03, 2.65), (0, 0.2, 0), "fire", 5)
+    for k in range(3):
+        a = k * 2.1
+        limb((0, 0, 0.3), (0.35 * math.cos(a), 0.35 * math.sin(a), 0.0), 0.05, 0.03, "wood2", 4)
+
+
+def eyes():
+    for k, (x, z) in enumerate([(0, 0.5), (0.5, 0.65), (-0.45, 0.35)]):
+        for sx in (-1, 1):
+            sphere(0.045, (x + sx * 0.1, 0.0, z), (1, 0.6, 1.3), "eyeglow", 5, 3)
+
+
 make_all = [("tree_dead", tree_dead), ("tree_pine", tree_pine), ("bone_pillar", bone_pillar), ("bone_arch", bone_arch),
-            ("skull_pile", skull_pile), ("mushroom_glow", mushroom_glow), ("rock_dark", rock_dark), ("brazier", brazier), ("lava_rock", lava_rock)]
+            ("skull_pile", skull_pile), ("mushroom_glow", mushroom_glow), ("rock_dark", rock_dark), ("brazier", brazier), ("lava_rock", lava_rock),
+            ("skel_sit", skel_sit), ("skel_impaled", skel_impaled), ("skel_hang", skel_hang), ("cage_skel", cage_skel), ("wagon", wagon), ("barrels", barrels),
+            ("tent", tent), ("campfire", campfire), ("banner", banner), ("sword_grave", sword_grave), ("totem", totem), ("stone_circle", stone_circle),
+            ("torch", torch), ("eyes", eyes)]
 for name, fn in make_all:
     bpy.ops.wm.read_factory_settings(use_empty=True)
     make_materials()

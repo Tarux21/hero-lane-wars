@@ -126,6 +126,7 @@ var botplay := false                  # Test: auch dein Held wird vom Bot gesteu
 var golden_eco_filter := ""
 var menu_shot := ""
 var menu_click := ""                  # Test: Menü per echten Mausklicks bedienen, z. B. --menuclick=options oder single,class_tank
+var cam_test_x := -1.0                 # Test: Kamera frei auf Lane-Position x (Spielwert), --camx=1500
 var menu_obj
 var fxtest := ""                     # Test: Effekt einer Fähigkeit zeigen (q, w, e, rfire, rfrost, rlightning) und Bilder speichern
 var fx_rank := 3
@@ -223,6 +224,8 @@ func _ready() -> void:
 			diff_key = a.substr(7)
 		elif a.begins_with("--map="):
 			map_theme = a.substr(6)
+		elif a.begins_with("--camx="):
+			cam_test_x = float(a.substr(7))
 		elif a.begins_with("--uiscale="):
 			Data.user.ui_scale = float(a.substr(10))                  # Test: Oberflächengröße ohne zu speichern
 		elif a == "--colorblind":
@@ -1905,7 +1908,7 @@ func _load_volume() -> float:
 ## Beim Start: gespeicherte Anzeige anwenden, aber nicht in Tests und Bild-Läufen (feste Auflösung)
 func _apply_saved_display() -> void:
 	for a in OS.get_cmdline_user_args():
-		for t in ["--sim", "--shot", "--selftest", "--golden", "--fxtest", "--menushot", "--menuclick", "--menu-test", "--shopshot", "--map", "--uiscale", "--colorblind", "--gfxlow", "--itemcatalog", "--dbgshot", "--uimenu", "--uitip", "--botplay", "--autoplay"]:
+		for t in ["--sim", "--shot", "--selftest", "--golden", "--fxtest", "--menushot", "--menuclick", "--menu-test", "--shopshot", "--camx", "--map", "--uiscale", "--colorblind", "--gfxlow", "--itemcatalog", "--dbgshot", "--uimenu", "--uitip", "--botplay", "--autoplay"]:
 			if a.begins_with(t):
 				return
 	var cf := ConfigFile.new()
@@ -3264,6 +3267,9 @@ func _run_simulation(secs: float, shot_path: String) -> void:
 		ui.toggle_menu()
 		if uioptions:
 			ui._show_page(ui.menu_options)
+	if cam_test_x >= 0.0:
+		cam_free = true
+		cam_focus = _wp(cam_test_x, 0.0, 0) + Vector3(-9.0, 0.0, 0.0)
 	if shot_path != "":
 		_sync_visuals(1.0)
 		await get_tree().process_frame
