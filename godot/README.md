@@ -72,8 +72,8 @@ Helden (Krieger, Schurke, Magier) und Monster (GreenDemon, Cyclops, Skull, Bat, 
 ## Damage / Schurke (Stand Meilenstein 6)
 - Modell: Quaternius-Schurke mit **zwei Dolchen** (der zweite an der linken Hand, `attach_offhand_dagger`). Auto-Angriff mit kleinem Schnitt am Ziel.
 - **Q Wirbel = Dolchfächer:** Schurke dreht sich, ein Kranz Dolche fächert nach allen Seiten bis zum Rand des Kreises (je Rang mehr Dolche).
-- **W Kampfrausch:** roter Schein mit Flammen um den Schurken, solange der Rausch anhält. **Flächenschaden (Rang 5, auch Splitteraxt)** ist sichtbar: Druckring am Hauptziel und gekreuzte Schnitte an jedem mitgetroffenen Gegner.
-- **E Sprung:** Absprung mit Staub und dunkler Spur, die Figur fliegt im Bogen (Rolle), Landung mit Druckwelle, Rissen, Dolchen im Boden; ab Rang 3 brennt die Landestelle, Rang 5: Betäubungssterne.
+- **W Giftklingen (früher Kampfrausch):** grüner Giftschein; ab Rang 3 tropfen die Dolche und leuchten grün, Treffer vergiften (Schaden pro Sekunde, 4 s). Der **Flächenschaden (Rang 5, auch Splitteraxt)** bleibt und ist sichtbar: Druckring am Hauptziel und gekreuzte Schnitte an jedem mitgetroffenen Gegner (grün bei Gift). Vergiftete Monster haben grüne Bläschen.
+- **E Sprung:** grüne Rauchspur vom Absprung zum Ziel, Rolle im Bogen, Landung als Giftwolke mit Spritzern und Dolchen im Boden (keine Risse, kein Feuer). Ab Rang 3 bleibt eine **Giftpfütze** (Schaden pro Sekunde), auf Rang 5 verlangsamt die Landung Gegner (statt Betäubung).
 - **R (Schwertregen) als Dolchhagel:** violette Warnkreise, Dolche fallen in engen Kreis und bleiben kurz stecken, danach Giftnebel (grün) statt gelbem Feld. Wirkung unverändert (5 Ziele, Kreis 60, Feld 8 s).
 - Eigene Sounds ablegen als `godot/assets/sounds/<Name>.wav`: `damage_shot` (Auto-Angriff), `damage_q`, `damage_w`, `damage_e` (Absprung), `damage_e_land` (Landung), `damage_r` (Wurf), `damage_r_hit` (je Dolchsalve). Ohne diese Dateien spielen noch die alten einfachen Klänge.
 - Bildertest: `godot/tools/fxrun.sh q|w|wauto|e|r|look|lookside 3 damage`.

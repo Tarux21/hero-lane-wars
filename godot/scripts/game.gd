@@ -1773,7 +1773,7 @@ func _spawn_unit(type: String, off_x: float, spd_mul: float, lane: int = 0, side
 		"dmg": float(u["dmg"]) * (1.0 + float(cfg["unitDmgScale"]) * (m - 1.0)),
 		"spd": float(u["spd"]) * spd_mul * float(cfg["speedMul"]), "range": float(u["range"]),
 		"armor": float(u["armor"]), "r": float(u["r"]), "atk_t": 0.0, "node": node, "def": u, "bar": bar.get("fill"), "bar_w": bar.get("w", 1.0), "fig": bar.get("fig", {}), "px": 0.0, "py": 0.0,
-		"stun": 0.0, "slow": 0.0, "burn": 0.0, "burn_dps": 0.0, "burn_t": 0.0, "bleed": 0.0, "bleed_pct": 0.0, "bleed_t": 0.0,
+		"stun": 0.0, "slow": 0.0, "burn": 0.0, "burn_dps": 0.0, "burn_t": 0.0, "pois": 0.0, "pois_dps": 0.0, "pois_t": 0.0, "bleed": 0.0, "bleed_pct": 0.0, "bleed_t": 0.0,
 		"torm_t": 0.0, "torm_tick": 0.0, "torm_dmg": 0.0, "torm_cd": 0.0, "last_p": {},
 		"boss": type == "boss", "phase": 1, "base": float(u["spd"]) * spd_mul * float(cfg["speedMul"]), "stomp_t": 5.0, "summon_t": 12.0})
 
@@ -2278,6 +2278,10 @@ func _step_hero(p: Dictionary, dt: float) -> void:
 			if p["uniq"].has("stormCrit"):                                # Sturmbrecher: kurz mehr Angriffstempo
 				p["buffs"]["critAs"] = {"t": float(cfg["stormCritTime"]), "as": float(cfg["stormCritAs"])}
 		var dealt := hit_unit(tgt, dmg, p, is_crit)
+		var rg0: Variant = skills.buff(p, "rage")                          # Giftklingen: Treffer vergiften das Ziel
+		if rg0 != null and float(rg0.get("pois", 0.0)) > 0.0 and units_of(p).has(tgt):
+			tgt["pois"] = maxf(tgt["pois"], float(cfg["poisonTime"]))
+			tgt["pois_dps"] = maxf(tgt["pois_dps"], float(rg0["pois"]))
 		if p["lifesteal"] > 0.0:                                          # Lebensraub (inkl. Rachsucht)
 			var vf := 2.0 if p["uniq"].has("vengeance") and p["hp"] < 0.4 * skills.h_max_hp(p) else 1.0
 			p["hp"] = minf(skills.h_max_hp(p), p["hp"] + dealt * p["lifesteal"] * vf)
@@ -2309,7 +2313,10 @@ func _step_hero(p: Dictionary, dt: float) -> void:
 				if u != tgt and my_units.has(u) and Vector2(u["x"] - tx, u["y"] - ty).length() <= 75.0:
 					others.append(Vector2(u["x"], u["y"]))
 					hit_unit(u, dmg * 0.5, p)
-			vfx.cleave_fx(p, tx, ty, others, 75.0, Color(1.0, 0.3, 0.25))
+					if float(rg.get("pois", 0.0)) > 0.0 and my_units.has(u):
+						u["pois"] = maxf(u["pois"], float(cfg["poisonTime"]))
+						u["pois_dps"] = maxf(u["pois_dps"], float(rg["pois"]))
+			vfx.cleave_fx(p, tx, ty, others, 75.0, Color(0.55, 1.0, 0.35) if float(rg.get("pois", 0.0)) > 0.0 else Color(1.0, 0.3, 0.25))
 		if range_ > 100.0:
 			if p["key"] == "caster":
 				vfx.auto_fireball(p, tx, ty)
@@ -2402,6 +2409,14 @@ func _step_units(side: Dictionary, dt: float) -> void:
 			if u["burn_t"] >= 1.0:
 				u["burn_t"] -= 1.0
 				hit_unit(u, u["burn_dps"], u["last_p"])
+				if not sunits.has(u):
+					continue
+		if u["pois"] > 0.0:                                               # Gift (Giftklingen, Giftpfütze): jede Sekunde fester Schaden
+			u["pois"] -= dt
+			u["pois_t"] += dt
+			if u["pois_t"] >= 1.0:
+				u["pois_t"] -= 1.0
+				hit_unit(u, u["pois_dps"], u["last_p"])
 				if not sunits.has(u):
 					continue
 		if u["torm_cd"] > 0.0:
@@ -2675,6 +2690,8 @@ func _sync_visuals(delta: float) -> void:
 		for u in s["units"]:
 			var n: Node3D = u["node"]
 			n.visible = s["idx"] == hero["side"]["idx"]
+			if n.visible:
+				vfx.poison_mark(u, n)
 			if n.visible:
 				_animate(u, n, s["idx"], delta, "Bite_InPlace" if u["fig"]["anim"] != null and u["fig"]["anim"].has_animation("Bite_InPlace") else "Bite_Front",
 					"Flying" if u["fig"].get("flies", false) else "Walk", "Flying" if u["fig"].get("flies", false) else "Idle", 2.5)

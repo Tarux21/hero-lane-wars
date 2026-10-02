@@ -96,6 +96,9 @@ func affect(p: Dictionary, u: Dictionary, dmg: float, o: Dictionary = {}) -> voi
 	if o.get("burn", 0.0) > 0.0:
 		u["burn"] = maxf(u["burn"], float(o["burn"]))
 		u["burn_dps"] = maxf(u["burn_dps"], float(o.get("burn_dps", 0.0)))
+	if o.get("pois", 0.0) > 0.0:
+		u["pois"] = maxf(u["pois"], float(o["pois"]))
+		u["pois_dps"] = maxf(u["pois_dps"], float(o.get("pois_dps", 0.0)))
 
 
 func _dist(u: Dictionary, x: float, y: float) -> float:
@@ -225,8 +228,9 @@ func _cast(p: Dictionary, i: int, r: int, m: Dictionary) -> bool:
 			match i:
 				0: return _dmg_q(p, r)
 				1:
-					p["buffs"]["rage"] = {"t": 10.0 if r >= 3 else 6.0, "as": 0.4 + 0.12 * (r - 1), "spd": 40.0, "cleave": r >= 5}
-					g.vfx.rage_aura(p, 10.0 if r >= 3 else 6.0)
+					p["buffs"]["rage"] = {"t": 10.0 if r >= 3 else 6.0, "as": 0.4 + 0.12 * (r - 1), "spd": 40.0, "cleave": r >= 5,
+						"pois": dmg_of(p, float(cfg["poisonBase"]), float(cfg["poisonPer"]), r, 0.0, float(cfg["poisonK"])) if r >= 3 else 0.0}
+					g.vfx.rage_aura(p, 10.0 if r >= 3 else 6.0, r >= 3)
 					g.cast_pose(p, p["x"] + 100.0, p["y"], "Punch", 0.4)
 					g.sfx_p(p, "damage_w")
 					return true
@@ -362,7 +366,7 @@ func _dmg_e(p: Dictionary, r: int, m: Dictionary) -> bool:
 	p["target"] = null
 	var dmg := dmg_of(p, 20.0, 8.0, r, 0.0, 0.4)
 	var fdmg := dmg_of(p, 10.0, 4.0, r, 0.0, 0.15)
-	g.vfx.leap_start(p, sx, sy)
+	g.vfx.leap_start(p, sx, sy, pt.x, pt.y)
 	g.cast_pose(p, pt.x, pt.y, "Roll", 0.45, 2.2)
 	g.sfx_p(p, "damage_e")
 	p["leap"] = {"sx": sx, "sy": sy, "tx": pt.x, "ty": pt.y, "t": 0.22, "T": 0.22, "r": r, "dmg": dmg, "fdmg": fdmg}
@@ -372,11 +376,11 @@ func _dmg_e(p: Dictionary, r: int, m: Dictionary) -> bool:
 func leap_land(p: Dictionary) -> void:
 	var L: Dictionary = p["leap"]
 	var r: int = L["r"]
-	circle_hit(p, p["x"], p["y"], 80.0 + 4.0 * (r - 1), L["dmg"], {"stun": 1.5 if r >= 5 else 0.0}, "#ffb36b", false)
+	circle_hit(p, p["x"], p["y"], 80.0 + 4.0 * (r - 1), L["dmg"], {"slow": float(cfg["leapSlow"]) if r >= 5 else 0.0}, "#ffb36b", false)
 	g.vfx.leap_land(p, 80.0 + 4.0 * (r - 1), r)
 	g.sfx_p(p, "damage_e_land")
 	if r >= 3:
-		g.add_zone({"x": p["x"], "y": p["y"], "r": 100.0, "t": 4.0, "tick": 0.0, "every": 1.0, "dmg": L["fdmg"], "c": "#ff9a4a", "p": p, "kind": "fire"})
+		g.add_zone({"x": p["x"], "y": p["y"], "r": 100.0, "t": 4.0, "tick": 0.0, "every": 1.0, "dmg": L["fdmg"], "c": "#3f9a45", "p": p, "kind": "poison", "a0": 0.16})
 
 
 func _dmg_r(p: Dictionary) -> bool:

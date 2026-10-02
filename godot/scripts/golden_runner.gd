@@ -104,7 +104,7 @@ func _snapshot(t: float, p: Dictionary, dummies: Array, dhp: float) -> Dictionar
 		buffs[k] = {"t": p["buffs"][k]["t"]}
 	var dm: Array = []
 	for u in g.units:                              # nur lebende (gestorbene verschwinden aus der Liste, wie im Prototyp)
-		dm.append([dhp - u["hp"], u["stun"], u["slow"], u["burn"], u["burn_dps"], u["bleed"], u["torm_t"], u["x"], u["y"]])
+		dm.append([dhp - u["hp"], u["stun"], u["slow"], u["burn"], u["burn_dps"], u["bleed"], u["torm_t"], u["x"], u["y"], u["pois"], u["pois_dps"]])
 	var zs: Array = []
 	for z in g.zones:
 		zs.append({"x": z["x"], "y": z["y"], "r": z["r"], "t": z["t"], "dmg": z["dmg"], "follow": z.get("follow", "")})

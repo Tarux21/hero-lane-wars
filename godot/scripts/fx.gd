@@ -1685,43 +1685,6 @@ func _slash(pos: Vector3, col: Color, length: float, tilt_deg: float, life: floa
 	tw.tween_property(holder, "scale", Vector3(1.0, 0.05, 1.0), life * 0.5)
 
 
-## W Kampfrausch: roter Schein mit Flammen und Funken um den Schurken, solange der Rausch anhält
-func rage_aura(p: Dictionary, secs: float) -> void:
-	if g.test_mode:
-		return
-	var node: Node3D = p["node"]
-	if node.has_node("RageFx"):
-		node.get_node("RageFx").queue_free()
-	var holder := Node3D.new()
-	holder.name = "RageFx"
-	node.add_child(holder)
-	var flames := _ps({"amount": 26, "life": 0.7, "tex": tex_flame, "qsize": Vector2(1.0, 1.5), "ang": 12.0, "local": false, "shape": "ring", "radius": 0.8, "height": 0.1,
-		"dir": Vector3.UP, "spread": 12.0, "vmin": 1.0, "vmax": 2.6, "smin": 0.7, "smax": 1.3, "grav": Vector3(0, 1.0, 0), "curve": _curve([0.6, 1.0, 0.0]),
-		"ramp": _ramp([[0.0, Color(1.0, 0.5, 0.3, 0.0)], [0.15, Color(1.0, 0.25, 0.15, 0.75)], [0.6, Color(0.7, 0.08, 0.08, 0.45)], [1.0, Color(0.2, 0.0, 0.0, 0.0)]])})
-	holder.add_child(flames)
-	var embers := _ps({"amount": 10, "life": 1.0, "local": false, "shape": "ring", "radius": 0.9, "height": 0.1, "dir": Vector3.UP, "spread": 20.0,
-		"vmin": 1.2, "vmax": 3.0, "smin": 0.06, "smax": 0.13, "grav": Vector3(0, 0.6, 0),
-		"ramp": _ramp([[0.0, Color(1.0, 0.8, 0.6, 1.0)], [0.6, Color(1.0, 0.3, 0.2, 0.8)], [1.0, Color(0.6, 0.0, 0.0, 0.0)]])})
-	holder.add_child(embers)
-	var lt := OmniLight3D.new()
-	lt.light_color = Color(1.0, 0.25, 0.2)
-	lt.light_energy = 1.4
-	lt.omni_range = 6.0
-	lt.position.y = 1.2
-	holder.add_child(lt)
-	flickers.append({"node": lt, "base": 1.4, "ph": rng.randf() * 6.0})
-	_ring_wave(_w(p["x"], p["y"], p["side"]["idx"]), Color(1.0, 0.25, 0.2, 0.9), 4.5, 0.5)
-	_glow_sprite(Color(1.0, 0.3, 0.2, 0.9), 3.5, 0.25, _w(p["x"], p["y"], p["side"]["idx"]) + Vector3(0, 1.2, 0), 1.5)
-	var tw := holder.create_tween()
-	tw.tween_interval(maxf(0.2, secs - 0.5))
-	tw.tween_callback(func():
-		flames.emitting = false
-		embers.emitting = false
-		lt.light_energy = 0.0)
-	tw.tween_interval(0.8)
-	tw.tween_callback(func(): holder.queue_free())
-
-
 ## Flächenschaden der Angriffe (Kampfrausch Rang 5 oder Splitteraxt): sichtbarer Schwung am Hauptziel und Schnitte an den Nebenzielen
 func cleave_fx(p: Dictionary, tx: float, ty: float, others: Array, radius_units: float, col: Color) -> void:
 	if g.test_mode:
@@ -1737,57 +1700,6 @@ func cleave_fx(p: Dictionary, tx: float, ty: float, others: Array, radius_units:
 			"vmin": 1.5, "vmax": 4.0, "smin": 0.06, "smax": 0.12, "grav": Vector3(0, -6.0, 0),
 			"ramp": _ramp([[0.0, Color(1, 1, 1, 1.0)], [0.4, col], [1.0, Color(col.r, col.g, col.b, 0.0)]])})
 		_put(sp, wp, 0.5)
-
-
-## E Sprung: Absprung (Staubwolke und dunkle Spur)
-func leap_start(p: Dictionary, sx: float, sy: float) -> void:
-	if g.test_mode:
-		return
-	var side: int = p["side"]["idx"]
-	var pos := _w(sx, sy, side)
-	_dust(pos + Vector3(0, 0.3, 0), Vector3.UP, 70.0, 3.0, 24, 1.6, 0.7)
-	_ring_wave(pos, Color(0.7, 0.62, 0.5, 0.7), 2.5, 0.3, 0.1)
-	var node: Node3D = p["node"]
-	var trail := _ps({"amount": 22, "life": 0.35, "local": false, "shape": "sphere", "radius": 0.3, "vmin": 0.0, "vmax": 0.4, "spread": 180.0,
-		"smin": 0.7, "smax": 1.2, "add": false, "curve": _curve([1.0, 0.0]),
-		"ramp": _ramp([[0.0, Color(0.25, 0.1, 0.3, 0.7)], [1.0, Color(0.1, 0.05, 0.15, 0.0)]])})
-	trail.position.y = 1.2
-	node.add_child(trail)
-	var tw := trail.create_tween()
-	tw.tween_interval(0.25)
-	tw.tween_callback(func(): trail.emitting = false)
-	tw.tween_interval(0.5)
-	tw.tween_callback(func(): trail.queue_free())
-
-
-## E Sprung: Landung (Druckwelle, Staub, kleine Risse, Dolche stoßen in den Boden)
-func leap_land(p: Dictionary, radius_units: float, rank: int) -> void:
-	if g.test_mode:
-		return
-	var side: int = p["side"]["idx"]
-	var pos := _w(p["x"], p["y"], side)
-	var r_m := radius_units * S
-	_glow_sprite(Color(1.0, 0.85, 0.6, 1.0), 4.0, 0.2, pos + Vector3(0, 0.6, 0), 1.6)
-	_light(Color(1.0, 0.7, 0.4), 2.5, 9.0, 0.35, pos + Vector3(0, 1.0, 0))
-	_ring_wave(pos, Color(1.0, 0.8, 0.5, 0.9), r_m, 0.4, 0.12)
-	_dust(pos + Vector3(0, 0.3, 0), Vector3.UP, 80.0, 4.5, 40, 2.2, 0.9)
-	_debris(pos + Vector3(0, 0.3, 0), Vector3.UP, 50.0, 7.0, 12 + rank * 2, 1.0)
-	_cracks(pos, 0.0, PI, r_m * 0.9, 5 + rank, 1.2)
-	for k in 2:                                          # zwei Dolche stoßen links und rechts in den Boden
-		var dd := _dagger_mesh(0.6)
-		var off := Vector3((-0.7 if k == 0 else 0.7), 0.0, 0.2)
-		_put(dd, pos + off + Vector3(0, 3.0, 0), 1.2)
-		dd.rotation = Vector3(deg_to_rad(80.0), rng.randf_range(-0.3, 0.3), 0)
-		var tw := dd.create_tween()
-		tw.tween_property(dd, "position:y", 0.45, 0.1).set_ease(Tween.EASE_IN)
-		tw.tween_interval(0.5)
-		tw.tween_property(dd, "scale", Vector3.ONE * 0.01, 0.25)
-	if rank >= 5:                                        # Betäubung: kreisende Sterne
-		var stars := _ps({"amount": 10, "life": 0.9, "once": true, "explo": 0.5, "shape": "ring", "radius": r_m * 0.5, "height": 0.2, "dir": Vector3.UP, "spread": 10.0,
-			"vmin": 1.5, "vmax": 3.0, "smin": 0.2, "smax": 0.3,
-			"ramp": _ramp([[0.0, Color(1.0, 0.95, 0.4, 0.0)], [0.2, Color(1.0, 0.95, 0.4, 1.0)], [1.0, Color(1.0, 0.8, 0.2, 0.0)]])})
-		_put(stars, pos + Vector3(0, 0.5, 0), 1.3)
-	g.shake_near(pos, 6.0 + rank)
 
 
 ## R Dolchhagel: Warnkreis am Boden (violett)
@@ -1841,3 +1753,167 @@ func dagger_volley(x: float, y: float, side: int, radius_units: float) -> void:
 	_glow_sprite(Color(0.8, 0.6, 1.0, 0.9), 3.0, 0.18, pos + Vector3(0, 0.6, 0), 1.5)
 	_light(Color(0.7, 0.5, 1.0), 2.0, 8.0, 0.3, pos + Vector3(0, 1.0, 0))
 	g.shake_near(pos, 2.5)
+
+
+## W Giftklingen: grüner Giftschein um den Schurken; ab Rang 3 (poison = true) tropfen die Dolche und leuchten grün
+func rage_aura(p: Dictionary, secs: float, poison: bool = false) -> void:
+	if g.test_mode:
+		return
+	var node: Node3D = p["node"]
+	if node.has_node("RageFx"):
+		node.get_node("RageFx").queue_free()
+	var holder := Node3D.new()
+	holder.name = "RageFx"
+	node.add_child(holder)
+	var flames := _ps({"amount": 22, "life": 0.9, "add": false, "local": false, "shape": "ring", "radius": 0.8, "height": 0.1,
+		"dir": Vector3.UP, "spread": 14.0, "vmin": 0.6, "vmax": 1.6, "smin": 0.9, "smax": 1.6, "grav": Vector3(0, 0.5, 0), "curve": _curve([0.6, 1.0, 0.2]),
+		"ramp": _ramp([[0.0, Color(0.45, 0.85, 0.3, 0.0)], [0.2, Color(0.4, 0.8, 0.3, 0.4)], [0.7, Color(0.3, 0.5, 0.3, 0.25)], [1.0, Color(0.2, 0.3, 0.2, 0.0)]])})
+	holder.add_child(flames)
+	var motes := _ps({"amount": 12, "life": 1.2, "local": false, "shape": "ring", "radius": 0.9, "height": 0.1, "dir": Vector3.UP, "spread": 20.0,
+		"vmin": 0.8, "vmax": 2.2, "smin": 0.07, "smax": 0.15, "grav": Vector3(0, 0.3, 0),
+		"ramp": _ramp([[0.0, Color(0.7, 1.0, 0.5, 0.0)], [0.2, Color(0.7, 1.0, 0.45, 1.0)], [1.0, Color(0.4, 0.8, 0.3, 0.0)]])})
+	holder.add_child(motes)
+	var lt := OmniLight3D.new()
+	lt.light_color = Color(0.45, 1.0, 0.4)
+	lt.light_energy = 1.1
+	lt.omni_range = 6.0
+	lt.position.y = 1.2
+	holder.add_child(lt)
+	flickers.append({"node": lt, "base": 1.1, "ph": rng.randf() * 6.0})
+	var pos := _w(p["x"], p["y"], p["side"]["idx"])
+	_ring_wave(pos, Color(0.45, 1.0, 0.4, 0.85), 4.2, 0.5)
+	_glow_sprite(Color(0.5, 1.0, 0.4, 0.9), 3.2, 0.25, pos + Vector3(0, 1.2, 0), 1.5)
+	var drips: Array = []
+	var restore: Array = []
+	if poison:
+		var fig: Dictionary = p.get("fig", {})
+		var blades: Array = []
+		if not fig.is_empty():
+			var right := (fig["inner"] as Node).find_child("Rogue_Dagger", true, false) as MeshInstance3D
+			if right != null:
+				blades.append(right)
+			if fig.has("offhand"):
+				blades.append(fig["offhand"])
+		for b in blades:
+			var mi := b as MeshInstance3D
+			var drip := _ps({"amount": 10, "life": 0.7, "local": false, "shape": "sphere", "radius": 0.08, "dir": Vector3.DOWN, "spread": 25.0,
+				"vmin": 0.2, "vmax": 0.8, "smin": 0.08, "smax": 0.16, "grav": Vector3(0, -6.0, 0),
+				"ramp": _ramp([[0.0, Color(0.55, 1.0, 0.4, 0.0)], [0.15, Color(0.55, 1.0, 0.4, 1.0)], [1.0, Color(0.3, 0.7, 0.3, 0.0)]])})
+			drip.position = Vector3(0, 0, -0.7)
+			mi.add_child(drip)
+			var glow := _ps({"amount": 2, "life": 0.35, "local": true, "vmin": 0.0, "vmax": 0.0, "smin": 0.9, "smax": 1.0,
+				"ramp": _ramp([[0.0, Color(0.5, 1.0, 0.4, 0.0)], [0.3, Color(0.5, 1.0, 0.4, 0.7)], [1.0, Color(0.5, 1.0, 0.4, 0.0)]])})
+			glow.position = Vector3(0, 0, -0.55)
+			mi.add_child(glow)
+			drips.append(drip)
+			drips.append(glow)
+			var mat := mi.mesh.surface_get_material(0)
+			if mat is StandardMaterial3D:                  # Klinge leuchtet grün, solange das Gift wirkt
+				var gm := (mat as StandardMaterial3D).duplicate() as StandardMaterial3D
+				gm.emission_enabled = true
+				gm.emission = Color(0.3, 1.0, 0.3)
+				gm.emission_energy_multiplier = 0.9
+				mi.material_override = gm
+				restore.append(mi)
+	var tw := holder.create_tween()
+	tw.tween_interval(maxf(0.2, secs - 0.5))
+	tw.tween_callback(func():
+		flames.emitting = false
+		motes.emitting = false
+		lt.light_energy = 0.0
+		for dpart in drips:
+			if is_instance_valid(dpart):
+				(dpart as CPUParticles3D).emitting = false
+		for m in restore:
+			if is_instance_valid(m):
+				(m as MeshInstance3D).material_override = null)
+	tw.tween_interval(0.8)
+	tw.tween_callback(func():
+		for dpart in drips:
+			if is_instance_valid(dpart):
+				dpart.queue_free()
+		holder.queue_free())
+
+
+## E Sprung: Absprung mit Rauchspur zum Ziel (giftgrüner Rauch entlang der Flugbahn)
+func leap_start(p: Dictionary, sx: float, sy: float, tx: float, ty: float) -> void:
+	if g.test_mode:
+		return
+	var side: int = p["side"]["idx"]
+	var a := _w(sx, sy, side)
+	var b := _w(tx, ty, side)
+	_dust(a + Vector3(0, 0.3, 0), Vector3.UP, 70.0, 3.0, 18, 1.4, 0.6)
+	_ring_wave(a, Color(0.5, 0.9, 0.4, 0.6), 2.4, 0.3, 0.1)
+	var n := 12
+	for i in n:                                          # Rauchwolken entlang der Linie, nacheinander (der Schurke fliegt voraus)
+		var f := float(i) / (n - 1)
+		var pos := a.lerp(b, f)
+		var puff := _ps({"amount": 7, "life": 1.3, "once": true, "explo": 1.0, "add": false, "shape": "sphere", "radius": 0.3, "dir": Vector3.UP, "spread": 50.0,
+			"vmin": 0.3, "vmax": 1.2, "smin": 1.2, "smax": 2.2, "grav": Vector3(0, 0.3, 0), "curve": _curve([0.5, 1.0]),
+			"ramp": _ramp([[0.0, Color(0.4, 0.75, 0.35, 0.0)], [0.15, Color(0.38, 0.7, 0.33, 0.5)], [0.6, Color(0.28, 0.4, 0.3, 0.35)], [1.0, Color(0.22, 0.28, 0.25, 0.0)]])})
+		puff.emitting = false
+		_put(puff, pos + Vector3(0, 0.4, 0), 1.6 + f * 0.22)
+		var tw := puff.create_tween()
+		tw.tween_interval(f * 0.22)
+		tw.tween_callback(func(): puff.restart())
+	var node: Node3D = p["node"]
+	var trail := _ps({"amount": 20, "life": 0.45, "local": false, "shape": "sphere", "radius": 0.3, "vmin": 0.0, "vmax": 0.4, "spread": 180.0,
+		"smin": 0.6, "smax": 1.1, "add": false, "curve": _curve([1.0, 0.0]),
+		"ramp": _ramp([[0.0, Color(0.35, 0.7, 0.3, 0.6)], [1.0, Color(0.2, 0.3, 0.2, 0.0)]])})
+	trail.position.y = 1.2
+	node.add_child(trail)
+	var tw2 := trail.create_tween()
+	tw2.tween_interval(0.25)
+	tw2.tween_callback(func(): trail.emitting = false)
+	tw2.tween_interval(0.6)
+	tw2.tween_callback(func(): trail.queue_free())
+
+
+## E Sprung: Landung als Giftwolke: Gaspilz, Spritzer, Blasen (keine Risse, kein Feuer); Rang 5: klebrige Verlangsamung
+func leap_land(p: Dictionary, radius_units: float, rank: int) -> void:
+	if g.test_mode:
+		return
+	var side: int = p["side"]["idx"]
+	var pos := _w(p["x"], p["y"], side)
+	var r_m := radius_units * S
+	_glow_sprite(Color(0.6, 1.0, 0.45, 1.0), 4.0, 0.2, pos + Vector3(0, 0.6, 0), 1.6)
+	_light(Color(0.45, 1.0, 0.4), 2.5, 9.0, 0.4, pos + Vector3(0, 1.0, 0))
+	_ring_wave(pos, Color(0.5, 1.0, 0.4, 0.85), r_m, 0.45, 0.12)
+	var cloud := _ps({"amount": 46, "life": 1.3, "once": true, "explo": 0.8, "add": false, "shape": "sphere", "radius": 0.5, "dir": Vector3.UP, "spread": 70.0,
+		"vmin": 1.5, "vmax": 5.0, "dmin": 1.0, "dmax": 2.5, "smin": 1.6, "smax": 3.0, "grav": Vector3(0, 0.4, 0), "curve": _curve([0.4, 1.0, 0.8]),
+		"ramp": _ramp([[0.0, Color(0.45, 0.85, 0.3, 0.0)], [0.12, Color(0.4, 0.8, 0.3, 0.6)], [0.6, Color(0.3, 0.5, 0.3, 0.4)], [1.0, Color(0.2, 0.3, 0.2, 0.0)]])})
+	_put(cloud, pos + Vector3(0, 0.3, 0), 1.7)
+	var splash := _ps({"amount": 30, "life": 0.8, "once": true, "explo": 1.0, "shape": "sphere", "radius": 0.3, "dir": Vector3.UP, "spread": 65.0,
+		"vmin": 3.0, "vmax": 8.0, "smin": 0.12, "smax": 0.28, "grav": Vector3(0, -12.0, 0),
+		"ramp": _ramp([[0.0, Color(0.75, 1.0, 0.55, 1.0)], [0.5, Color(0.45, 0.9, 0.35, 0.9)], [1.0, Color(0.3, 0.6, 0.25, 0.0)]])})
+	_put(splash, pos + Vector3(0, 0.3, 0), 1.2)
+	var bubbles := _ps({"amount": 12, "life": 1.2, "once": true, "explo": 0.6, "shape": "ring", "radius": r_m * 0.6, "height": 0.1, "dir": Vector3.UP, "spread": 10.0,
+		"vmin": 0.6, "vmax": 1.6, "smin": 0.18, "smax": 0.34,
+		"ramp": _ramp([[0.0, Color(0.7, 1.0, 0.5, 0.0)], [0.2, Color(0.7, 1.0, 0.5, 0.9)], [1.0, Color(0.5, 0.9, 0.4, 0.0)]])})
+	_put(bubbles, pos + Vector3(0, 0.2, 0), 1.5)
+	for k in 2:                                          # zwei Dolche stoßen links und rechts in den Boden
+		var dd := _dagger_mesh(0.6)
+		var off := Vector3((-0.7 if k == 0 else 0.7), 0.0, 0.2)
+		_put(dd, pos + off + Vector3(0, 3.0, 0), 1.2)
+		dd.rotation = Vector3(deg_to_rad(80.0), rng.randf_range(-0.3, 0.3), 0)
+		var tw := dd.create_tween()
+		tw.tween_property(dd, "position:y", 0.45, 0.1).set_ease(Tween.EASE_IN)
+		tw.tween_interval(0.5)
+		tw.tween_property(dd, "scale", Vector3.ONE * 0.01, 0.25)
+	if rank >= 5:                                        # Verlangsamung: zähe, dunkelgrüne Fäden steigen aus dem Boden
+		_ring_wave(pos, Color(0.25, 0.6, 0.25, 0.7), r_m * 1.15, 0.7, 0.1)
+	g.shake_near(pos, 3.0 + rank * 0.5)
+
+
+## Vergiftete Monster: grüne Bläschen steigen auf, solange das Gift wirkt
+func poison_mark(u: Dictionary, n: Node3D) -> void:
+	var has := n.has_node("Pois")
+	if u["pois"] > 0.0 and not has:
+		var ps := _ps({"amount": 6, "life": 0.9, "local": true, "shape": "sphere", "radius": 0.35, "dir": Vector3.UP, "spread": 20.0,
+			"vmin": 0.6, "vmax": 1.3, "smin": 0.1, "smax": 0.2,
+			"ramp": _ramp([[0.0, Color(0.6, 1.0, 0.45, 0.0)], [0.25, Color(0.6, 1.0, 0.45, 0.95)], [1.0, Color(0.35, 0.75, 0.3, 0.0)]])})
+		ps.name = "Pois"
+		ps.position.y = float(u["r"]) * S * 1.2
+		n.add_child(ps)
+	elif u["pois"] <= 0.0 and has:
+		n.get_node("Pois").queue_free()

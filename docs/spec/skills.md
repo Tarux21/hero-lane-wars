@@ -134,9 +134,9 @@ Skills werden von der Eingabe **zwischen** zwei `update`-Aufrufen gewirkt (Taste
 - Cooldown 5 s, max. Rang 5, ab Level 1. **Kreis um den Helden**: `radius = 95 + 5*(r−1)` (95…115), `dmg = dmgOf(30, 10, r, 0, 0.7)`.
 - Heilung des Helden nach dem Schlag: `n` = Anzahl getroffener Gegner; `heal = min(n, 5) * whirlHeal[r−1] * hMaxHp()` mit `whirlHeal = [0, 0.004, 0.006, 0.008, 0.010]` (Rang 1: keine Heilung); `hp = min(maxHp, hp + heal)`. Zählt alle im Radius, auch wenn der Schaden sie tötet.
 
-### 3.2 W – Kampfrausch (Zeile 749–751)
+### 3.2 W – Giftklingen (früher Kampfrausch; Zeile 749–751)
 
-- Cooldown 20 s, max. Rang 5, ab Level 2. Selbstbuff, kein Ziel: `H.buffs.rage = {t: (r>=3 ? 10 : 6), as: 0.4 + 0.12*(r−1), spd: 40, cleave: r>=5}` (ersetzt einen laufenden Kampfrausch, Dauer wird neu gesetzt).
+- Cooldown 20 s, max. Rang 5, ab Level 2. Selbstbuff, kein Ziel: `H.buffs.rage = {t: (r>=3 ? 10 : 6), as: 0.4 + 0.12*(r−1), spd: 40, cleave: r>=5, pois: r>=3 ? dmgOf(CFG.poisonBase, CFG.poisonPer, r, 0, CFG.poisonK) : 0}` (ersetzt einen laufenden Buff, Dauer wird neu gesetzt). **Neu (Oktober 2026, Wunsch des Projektmanagers):** Ab Rang 3 vergiften die Auto-Angriffe das Ziel: `u.pois = max(u.pois, CFG.poisonTime = 4 s)`, `u.poisDps = max(u.poisDps, buff.pois)`; jede Sekunde `hitUnit(u, poisDps)` (fester Schaden, Rüstung wirkt, Gift verlängert sich bei jedem Treffer, stapelt nicht). Auch die Nebenziele des Rang-5-Flächenschadens werden vergiftet. `CFG.poisonBase = 5, poisonPer = 3, poisonK = 0.15`.
 - Angriffstempo `+as` (0.40, 0.52, 0.64, 0.76, 0.88 additiv zu den anderen Boni), Lauftempo `+40`.
 - Rang 5: Jeder Auto-Angriff trifft zusätzlich alle anderen Gegner mit Abstand `<= 75` zum Ziel mit `hitUnit(u, dmg*0.5)` (Schaden des Haupttreffers inkl. Krit, Rüstung wirkt). Endet beim Tod des Helden.
 - Das Feld `ls` im Buff existiert im Code nicht (`rg.ls` bleibt ungesetzt, siehe Abschnitt 7).
@@ -146,7 +146,7 @@ Skills werden von der Eingabe **zwischen** zwei `update`-Aufrufen gewirkt (Taste
 - Cooldown 10 s, max. Rang 5, ab Level 3. Zielart: **Bodenpunkt in Richtung Mauszeiger**, `p = groundPoint(m, 420)` (Weite höchstens 420, `y` begrenzt auf ±80). Ist der Weg `< 30` px → Rückgabe **false** (kein Cooldown).
 - Beim Cast: Backport abbrechen, `moveTo = target = null`. `dmg = dmgOf(20, 8, r, 0, 0.4)`, `fdmg = dmgOf(10, 4, r, 0, 0.15)` (beide zum Castzeitpunkt, mit Kombo-Bonus falls aktiv).
 - Sprungdauer `0.22 s`: der Held wird linear von Start nach Ziel bewegt (`k = 1 − max(0, L.t)/0.22`); in dieser Zeit keine eigene Bewegung/Auto-Angriffe. Beim Ablauf (`L.t <= 0`, im Update des Helden) springt er genau auf den Zielpunkt und `land()` wird aufgerufen.
-- Landung: `circleHit(H.x, H.y, 80 + 4*(r−1), dmg, {stun: r>=5 ? 1.5 : 0})`; ab Rang 3 zusätzlich eine Zone `{r:100, t:4, every:1, dmg:fdmg}` am Landepunkt (tickt sofort im nächsten Update-Teil, dann jede Sekunde).
+- Landung: `circleHit(H.x, H.y, 80 + 4*(r−1), dmg, {slow: r>=5 ? CFG.leapSlow (2,5 s) : 0})` (früher Betäubung 1,5 s; geändert Oktober 2026); ab Rang 3 zusätzlich eine Zone (Giftpfütze, früher Schadensfeld) `{r:100, t:4, every:1, dmg:fdmg}` am Landepunkt (tickt sofort im nächsten Update-Teil, dann jede Sekunde).
 - Stirbt der Held während des Sprungs, entfällt die Landung (siehe 1.8).
 
 ### 3.4 R – Schwertregen (Zeile 762–772)

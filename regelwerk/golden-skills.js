@@ -54,7 +54,7 @@
         hero: {hp:r3(H.hp), x:r3(H.x), y:r3(H.y), dead:H.dead>0, comboT:r3(H.comboT), lastElem:H.lastElem||null, cds:H.cds.map(r3),
                buffs:Object.fromEntries(Object.entries(H.buffs).map(([n,v])=>[n, Object.fromEntries(Object.entries(v).map(([k,x])=>[k, typeof x==='number' ? r3(x) : x]))]))},
         // je Dummy: [Schaden gesamt, Betaeubung Rest, Verlangsamung Rest, Brennen Rest, Brennschaden/s, Blutung Rest, Qual Rest, x, y]
-        dummies: G.units.map(u=>[r3(dhp-u.hp), r3(u.stun), r3(u.slow), r3(u.burn||0), r3(u.burnDps||0), r3(u.bleed||0), r3(u.tormT||0), r3(u.x), r3(u.y)]),
+        dummies: G.units.map(u=>[r3(dhp-u.hp), r3(u.stun), r3(u.slow), r3(u.burn||0), r3(u.burnDps||0), r3(u.bleed||0), r3(u.tormT||0), r3(u.x), r3(u.y), r3(u.pois||0), r3(u.poisDps||0)]),
         zones: G.zones.map(z=>({x:r3(z.x), y:r3(z.y), r:z.r, t:r3(z.t), dmg:r3(z.dmg), follow:z.follow||null})),
         elems: G.elems.map(e=>({type:e.type, x:r3(e.x), y:r3(e.y), hp:r3(e.hp), t:r3(e.t), sp:r3(e.sp), eRank:e.eRank})),
       });

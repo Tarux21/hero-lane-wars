@@ -62,6 +62,11 @@
   "tankQcd": 6.5,
   "tankRRange": 310,
   "tankRHalf": 0.68,
+  "poisonTime": 4,
+  "poisonBase": 5,
+  "poisonPer": 3,
+  "poisonK": 0.15,
+  "leapSlow": 2.5,
   "armorK": 150,
   "reflectMul": 1,
   "innateReflect": 0.15,
@@ -259,7 +264,7 @@
   },
   "damage": {
    "name": "Damage",
-   "desc": "Hoher Nahkampfschaden. Wirbel (heilt), Kampfrausch, Sprung, Schwertregen.",
+   "desc": "Hoher Nahkampfschaden. Wirbel (heilt), Giftklingen, Sprung, Schwertregen.",
    "hp": 488,
    "hpl": 65,
    "dmg": 26,
@@ -1145,7 +1150,7 @@
     ]
    },
    {
-    "name": "Kampfrausch",
+    "name": "Giftklingen",
     "cd": 20,
     "max": 5,
     "at": [
@@ -1155,7 +1160,7 @@
     ],
     "info": [
      "Mehr Angriffs- und Lauftempo für 6 Sek.",
-     "Rang 3: hält 10 Sek.",
+     "Rang 3: hält 10 Sek., Angriffe vergiften (Schaden pro Sekunde)",
      "Rang 5: Angriffe treffen Gegner im Umkreis"
     ]
    },
@@ -1165,8 +1170,8 @@
     "max": 5,
     "info": [
      "Springt zur Maus (Reichweite 420), Aufprall macht Schaden",
-     "Rang 3: Landung hinterlässt ein Schadensfeld",
-     "Rang 5: Aufprall betäubt Gegner im Umkreis"
+     "Rang 3: Landung hinterlässt eine Giftpfütze (Schaden pro Sekunde)",
+     "Rang 5: Aufprall verlangsamt Gegner im Umkreis"
     ]
    },
    {
