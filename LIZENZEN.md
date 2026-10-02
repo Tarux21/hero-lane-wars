@@ -18,6 +18,8 @@ Alles, was wir nicht selbst gemacht haben, steht hier mit Quelle, Lizenz und Än
 | `summon_frost.wav` (Frost-Elementar) | „Ice Magic Arrow_type 01" von **lotteria001**, https://freesound.org/people/lotteria001/sounds/709888/ | **CC0** | gekürzt, Stereo zu Mono, leise Teile angehoben (Begrenzer), Vorlauf davor |
 | `meteor_hit.wav` (Meteor, Rang 5) | „Beefy Explosions" von **SamsterBirdies**, https://freesound.org/people/samsterbirdies/sounds/745549/ | **CC0** | erste Explosion (2,3 s) aus 18 s ausgeschnitten, Stereo zu Mono |
 | `summon_lightning.wav` (Blitz-Elementar) | „custom_electrical_lance_impact_02152026" von **Artninja**, https://freesound.org/people/artninja/sounds/845385/ | **CC BY 4.0** | 2 s aus 6,4 s ausgeschnitten, Stereo zu Mono, Vorlauf davor, ausgeblendet |
+| `elem_shot_lightning.wav` (Autoangriff Blitz-Elementar) | „Sähköisiä räsähdyksiä …" (electrical short crackling) von **YleArkisto**, https://freesound.org/people/ylearkisto/sounds/367700/ | **CC BY 4.0** | drittes Knistern (0,6 s) aus 14,6 s ausgeschnitten, Stereo zu Mono, ausgeblendet |
+| `caster_shot.wav`, `elem_shot_fire.wav` (Autoangriff Magier und Feuer-Elementar) | „Fireball" von **qubodup**, https://freesound.org/people/qubodup/sounds/442827/ | **CC BY** (laut Seite 3.0, bitte vor Veröffentlichung nochmal prüfen) | auf 0,65 s gekürzt, Stereo zu Mono, ausgeblendet |
 
 ### Namensnennung (Text für Abspann)
 „Frostnova-Sound: f_Synth_Wind_Whoosh_6 von cyclonek; Kettenblitz-Sound: electricspark von knova; Feuer-Elementar-Sound: Fire Spell 01 von DiscoverSound; Blitz-Elementar-Sound: custom_electrical_lance_impact_02152026 von Artninja (alle freesound.org, CC BY 4.0, bearbeitet).“
