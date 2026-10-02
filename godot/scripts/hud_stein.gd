@@ -169,7 +169,7 @@ func _bar_label(pb: ProgressBar) -> Label:
 
 func _skills_block() -> Control:
 	var hb := HBoxContainer.new()
-	hb.add_theme_constant_override("separation", 24)
+	hb.add_theme_constant_override("separation", 44)
 	hb.alignment = BoxContainer.ALIGNMENT_CENTER
 	slots.clear()
 	var keys := ["Q", "W", "E", "R"]
@@ -263,7 +263,7 @@ func _items_panel() -> Control:
 	g.bag_btns.clear()
 	for i in int(g.cfg["bagSize"]):
 		var b := Button.new()
-		b.custom_minimum_size = Vector2(44, 44)
+		b.custom_minimum_size = Vector2(56, 44)
 		var bic := ItemIcon.new()                         # Bildchen des Items im Rucksack (Name steht im Hinweis)
 		bic.set_anchors_preset(Control.PRESET_FULL_RECT)
 		bic.offset_left = 2.0
@@ -294,14 +294,14 @@ func _items_panel() -> Control:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 4)
 	g.pot_btn = Button.new()
-	g.pot_btn.custom_minimum_size = Vector2(80, 40)
+	g.pot_btn.custom_minimum_size = Vector2(100, 40)
 	g.pot_btn.add_theme_font_size_override("font_size", 11)
 	g.pot_btn.focus_mode = Control.FOCUS_NONE
 	g.pot_btn.tooltip_text = "Heiltrank trinken (Taste F)"
 	g.pot_btn.pressed.connect(func(): g.items.drink_potion(g.hero))
 	row.add_child(g.pot_btn)
 	bp_btn = Button.new()
-	bp_btn.custom_minimum_size = Vector2(80, 40)
+	bp_btn.custom_minimum_size = Vector2(100, 40)
 	bp_btn.add_theme_font_size_override("font_size", 11)
 	bp_btn.focus_mode = Control.FOCUS_NONE
 	bp_btn.tooltip_text = "Backport: zurück in die Basis (Taste B), Schaden unterbricht"

@@ -381,10 +381,7 @@ func _show_menu() -> void:
 	for k in ["easy", "normal", "hard", "expert"]:
 		diff_opts.append([str(Data.raw["diff"][k]["name"]), k])
 	box.add_child(_menu_row("Schwierigkeit", diff_opts, diff_key, func(v): diff_key = v))
-	var style_opts := [["Zufall", "random"]]
-	for k in ["balanced", "rush", "eco"]:
-		style_opts.append([str(Data.raw["bot_style"][k]["name"]), k])
-	box.add_child(_menu_row("Gegner-Stil", style_opts, bot_style, func(v): bot_style = v))
+	bot_style = "random"                  # Gegner-Stil und Build werden je Gegner zufällig gemischt (kein Menüpunkt)
 	var info := Label.new()
 	info.text = "1 gegen 1: je eine Lane pro Spieler   |   2 gegen 2: eine breite Lane pro Team\n4 gegen 4: Doppel-Lane pro Team (zur anderen Lane kommt ihr nur über die Basis: Backport!)"
 	info.modulate = Color("#9aa3b5")
