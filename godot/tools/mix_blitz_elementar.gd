@@ -5,7 +5,7 @@ extends SceneTree
 ## Aufruf: Godot --headless --path godot --script res://tools/mix_blitz_elementar.gd
 const SfxCaster := preload("res://scripts/sfx_caster.gd")
 const OUT := 44100
-const STRIKE_AT := 0.6                           # Sekunden: Einschlag passend zum Aufleuchten des Zauberkreises
+const STRIKE_AT := 0.3                           # Sekunden: Einschlag passend zum Aufleuchten des Zauberkreises
 
 
 func _init() -> void:
@@ -24,7 +24,7 @@ func _init() -> void:
 	# Einschlag: ab 1,25 s, 1,1 s lang
 	var seg: PackedFloat32Array = raw.slice(int(1.25 * OUT), int(2.35 * OUT))
 	var hp := _highpass(seg, 450.0)                # Donnergrollen weg, nur Knall und Zischen bleiben
-	var shifted := _lowpass(_lowpass(_resample(hp, 1.12), 5200.0), 7000.0)             # höher gestimmt, kürzer, weniger natürlich
+	var shifted := _lowpass(_lowpass(_resample(hp, 1.0), 2600.0), 3200.0)             # höher gestimmt, kürzer, weniger natürlich
 	var ringed := PackedFloat32Array()
 	ringed.resize(shifted.size())
 	for i in shifted.size():                        # Ringmodulation: metallisch-elektrischer Charakter
@@ -36,13 +36,13 @@ func _init() -> void:
 		var env := exp(-2.4 * float(i) / ringed.size())
 		strike[i] = tanh(ringed[i] * 3.0) * env      # starke Sättigung = hart, synthetisch
 	# synthetische Schichten
-	var charge := _up(SfxCaster._noise(rng, 0.6, 250.0, 2600.0, 0.6, 0.5, 0.6))                  # Aufladen: steigendes Rauschen
-	var hum := _up(SfxCaster._tone(1.3, 100.0, 140.0, "sawtooth", 0.7, 1.6, 0.0, 0.0, 42.0, 0.6))   # Brummen mit Zittern
+	var charge := _up(SfxCaster._noise(rng, 0.3, 200.0, 1500.0, 0.6, 0.3, 0.6))                  # Aufladen: steigendes Rauschen
+	var hum := _up(SfxCaster._tone(1.0, 90.0, 120.0, "sawtooth", 0.3, 1.6, 0.0, 0.0, 42.0, 0.6))   # Brummen mit Zittern
 	var arcs := _up(SfxCaster._crackle(rng, 1.2, 130.0, 25.0, 1.8))
-	var zap := _up(SfxCaster._noise(rng, 0.12, 3200.0, 600.0, 0.6, 0.002, 5.0))
+	var zap := _up(SfxCaster._noise(rng, 0.12, 1800.0, 450.0, 0.6, 0.002, 5.0))
 	var thump := _up(SfxCaster._boom(0.5, 115.0, 48.0, 6.0))
 	var buf := PackedFloat32Array()
-	buf.resize(int(2.0 * OUT))
+	buf.resize(int(1.7 * OUT))
 	_add(buf, charge, 0.0, 0.3)
 	_add(buf, hum, 0.0, 0.2)
 	_add(buf, arcs, STRIKE_AT - 0.05, _arc_vol())
@@ -50,6 +50,7 @@ func _init() -> void:
 	_add(buf, thump, STRIKE_AT, 0.55)
 	for i in 3:
 		_add(buf, zap, STRIKE_AT + 0.05 + i * 0.11, 0.35)
+	buf = _lowpass(_lowpass(buf, 3400.0), 4200.0)          # Gesamtklang abdumpfen
 	var peak := 0.0001
 	for s in buf:
 		peak = maxf(peak, absf(s))
