@@ -40,10 +40,11 @@ sub envelope { my ($rate,$f,$win)=@_; $win ||= 0.25; my $n=int($win*$rate); my @
 # Ausschnitt schreiben: t0,t1 in s, fade in/out in s, Spitze
 sub tanh_ { my $x = shift; my $e = exp(2*$x); return ($e-1)/($e+1); }
 sub write_cut {
-  my ($out,$rate,$f,$t0,$t1,$fi,$fo,$peak,$trim_silence,$pad,$boost) = @_; $pad ||= 0; $boost ||= 1;
+  my ($out,$rate,$f,$t0,$t1,$fi,$fo,$peak,$trim_silence,$pad,$boost,$lp) = @_; $pad ||= 0; $boost ||= 1;
   my $a = int($t0*$rate); my $b = int($t1*$rate); $b = $#$f if $b > $#$f;
   if ($trim_silence) { $a++ while $a < $b && abs($f->[$a]) < 0.003; $a = $a - int(0.01*$rate); $a = 0 if $a < 0; }
-  my @x = @$f[$a..$b]; my $pk = 0.0001; for (@x) { $pk = abs($_) if abs($_) > $pk }
+  my @x = @$f[$a..$b]; if ($lp) { my $k = 1 - exp(-6.2831853*$lp/$rate); for (1..2) { my $y = 0; for my $s (@x) { $y += $k*($s-$y); $s = $y; } } }   # Tiefpass (2 Stufen): weicher, weniger schrill
+  my $pk = 0.0001; for (@x) { $pk = abs($_) if abs($_) > $pk }
   unshift @x, (0) x int($pad*$rate); my $g = $peak / $pk; my $n = @x; my $nfi = int($fi*$rate); my $nfo = int($fo*$rate); my $pcm = "";
   for my $i (0..$n-1) { my $v = $x[$i]*$g; if ($boost > 1) { $v = $peak * tanh_($v/$peak*$boost) / tanh_($boost); } $v *= $i/$nfi if $nfi && $i < $nfi; $v *= ($n-1-$i)/$nfo if $nfo && $i > $n-$nfo; $pcm .= pack("s<", int($v*32767)); }
   open(my $o, ">:raw", $out) or die; print $o "RIFF", pack("V", 36+length $pcm), "WAVEfmt ", pack("VvvVVvv",16,1,1,$rate,$rate*2,2,16), "data", pack("V", length $pcm), $pcm; close $o;

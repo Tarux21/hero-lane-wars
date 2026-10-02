@@ -16,12 +16,12 @@ my @jobs = (
  ["442827*", "caster_shot.wav", 0.0, 0.65, 0.003, 0.25, 0.85, 0, 0],              # Autoangriff Magier
  ["442827*", "elem_shot_fire.wav", 0.0, 0.65, 0.003, 0.25, 0.85, 0, 0],           # Autoangriff Feuer-Elementar
  ["240640*", "tank_shot.wav", 0.0, 0.35, 0.002, 0.08, 0.85, 0, 0],                  # Tank Autoangriff
- ["815336*", "tank_q_artninja.wav", 0.0, 1.6, 0.002, 0.5, 0.95, 0, 0],                    # Tank Schockwelle
+ ["841804*", "tank_e_hit.wav", 0.0, 0.42, 0.001, 0.22, 0.8, 0, 0, 1, 4500],             # Tank Schildwurf: jeder Treffer (weicher gemacht)
 );
 sub resolve { my $p = shift; $p =~ s/\*$//; opendir(my $d, $in) or die "Ordner $in fehlt"; my ($m) = grep { index($_, $p) == 0 } readdir $d; die "keine Datei $p*" unless $m; return $m; }
 my %cache;
 for my $j (@jobs) {
-  my ($file,$o,$t0,$t1,$fi,$fo,$pk,$trim,$pad,$boost) = @$j;
+  my ($file,$o,$t0,$t1,$fi,$fo,$pk,$trim,$pad,$boost,$lp) = @$j;
   $file = resolve($file); $cache{$file} ||= [ decode($in.$file) ];
   my ($rate,$f) = @{$cache{$file}};
   print write_cut($out.$o, $rate, $f, $t0, $t1, $fi, $fo, $pk, $trim, $pad, $boost), "\n";
