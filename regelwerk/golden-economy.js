@@ -190,10 +190,78 @@
   });
 
   // =====================================================================================================
+  // (b) ITEMS: Kaufen, Verkaufen, Rezepte, Hut-Regel, Rucksack, Heiltrank als Folge von Aktionen
+  // =====================================================================================================
+  // Aktionen: {a:'buy', id} | {a:'sell', i} | {a:'potion'} | {a:'wait', s} (Sekunden, in 0.05-Schritten) | {a:'gold', v} | {a:'pos', base:true|false}
+  //           | {a:'hp', frac} (Leben = Anteil von maxHp) | {a:'lvl', v} | {a:'over'} (Spiel vorbei)
+  // Nach jeder Aktion: ok, reason (buyReason vor dem Kauf), gold, bag, cons, potCd, hp, derived.
+  const items = [];
+  const ITEM_CASES = [];
+  const IC = (id, note, hero, gold, actions, o) => ITEM_CASES.push({id, note, hero, gold, actions, ...(o||{})});
+  const B = id => ({a:'buy', id});
+  IC('basis-items', 'Basis-Items kaufen (Preise 80/80/100/90/110), Werte aus CFG.itemPower', 'damage', 1000, ['sword','armor','heart','gloves','staff'].map(B));
+  IC('ausserhalb-basis', 'Kaufen und Verkaufen nur in der Basis', 'damage', 1000, [{a:'pos', base:false}, B('sword'), {a:'sell', i:0}, {a:'pos', base:true}, B('sword'), {a:'pos', base:false}, {a:'sell', i:0}, {a:'pos', base:true}, {a:'sell', i:0}]);
+  IC('mightyBlade-ohne-teile', 'Rezept ohne Teile im Rucksack: Rezeptgeld 300 + Teile 300+200+200 = 1000; mit 999 Gold geht es nicht', 'damage', 999, [B('mightyBlade'), {a:'gold', v:1000}, B('mightyBlade')]);
+  IC('mightyBlade-mit-teilen', 'Teile einzeln kaufen, dann kombinieren: nur Rezeptgeld 300', 'damage', 1000, [B('bigSword'), B('rake'), B('critCloak'), B('mightyBlade')]);
+  IC('mightyBlade-teilweise', 'Nur die Harke im Rucksack: Preis 300 + 300 + 200 = 800', 'damage', 1000, [B('rake'), B('mightyBlade')]);
+  IC('arcaneCrown-ein-stab', 'Ein Grosser Stab vorhanden: Kronen-Rezept 300 + zweiter Stab 350', 'caster', 1000, [B('bigStaff'), B('arcaneCrown')]);
+  IC('thornPlate-ketten', 'Verschachtelt: Dornenpanzerweste = 200 + strongArmor(100+2*100) + thornShirt(150+100+300) = 1050; danach mit Zwischenstufen im Rucksack', 'tank', 5000,
+     [B('thornPlate'), {a:'sell', i:0}, B('cloth'), B('thornArmor'), B('thornShirt'), B('strongArmor'), B('thornPlate')]);
+  IC('zwischenstufe-reihenfolge', 'strongArmor aus 2 Stoffruestungen: Rezeptgeld 100; bag-Reihenfolge nach Kauf', 'tank', 1000, [B('cloth'), B('heart'), B('cloth'), B('strongArmor')]);
+  IC('hut-aufwerten', 'Lederhut 150, dann Spezialhut 450 (verbraucht den Lederhut); ein zweiter Hut wird abgelehnt', 'damage', 3000, [B('hat'), B('hatWind'), B('hatSage'), B('hat')]);
+  IC('hut-direkt', 'Spezialhut ohne Lederhut: 450 + 150 = 600', 'caster', 1000, [B('hatSage')]);
+  IC('hut-blockiert-spezialhut', 'Mit Spezialhut im Rucksack kein weiterer Hut, auch kein Lederhut', 'tank', 3000, [B('hatGuard'), B('hat'), B('hatBlood')]);
+  IC('rucksack-voll', '6 Plaetze: der 7. Gegenstand wird abgelehnt; ein Rezept, das 2 Teile verbraucht, geht bei vollem Rucksack (6-2+1=5)', 'tank', 5000,
+     [B('cloth'), B('cloth'), B('cloth'), B('cloth'), B('cloth'), B('cloth'), B('cloth'), B('strongArmor'), B('heart'), B('heart'), B('heart')]);
+  IC('rucksack-voll-trank', 'Heiltraenke zaehlen nicht zum Rucksack (eigene Slots, max. 5 je Sorte)', 'tank', 5000,
+     [B('cloth'), B('cloth'), B('cloth'), B('cloth'), B('cloth'), B('cloth'), B('potion'), B('potion'), B('potion'), B('potion'), B('potion'), B('potion')]);
+  IC('trank-trinken', 'F: 40 % maxHp, 15 s Abklingzeit; nicht bei vollem Leben; nicht ohne Trank', 'damage', 1000,
+     [{a:'potion'}, B('potion'), B('potion'), {a:'pos', base:false}, {a:'hp', frac:1}, {a:'potion'}, {a:'hp', frac:.5}, {a:'potion'}, {a:'potion'}, {a:'hp', frac:.5}, {a:'wait', s:14.9}, {a:'potion'}, {a:'wait', s:0.1}, {a:'potion'}]);
+  IC('trank-hp-obergrenze', 'Heilung hoechstens bis maxHp', 'tank', 1000, [B('potion'), {a:'pos', base:false}, {a:'hp', frac:.8}, {a:'potion'}]);
+  IC('verkaufen-70-prozent', 'Verkaufspreis = floor(0.7 * totalCost): Teil 70 %, fertiges Item (Gesamtpreis inkl. Rezept und Teile), Hut', 'damage', 3000,
+     [B('cloth'), B('mightyBlade'), B('hat'), B('hatWind'), {a:'sell', i:0}, {a:'sell', i:0}, {a:'sell', i:0}, {a:'sell', i:5}]);
+  IC('verkaufen-ungerade', 'floor(0.7*Gesamtpreis) in Double: Entersaebel 550 -> 385, Dolch 180 -> 125 (nicht 126: 0.7*180 = 125.99999999999999), Blutkristall 220 -> 154', 'damage', 3000, [B('cutlass'), B('dagger'), {a:'sell', i:1}, {a:'sell', i:0}]);
+  IC('unique-stapelt-nicht', 'Zwei Dornen-Items: Ruestung stapelt (20+35), Effekt `thorns` nur einmal', 'tank', 3000, [B('thornArmor'), B('thornShirt')]);
+  IC('obergrenzen', 'Deckel: cdr 0.40, Lebensraub 0.5, Zauberraub 0.5, Schaden- 0.40, Krit 1.0', 'damage', 40000,
+     [B('timeAmulet'), B('timeAmulet'), B('timeAmulet'), {a:'sell', i:0}, {a:'sell', i:0}, {a:'sell', i:0},
+      B('bloodGem'), B('bloodGem'), B('bloodGem'), B('bloodGem'), B('bloodGem'), B('bloodGem'), {a:'sell', i:0}, {a:'sell', i:0}, {a:'sell', i:0}, {a:'sell', i:0}, {a:'sell', i:0}, {a:'sell', i:0},
+      B('spellGem'), B('spellGem'), B('spellGem'), B('spellGem'), B('spellGem'), B('spellGem'), {a:'sell', i:0}, {a:'sell', i:0}, {a:'sell', i:0}, {a:'sell', i:0}, {a:'sell', i:0}, {a:'sell', i:0},
+      B('bulwark'), B('bulwark'), B('bulwark'), B('hatGuard'), {a:'sell', i:0}, {a:'sell', i:0}, {a:'sell', i:0}, {a:'sell', i:0},
+      B('critCloak'), B('critCloak'), B('critCloak'), B('critCloak'), B('critCloak')]);
+  IC('leben-heilt-beim-kauf', 'Steigt maxHp durch einen Kauf, steigt hp um denselben Betrag (hoechstens bis max)', 'tank', 3000,
+     [{a:'hp', frac:.5}, B('lifeStone'), B('heart'), {a:'hp', frac:1}, B('ruby')]);
+  IC('verkauf-senkt-max-leben', 'Verkauf senkt maxHp; hp wird nicht automatisch gesenkt (nur durch Obergrenze im naechsten Frame)', 'tank', 3000,
+     [B('lifeStone'), {a:'hp', frac:1}, {a:'sell', i:0}, {a:'wait', s:0.05}]);
+  IC('spiel-vorbei', 'Nach Spielende kein Kauf', 'damage', 1000, [{a:'over'}, B('sword')]);
+  IC('level-skaliert-werte', 'Abgeleitete Werte je Level mit Items (Level 15, Damage mit mightyBlade + hatWind)', 'damage', 5000,
+     [{a:'lvl', v:15}, B('mightyBlade'), B('hatWind'), B('heart')]);
+  IC('verbrauch-obergrenze-kauf', 'Trank-Vorrat: beim 6. Kauf Fehlermeldung, Gold bleibt', 'caster', 2000, [B('potion'), B('potion'), B('potion'), B('potion'), B('potion'), B('potion')]);
+  for(const c of ITEM_CASES) items.push(sim({hero:c.hero, inBase:true}, (P,E)=>{
+    G.gold = c.gold; H.hp = hMaxHp();
+    const log = []; const stepRow = (act, ok, reason) => ({...act, ok, reason, gold:r3(G.gold), bag:H.bag.slice(), cons:{...H.cons}, potCd:r3(H.potCd), hp:r3(H.hp), maxHp:r3(hMaxHp()), derived:derived()});
+    for(const act of c.actions){
+      let ok = null, reason = '';
+      if(act.a === 'buy'){ reason = buyReason(act.id); ok = buy(act.id); }
+      else if(act.a === 'sell'){ const g0 = G.gold, n0 = H.bag.length; sell(act.i); ok = H.bag.length < n0; reason = ok ? 'erloes '+r3(G.gold-g0) : (H.bag[act.i] ? 'nur in der Basis' : 'kein Item'); }
+      else if(act.a === 'potion'){ ok = drinkPotion(); }
+      else if(act.a === 'wait'){ const n = Math.round(act.s/DT); for(let k = 0; k < n; k++) update(DT); ok = true; }
+      else if(act.a === 'gold'){ G.gold = act.v; ok = true; }
+      else if(act.a === 'pos'){ H.x = act.base ? 120 : 1000; ok = true; reason = inBase() ? 'in der Basis' : 'ausserhalb'; }
+      else if(act.a === 'hp'){ H.hp = hMaxHp()*act.frac; ok = true; }
+      else if(act.a === 'lvl'){ H.lvl = act.v; ok = true; }
+      else if(act.a === 'over'){ G.over = true; ok = true; }
+      log.push(stepRow(act, ok, reason));
+    }
+    return {id:c.id, input:{note:c.note, hero:c.hero, gold:c.gold, actions:c.actions}, steps:log};
+  }));
+
+  // Preistabelle aller Items: Rezeptgeld, Gesamtpreis, Kaufpreis aus leerem Rucksack, Verkaufspreis (floor(0.7 * Gesamtpreis), Double-Rechnung wie im Prototyp)
+  const priceTable = ITEM_LIST.map(i=>({id:i.id, group:i.group, cost:i.cost, total:totalCost(i.id), buyFromEmpty:i.consumable ? i.cost : resolveBuy(i.id, []).cost, sell:Math.floor(totalCost(i.id)*CFG.sellRatio), sellRaw:totalCost(i.id)*CFG.sellRatio}));
+  // =====================================================================================================
   const data = {
     _hinweis: 'Automatisch erzeugt von regelwerk/golden-economy.js aus index.html. Nicht von Hand aendern.',
     version: VERSION, dt: DT,
-    economy,
+    economy, items, priceTable,
   };
   window.GOLDEN_ECO = data;
   const json = JSON.stringify(data);
