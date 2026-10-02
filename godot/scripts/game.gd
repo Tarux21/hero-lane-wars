@@ -321,7 +321,8 @@ func _start_game() -> void:
 		shop.toggle()
 		if OS.get_cmdline_user_args().has("--shoptab"):
 			shop._set_tab(1)
-			shop._select("thornPlate")
+			shop._select("arcaneCrown")
+			shop._select("bigStaff", false)
 
 
 ## Zwei Seiten (Teams): Monster, Spieler, Wellen und Leben getrennt
@@ -1056,7 +1057,8 @@ func _toggle_shop() -> void:
 		shop.toggle()
 		if OS.get_cmdline_user_args().has("--shoptab"):
 			shop._set_tab(1)
-			shop._select("thornPlate")
+			shop._select("arcaneCrown")
+			shop._select("bigStaff", false)
 
 
 func _update_shop() -> void:

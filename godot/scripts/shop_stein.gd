@@ -20,6 +20,7 @@ var g: Node
 var pal: Dictionary
 var root: PanelContainer
 var sel := ""
+var tree_root := ""
 var tab := 0                                # 0 Empfohlen, 1 Alle Items
 var filter := "all"
 var search := ""
@@ -385,8 +386,10 @@ func _apply_filter() -> void:
 			lab.visible = any
 
 
-func _select(id: String) -> void:
+func _select(id: String, as_root: bool = true) -> void:
 	sel = id
+	if as_root:
+		tree_root = id                              # Klick in der Liste: neuer Rezeptbaum. Klick im Baum: nur der Text wechselt
 	for c in builds_row.get_children():
 		c.queue_free()
 	for c in tree_box.get_children():
@@ -404,7 +407,7 @@ func _select(id: String) -> void:
 		none.add_theme_font_size_override("font_size", 12)
 		none.add_theme_color_override("font_color", pal["dim"])
 		builds_row.add_child(none)
-	tree_box.add_child(_tree_node(id, 40.0, 0))
+	tree_box.add_child(_tree_node(tree_root, 40.0, 0))
 	var it: Dictionary = g.items.item[id]
 	name_label.text = str(it["name"])
 	var text := str(it["desc"]).replace(" Einmalig –", "\n[color=#%s]Einmalig –[/color]" % (pal["hi"] as Color).to_html(false))
@@ -413,7 +416,7 @@ func _select(id: String) -> void:
 
 
 ## Kachel ohne Preis-Label-Eintrag in der Liste (für "Baut zu" und den Rezeptbaum)
-func _small_tile(id: String, size: float) -> Control:
+func _small_tile(id: String, size: float, in_tree: bool = false) -> Control:
 	var vb := VBoxContainer.new()
 	vb.add_theme_constant_override("separation", 0)
 	var b := Button.new()
@@ -427,7 +430,14 @@ func _small_tile(id: String, size: float) -> Control:
 	b.add_theme_stylebox_override("pressed", HudStein.box(col.darkened(0.4), pal["hi"], 2, 3, 2))
 	b.tooltip_text = g._item_tip(id)
 	var iid: String = id
-	b.pressed.connect(func(): _select(iid))
+	if in_tree:
+		b.pressed.connect(func(): _select(iid, false))
+		if id == sel:
+			var hb := HudStein.box(col, pal["hi"], 3, 3, 2)
+			b.add_theme_stylebox_override("normal", hb)
+			b.add_theme_stylebox_override("hover", hb)
+	else:
+		b.pressed.connect(func(): _select(iid))
 	vb.add_child(b)
 	var pl := Label.new()
 	var it: Dictionary = g.items.item[id]
@@ -443,7 +453,7 @@ func _small_tile(id: String, size: float) -> Control:
 func _tree_node(id: String, size: float, depth: int) -> Control:
 	var vb := VBoxContainer.new()
 	vb.add_theme_constant_override("separation", 2)
-	var top := _small_tile(id, size) if depth > 0 else _selected_tile(id, size)
+	var top := _small_tile(id, size, true)
 	top.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	vb.add_child(top)
 	var it: Dictionary = g.items.item[id]
@@ -462,22 +472,6 @@ func _tree_node(id: String, size: float, depth: int) -> Control:
 	return vb
 
 
-func _selected_tile(id: String, size: float) -> Control:
-	var vb := VBoxContainer.new()
-	var b := Button.new()
-	b.custom_minimum_size = Vector2(size, size)
-	b.focus_mode = Control.FOCUS_NONE
-	b.disabled = false
-	b.text = _initials(str(g.items.item[id]["name"]))
-	b.add_theme_font_size_override("font_size", int(size * 0.34))
-	var col := _cat_color(id)
-	var sbox := HudStein.box(col, pal["hi"], 3, 3, 2)
-	for st in ["normal", "hover", "pressed"]:
-		b.add_theme_stylebox_override(st, sbox)
-	vb.add_child(b)
-	return vb
-
-
 func _buy_selected() -> void:
 	if sel == "" or g.hero.is_empty():
 		return
@@ -486,7 +480,7 @@ func _buy_selected() -> void:
 		if why != "":
 			g._flash_msg(why)
 	else:
-		_select(sel)
+		_select(sel, false)
 
 
 ## Gold, Kaufen-Knopf und abgedunkelte Kacheln (jedes Bild, nur wenn offen)
