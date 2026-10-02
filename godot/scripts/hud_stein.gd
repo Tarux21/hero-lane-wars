@@ -95,7 +95,7 @@ func build_bar(layer: CanvasLayer, mini_w: float) -> void:
 
 func _portrait() -> Control:
 	portrait_wrap = Control.new()
-	portrait_wrap.custom_minimum_size = Vector2(70, 100)      # ragt nach oben über die Leiste hinaus
+	portrait_wrap.custom_minimum_size = Vector2(60, 86)      # ragt nach oben über die Leiste hinaus
 	portrait_wrap.size_flags_vertical = Control.SIZE_SHRINK_END
 	portrait_wrap.z_index = 3
 	portrait_wrap.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -104,13 +104,13 @@ func _portrait() -> Control:
 	ic.round_look = true
 	ic.plate = Color.html(str(g.hero["d"]["col"])).darkened(0.6)
 	ic.ring = pal["border"]
-	ic.position = Vector2(-4, 8)
-	ic.size = Vector2(88, 88)
+	ic.position = Vector2(-4, 6)
+	ic.size = Vector2(76, 76)
 	ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	portrait_wrap.add_child(ic)
 	var badge := PanelContainer.new()
 	badge.add_theme_stylebox_override("panel", box(pal["dark"], pal["border"], 2, 14, 2))
-	badge.position = Vector2(50, 72)
+	badge.position = Vector2(42, 62)
 	badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	level_label = Label.new()
 	level_label.add_theme_font_size_override("font_size", 13)
@@ -124,13 +124,12 @@ func _portrait() -> Control:
 
 func _center_panel() -> Control:
 	var pc := PanelContainer.new()
-	pc.size_flags_horizontal = Control.SIZE_EXPAND_FILL            # Mittelteil wird in die Länge gezogen
 	pc.add_theme_stylebox_override("panel", box(pal["bg"], pal["border"], 3, 4, 8))
 	var vb := VBoxContainer.new()
 	vb.add_theme_constant_override("separation", 4)
 	pc.add_child(vb)
 	vb.add_child(_skills_block())
-	hp_bar = _bar(Color("#4cd964"), 20.0)
+	hp_bar = _bar(Color("#4cd964"), 18.0)
 	hp_label = _bar_label(hp_bar)
 	vb.add_child(hp_bar)
 	xp_bar = _bar(Color("#6fa8ff"), 14.0)
@@ -166,7 +165,7 @@ func _bar_label(pb: ProgressBar) -> Label:
 
 func _skills_block() -> Control:
 	var hb := HBoxContainer.new()
-	hb.add_theme_constant_override("separation", 40)
+	hb.add_theme_constant_override("separation", 10)
 	hb.alignment = BoxContainer.ALIGNMENT_CENTER
 	slots.clear()
 	var keys := ["Q", "W", "E", "R"]
@@ -179,7 +178,7 @@ func _skills_block() -> Control:
 		col.add_theme_constant_override("separation", 2)
 		var plus := Button.new()
 		plus.text = "+"
-		plus.custom_minimum_size = Vector2(34, 22)
+		plus.custom_minimum_size = Vector2(30, 20)
 		plus.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 		plus.focus_mode = Control.FOCUS_NONE
 		plus.add_theme_color_override("font_color", pal["hi"])
@@ -191,7 +190,7 @@ func _skills_block() -> Control:
 		slot.set_meta("pal", pal)
 		slot.add_theme_stylebox_override("panel", box(pal["inset"], pal["border"], 3, 3, 3))
 		var holder := Control.new()
-		holder.custom_minimum_size = Vector2(60, 60)
+		holder.custom_minimum_size = Vector2(52, 52)
 		slot.add_child(holder)
 		var ic := SkillIcon.new()
 		ic.kind = str(icon_kinds[str(g.hero["key"])][i])
@@ -210,7 +209,7 @@ func _skills_block() -> Control:
 		cdl.set_anchors_preset(Control.PRESET_FULL_RECT)
 		cdl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		cdl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		cdl.add_theme_font_size_override("font_size", 19)
+		cdl.add_theme_font_size_override("font_size", 17)
 		cdl.add_theme_color_override("font_outline_color", Color.BLACK)
 		cdl.add_theme_constant_override("outline_size", 6)
 		cdl.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -228,7 +227,7 @@ func _skills_block() -> Control:
 		lock.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
 		lock.offset_top = -17.0
 		lock.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		lock.add_theme_font_size_override("font_size", 10)
+		lock.add_theme_font_size_override("font_size", 9)
 		lock.add_theme_color_override("font_outline_color", Color.BLACK)
 		lock.add_theme_constant_override("outline_size", 4)
 		lock.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -257,7 +256,7 @@ func _items_panel() -> Control:
 	g.bag_btns.clear()
 	for i in int(g.cfg["bagSize"]):
 		var b := Button.new()
-		b.custom_minimum_size = Vector2(62, 40)
+		b.custom_minimum_size = Vector2(52, 34)
 		b.clip_text = true
 		b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		b.add_theme_font_size_override("font_size", 10)
@@ -282,14 +281,14 @@ func _items_panel() -> Control:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 4)
 	g.pot_btn = Button.new()
-	g.pot_btn.custom_minimum_size = Vector2(92, 44)
+	g.pot_btn.custom_minimum_size = Vector2(80, 40)
 	g.pot_btn.add_theme_font_size_override("font_size", 11)
 	g.pot_btn.focus_mode = Control.FOCUS_NONE
 	g.pot_btn.tooltip_text = "Heiltrank trinken (Taste F)"
 	g.pot_btn.pressed.connect(func(): g.items.drink_potion(g.hero))
 	row.add_child(g.pot_btn)
 	bp_btn = Button.new()
-	bp_btn.custom_minimum_size = Vector2(92, 44)
+	bp_btn.custom_minimum_size = Vector2(80, 40)
 	bp_btn.add_theme_font_size_override("font_size", 11)
 	bp_btn.focus_mode = Control.FOCUS_NONE
 	bp_btn.tooltip_text = "Backport: zurück in die Basis (Taste B), Schaden unterbricht"
@@ -335,7 +334,7 @@ func update() -> void:
 			lock_txt = "ab Lv %d" % unlock
 			dim = true
 		elif r == 0:
-			lock_txt = "nicht gelernt"
+			lock_txt = "ungelernt"
 			dim = true
 		elif passive:
 			lock_txt = "passiv"
@@ -370,7 +369,7 @@ func _place_bar() -> void:
 		return
 	var vp: Vector2 = g.get_viewport().get_visible_rect().size
 	var ms := bar.get_combined_minimum_size()
-	var w: float = clampf(vp.x - mini_reserved - 14.0, ms.x, 1180.0)     # lang gezogen: füllt den Platz neben der Minimap bis 1180 px
+	var w: float = ms.x
 	bar.size = Vector2(w, ms.y)
 	var x: float = maxf((vp.x - w) / 2.0, mini_reserved)
 	x = minf(x, maxf(0.0, vp.x - w - 6.0))
