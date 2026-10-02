@@ -1,6 +1,6 @@
 extends RefCounted
 ## Shop-Fenster im Stil der Oberfläche (Aufbau nach dem League-of-Legends-Vorbild):
-## Reiter "Empfohlen" (Vorschläge je Klasse mit Preisen) und "Alle Items" (Suche, Filter, Gruppen Starter / Basis / Hüte / Zwischenstufen / Fertige / Verbrauch),
+## Reiter "Empfohlen" (Vorschläge je Klasse mit Preisen) und "Alle Items" (Suche, Filter, Gruppen Basis / Hüte / Zwischenstufen / Fertige / Verbrauch),
 ## rechts "Baut zu", der Rezeptbaum des gewählten Items, Beschreibung, Preis und Kaufen-Knopf.
 ## Kaufen: Knopf "Kaufen" oder Rechtsklick auf ein Item. Verkaufen: Feld im Rucksack anklicken (unten in der Leiste). Alles nur in der Basis.
 
@@ -88,7 +88,7 @@ func build(layer: CanvasLayer) -> void:
 	vb.add_child(body)
 	body.add_child(_left())
 	body.add_child(_right())
-	sel = RECOMMENDED[str(g.hero_key)][0][0] if RECOMMENDED.has(str(g.hero_key)) else "sword"
+	sel = RECOMMENDED[str(g.hero_key)][0][0] if RECOMMENDED.has(str(g.hero_key)) else "rake"
 	_select(sel)
 	_set_tab(0)
 
@@ -165,7 +165,7 @@ func _build_rec_page() -> Control:
 	vb.add_child(t2)
 	var starters := HFlowContainer.new()
 	starters.add_theme_constant_override("h_separation", 8)
-	for id in ["sword", "armor", "heart", "gloves", "staff", "hat", "potion"]:
+	for id in ["rake", "cloth", "ruby", "dagger", "tome", "hat", "potion"]:
 		starters.add_child(_tile(id, 48.0))
 	vb.add_child(starters)
 	return sc
@@ -225,7 +225,7 @@ func _build_all_page() -> Control:
 	grid_holder.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	grid_holder.add_theme_constant_override("separation", 6)
 	sc.add_child(grid_holder)
-	var groups := [["basis", "Starter"], ["teil", "Basis"], ["hut", "Hüte (nur einer im Rucksack)"], ["zwischen", "Zwischenstufen"], ["fertig", "Fertige Items"],
+	var groups := [["teil", "Basis"], ["hut", "Hüte (nur einer im Rucksack)"], ["zwischen", "Zwischenstufen"], ["fertig", "Fertige Items"],
 		["verbrauch", "Verbrauchsgegenstände"]]
 	for gr in groups:
 		var lab := Label.new()
@@ -350,7 +350,7 @@ func _style_tile(b: Button, id: String, size: float) -> Dictionary:
 
 func _tier(id: String) -> String:
 	var grp: String = g.items.item[id]["group"]
-	return "fertig" if grp == "fertig" else ("zwischen" if grp == "zwischen" else "basis")
+	return "fertig" if grp == "fertig" or (grp == "hut" and g.items.item[id].has("parts")) else ("zwischen" if grp == "zwischen" else "basis")
 
 
 func _tile(id: String, size: float) -> Control:
@@ -602,3 +602,42 @@ func refresh_all() -> void:
 func update() -> void:
 	if visible():
 		refresh_all()
+
+
+## Test: Katalog aller Items mit Bildchen und Namen (Bild zum Abnehmen: --itemcatalog --shot=...)
+func build_catalog(parent: Control) -> void:
+	var bgc := ColorRect.new()
+	bgc.set_anchors_preset(Control.PRESET_FULL_RECT)
+	bgc.color = Color(pal["dark"])
+	parent.add_child(bgc)
+	var grid := GridContainer.new()
+	grid.columns = 8
+	grid.position = Vector2(20, 14)
+	grid.add_theme_constant_override("h_separation", 14)
+	grid.add_theme_constant_override("v_separation", 8)
+	parent.add_child(grid)
+	var shown := 0
+	for gr in ["teil", "hut", "zwischen", "fertig", "verbrauch"]:
+		for id in g.items.order:
+			if g.items.item[id]["group"] != gr:
+				continue
+			var vb := VBoxContainer.new()
+			vb.custom_minimum_size = Vector2(220, 0)
+			var b := Button.new()
+			b.custom_minimum_size = Vector2(96, 96)
+			b.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+			var sty := _style_tile(b, str(id), 96.0)
+			if ItemIcon.has_icon(str(id)):
+				b.add_theme_stylebox_override("normal", sty["normal"])
+			else:
+				b.text = _initials(str(g.items.item[id]["name"]))
+			vb.add_child(b)
+			var nm := Label.new()
+			nm.text = str(g.items.item[id]["name"])
+			nm.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			nm.add_theme_font_size_override("font_size", 14)
+			nm.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			vb.add_child(nm)
+			grid.add_child(vb)
+			shown += 1
+	print("Katalog: %d Items" % shown)

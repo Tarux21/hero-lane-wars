@@ -106,6 +106,7 @@ var trace := false
 var selftest := false
 var selftest_items := false
 var shopshot := false                 # Test: Shop offen, Gold und ein paar Items fürs Screenshot
+var itemcat := false                   # Test: Katalog aller Items mit Bildchen
 var dbgshot := false                 # Test: Testfenster offen fürs Bild
 var uimenu := false                   # Test: Menü offen fürs Bild
 var uioptions := false
@@ -165,6 +166,8 @@ func _ready() -> void:
 			trace = true
 		elif a == "--skills":
 			autoplay_skills = true
+		elif a == "--itemcatalog":
+			itemcat = true
 		elif a == "--shopshot":
 			shopshot = true
 		elif a == "--dbgshot":
@@ -315,7 +318,7 @@ func _start_game() -> void:
 		test_panel.visible = true
 	if shopshot:                         # Test: Shop zeigen
 		hero["gold"] = 1500.0
-		for id in ["bigSword", "rake", "hat", "heart", "bigStaff"]:
+		for id in ["bigSword", "rake", "hat", "ruby", "bigStaff"]:
 			items.buy(hero, id)
 		items.buy(hero, "potion")
 		shop.toggle()
@@ -1879,7 +1882,7 @@ func _load_volume() -> float:
 ## Beim Start: gespeicherte Anzeige anwenden, aber nicht in Tests und Bild-Läufen (feste Auflösung)
 func _apply_saved_display() -> void:
 	for a in OS.get_cmdline_user_args():
-		for t in ["--sim", "--shot", "--selftest", "--golden", "--fxtest", "--menushot", "--menu-test", "--shopshot", "--dbgshot", "--uimenu", "--uitip", "--botplay", "--autoplay"]:
+		for t in ["--sim", "--shot", "--selftest", "--golden", "--fxtest", "--menushot", "--menu-test", "--shopshot", "--itemcatalog", "--dbgshot", "--uimenu", "--uitip", "--botplay", "--autoplay"]:
 			if a.begins_with(t):
 				return
 	var cf := ConfigFile.new()
@@ -2855,11 +2858,11 @@ func _selftest_items() -> void:
 	var p := hero
 	p["gold"] = 10000.0
 	p["x"] = 1000.0
-	check.call("Kaufen nur in der Basis", items.buy_reason(p, "sword") != "" and not items.buy(p, "sword"))
+	check.call("Kaufen nur in der Basis", items.buy_reason(p, "rake") != "" and not items.buy(p, "rake"))
 	p["x"] = 100.0
-	check.call("Schwert kaufen (80 g, +8 Schaden)", items.buy(p, "sword") and p["gold"] == 9920.0 and p["bonus_dmg"] == 8.0 and p["bag"] == ["sword"])
+	check.call("Harke kaufen (200 g, +30 Schaden)", items.buy(p, "rake") and p["gold"] == 9800.0 and p["bonus_dmg"] == 30.0 and p["bag"] == ["rake"])
 	var g0: float = p["gold"]
-	check.call("Verkaufen: 70 % von 80 = 56 g", items.sell(p, 0) and p["gold"] == g0 + 56.0 and p["bag"].is_empty() and p["bonus_dmg"] == 0.0)
+	check.call("Verkaufen: 70 % von 200 = 140 g", items.sell(p, 0) and p["gold"] == g0 + 140.0 and p["bag"].is_empty() and p["bonus_dmg"] == 0.0)
 	# Rezept: Mächtige Klinge = Großes Schwert + Harke + Crit-Mantel + 300 Rezeptgeld
 	items.buy(p, "bigSword")
 	check.call("Teil im Rucksack senkt den Rezeptpreis (700 statt 1000)", items.resolve_buy("mightyBlade", p["bag"])["cost"] == 700)
@@ -2879,14 +2882,14 @@ func _selftest_items() -> void:
 	p["bag"] = []
 	items.recalc(p)
 	for i in 6:
-		items.buy(p, "sword")
-	check.call("Rucksack hat 6 Plätze", p["bag"].size() == 6 and items.buy_reason(p, "sword").begins_with("Rucksack voll"))
+		items.buy(p, "rake")
+	check.call("Rucksack hat 6 Plätze", p["bag"].size() == 6 and items.buy_reason(p, "rake").begins_with("Rucksack voll"))
 	# Leben beim Kauf: aktuelles Leben steigt mit dem max. Leben
 	p["bag"] = []
 	items.recalc(p)
 	p["hp"] = 100.0
-	items.buy(p, "heart")
-	check.call("Herz: +180 max. Leben und aktuelles Leben steigt mit (100 -> 280)", p["bonus_hp"] == 180.0 and absf(p["hp"] - 280.0) < 1e-6)
+	items.buy(p, "ruby")
+	check.call("Rubinkristall: +150 max. Leben und aktuelles Leben steigt mit (100 -> 250)", p["bonus_hp"] == 150.0 and absf(p["hp"] - 250.0) < 1e-6)
 	# Heiltrank
 	p["bag"] = []
 	items.recalc(p)
@@ -3152,6 +3155,11 @@ func _run_simulation(secs: float, shot_path: String) -> void:
 		ui.tip.forced = false
 		ui.tip.extra.visible = false
 		ui.tip.hint.visible = true
+	if itemcat and shop != null:
+		var cat_root := Control.new()
+		cat_root.set_anchors_preset(Control.PRESET_FULL_RECT)
+		ui.menu_root.get_parent().add_child(cat_root)
+		shop.build_catalog(cat_root)
 	if uimenu and ui != null:
 		ui.toggle_menu()
 		if uioptions:

@@ -2,7 +2,7 @@
 
 Stand: `index.html` Version aus dem Commit nach `9a9ed9d` (Balancing vom 2026-10-01). Zeilennummern beziehen sich auf diese Datei.
 Quelle der Zahlen im Code: `ITEM_LIST` (Zeile 256–335), `CFG` (178–236), `recalcItems` (826), Effekte in `update()` (916–1084), `damageHero` (541), `affect` (610).
-Maschinenlesbar stehen alle Items auch in `regelwerk/daten.json` (`items`, Basis-Items mit ausgerechneten Werten).
+Maschinenlesbar stehen alle Items auch in `regelwerk/daten.json` (`items`, Teile mit ausgerechneten Werten).
 
 ## 1. Regeln
 
@@ -54,7 +54,7 @@ Alle Stats aller Items im Rucksack werden addiert. Danach:
 | `gps` | `goldPS`: Gold pro Sekunde, wird jeden Frame `G.gold += gps*dt` addiert (zählt in `stats.gold`) | – |
 | `bpRed` | Backport-Cast = `4.5 * (1 − bpRed)` Sekunden | 0.8 |
 
-Basis-Items (Zeile 258–262) rechnen mit `CFG.itemMul (1) * CFG.itemPower[...]`: Schwert 10*0.8 = 8 Schaden, Rüstung 5*1.3 = 6.5, Herz 150*1.2 = 180 Leben, Handschuhe 0.25*1.1 = 0.275 Tempo, Stab 30*1.6 = 48 Zauberkraft.
+Die fünf früheren Starter-Items (Schwert, Rüstung, Herz, Handschuhe, Stab) wurden am 2026-10-02 entfernt (genug Basisteile vorhanden). Die Bot-Builds nutzen stattdessen Harke, Stoffrüstung, Rubinkristall, Dolch und Wälzer.
 
 ## 3. Alle 49 Items
 

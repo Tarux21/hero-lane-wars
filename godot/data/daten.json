@@ -416,56 +416,6 @@
  },
  "items": [
   {
-   "id": "sword",
-   "group": "basis",
-   "name": "Schwert",
-   "cost": 80,
-   "desc": "+8 Schaden",
-   "stats": {
-    "dmg": 8
-   }
-  },
-  {
-   "id": "armor",
-   "group": "basis",
-   "name": "Rüstung",
-   "cost": 80,
-   "desc": "+6,5 Rüstung",
-   "stats": {
-    "armor": 6.5
-   }
-  },
-  {
-   "id": "heart",
-   "group": "basis",
-   "name": "Herz",
-   "cost": 100,
-   "desc": "+180 Leben",
-   "stats": {
-    "hp": 180
-   }
-  },
-  {
-   "id": "gloves",
-   "group": "basis",
-   "name": "Handschuhe",
-   "cost": 90,
-   "desc": "+27,5% Angriffstempo",
-   "stats": {
-    "as": 0.275
-   }
-  },
-  {
-   "id": "staff",
-   "group": "basis",
-   "name": "Stab",
-   "cost": 110,
-   "desc": "+48 Zauberkraft",
-   "stats": {
-    "sp": 48
-   }
-  },
-  {
    "id": "bigSword",
    "group": "teil",
    "name": "Großes Schwert",

@@ -617,7 +617,7 @@ func _bot() -> void:
 	for c in bot["mode"]:
 		var diffs: Array = []
 		var ci: Dictionary = c["in"]
-		var p := _bot_player("damage", false, ["bigSword", "rake", "critCloak", "mightyBlade", "hat", "hatWind", "gloves", "heart", "potion", "sword", "potion"], str(ci["diff"]), "balanced")
+		var p := _bot_player("damage", false, ["bigSword", "rake", "critCloak", "mightyBlade", "hat", "hatWind", "dagger", "ruby", "potion", "rake", "potion"], str(ci["diff"]), "balanced")
 		g.t = 10.0
 		p["x"] = 1000.0
 		p["y"] = 0.0

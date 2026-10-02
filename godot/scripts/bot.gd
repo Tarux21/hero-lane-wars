@@ -4,9 +4,9 @@ extends RefCounted
 ## Jeder Bot hat seinen Zustand in p["bot_state"]; er benutzt dieselben Regeln wie du (Items kaufen, Skills, Backport, Monster senden).
 
 const BIAS := {"tank": [0, 1, 1, -10], "damage": [0, 1, 1, -10], "caster": [0, 1, 0.5, -10]}   # Skill-Lern-Reihenfolge je Klasse
-const FD := ["gloves", "heart", "potion", "sword", "potion"]
-const FC := ["heart", "staff", "potion", "gloves", "potion"]
-const FT := ["heart", "potion", "heart", "potion"]
+const FD := ["dagger", "ruby", "potion", "rake", "potion"]
+const FC := ["ruby", "tome", "potion", "dagger", "potion"]
+const FT := ["ruby", "potion", "ruby", "potion"]
 const POOL := {   # Bauplan-Auswahl je Klasse (Reihenfolge der Käufe), zufällig gewählt
 	"damage": [
 		["bigSword", "rake", "critCloak", "mightyBlade", "hat", "hatWind"] + FD,

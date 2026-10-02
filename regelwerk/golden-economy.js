@@ -199,20 +199,20 @@
   const ITEM_CASES = [];
   const IC = (id, note, hero, gold, actions, o) => ITEM_CASES.push({id, note, hero, gold, actions, ...(o||{})});
   const B = id => ({a:'buy', id});
-  IC('basis-items', 'Basis-Items kaufen (Preise 80/80/100/90/110), Werte aus CFG.itemPower', 'damage', 1000, ['sword','armor','heart','gloves','staff'].map(B));
-  IC('ausserhalb-basis', 'Kaufen und Verkaufen nur in der Basis', 'damage', 1000, [{a:'pos', base:false}, B('sword'), {a:'sell', i:0}, {a:'pos', base:true}, B('sword'), {a:'pos', base:false}, {a:'sell', i:0}, {a:'pos', base:true}, {a:'sell', i:0}]);
+  IC('basis-items', 'Basis-Teile kaufen (Harke, Stoffruestung, Rubinkristall, Dolch, Waelzer)', 'damage', 1000, ['rake','cloth','ruby','dagger','tome'].map(B));
+  IC('ausserhalb-basis', 'Kaufen und Verkaufen nur in der Basis', 'damage', 1000, [{a:'pos', base:false}, B('rake'), {a:'sell', i:0}, {a:'pos', base:true}, B('rake'), {a:'pos', base:false}, {a:'sell', i:0}, {a:'pos', base:true}, {a:'sell', i:0}]);
   IC('mightyBlade-ohne-teile', 'Rezept ohne Teile im Rucksack: Rezeptgeld 300 + Teile 300+200+200 = 1000; mit 999 Gold geht es nicht', 'damage', 999, [B('mightyBlade'), {a:'gold', v:1000}, B('mightyBlade')]);
   IC('mightyBlade-mit-teilen', 'Teile einzeln kaufen, dann kombinieren: nur Rezeptgeld 300', 'damage', 1000, [B('bigSword'), B('rake'), B('critCloak'), B('mightyBlade')]);
   IC('mightyBlade-teilweise', 'Nur die Harke im Rucksack: Preis 300 + 300 + 200 = 800', 'damage', 1000, [B('rake'), B('mightyBlade')]);
   IC('arcaneCrown-ein-stab', 'Ein Grosser Stab vorhanden: Kronen-Rezept 300 + zweiter Stab 350', 'caster', 1000, [B('bigStaff'), B('arcaneCrown')]);
   IC('thornPlate-ketten', 'Verschachtelt: Dornenpanzerweste = 200 + strongArmor(100+2*100) + thornShirt(150+100+300) = 1050; danach mit Zwischenstufen im Rucksack', 'tank', 5000,
      [B('thornPlate'), {a:'sell', i:0}, B('cloth'), B('thornArmor'), B('thornShirt'), B('strongArmor'), B('thornPlate')]);
-  IC('zwischenstufe-reihenfolge', 'strongArmor aus 2 Stoffruestungen: Rezeptgeld 100; bag-Reihenfolge nach Kauf', 'tank', 1000, [B('cloth'), B('heart'), B('cloth'), B('strongArmor')]);
+  IC('zwischenstufe-reihenfolge', 'strongArmor aus 2 Stoffruestungen: Rezeptgeld 100; bag-Reihenfolge nach Kauf', 'tank', 1000, [B('cloth'), B('tome'), B('cloth'), B('strongArmor')]);
   IC('hut-aufwerten', 'Lederhut 150, dann Spezialhut 450 (verbraucht den Lederhut); ein zweiter Hut wird abgelehnt', 'damage', 3000, [B('hat'), B('hatWind'), B('hatSage'), B('hat')]);
   IC('hut-direkt', 'Spezialhut ohne Lederhut: 450 + 150 = 600', 'caster', 1000, [B('hatSage')]);
   IC('hut-blockiert-spezialhut', 'Mit Spezialhut im Rucksack kein weiterer Hut, auch kein Lederhut', 'tank', 3000, [B('hatGuard'), B('hat'), B('hatBlood')]);
   IC('rucksack-voll', '6 Plaetze: der 7. Gegenstand wird abgelehnt; ein Rezept, das 2 Teile verbraucht, geht bei vollem Rucksack (6-2+1=5)', 'tank', 5000,
-     [B('cloth'), B('cloth'), B('cloth'), B('cloth'), B('cloth'), B('cloth'), B('cloth'), B('strongArmor'), B('heart'), B('heart'), B('heart')]);
+     [B('cloth'), B('cloth'), B('cloth'), B('cloth'), B('cloth'), B('cloth'), B('cloth'), B('strongArmor'), B('tome'), B('tome'), B('tome')]);
   IC('rucksack-voll-trank', 'Heiltraenke zaehlen nicht zum Rucksack (eigene Slots, max. 5 je Sorte)', 'tank', 5000,
      [B('cloth'), B('cloth'), B('cloth'), B('cloth'), B('cloth'), B('cloth'), B('potion'), B('potion'), B('potion'), B('potion'), B('potion'), B('potion')]);
   IC('trank-trinken', 'F: 40 % maxHp, 15 s Abklingzeit; nicht bei vollem Leben; nicht ohne Trank', 'damage', 1000,
@@ -229,12 +229,12 @@
       B('bulwark'), B('bulwark'), B('bulwark'), B('hatGuard'), {a:'sell', i:0}, {a:'sell', i:0}, {a:'sell', i:0}, {a:'sell', i:0},
       B('critCloak'), B('critCloak'), B('critCloak'), B('critCloak'), B('critCloak')]);
   IC('leben-heilt-beim-kauf', 'Steigt maxHp durch einen Kauf, steigt hp um denselben Betrag (hoechstens bis max)', 'tank', 3000,
-     [{a:'hp', frac:.5}, B('lifeStone'), B('heart'), {a:'hp', frac:1}, B('ruby')]);
+     [{a:'hp', frac:.5}, B('lifeStone'), B('ruby'), {a:'hp', frac:1}, B('ruby')]);
   IC('verkauf-senkt-max-leben', 'Verkauf senkt maxHp; hp wird nicht automatisch gesenkt (nur durch Obergrenze im naechsten Frame)', 'tank', 3000,
      [B('lifeStone'), {a:'hp', frac:1}, {a:'sell', i:0}, {a:'wait', s:0.05}]);
-  IC('spiel-vorbei', 'Nach Spielende kein Kauf', 'damage', 1000, [{a:'over'}, B('sword')]);
+  IC('spiel-vorbei', 'Nach Spielende kein Kauf', 'damage', 1000, [{a:'over'}, B('rake')]);
   IC('level-skaliert-werte', 'Abgeleitete Werte je Level mit Items (Level 15, Damage mit mightyBlade + hatWind)', 'damage', 5000,
-     [{a:'lvl', v:15}, B('mightyBlade'), B('hatWind'), B('heart')]);
+     [{a:'lvl', v:15}, B('mightyBlade'), B('hatWind'), B('tome')]);
   IC('verbrauch-obergrenze-kauf', 'Trank-Vorrat: beim 6. Kauf Fehlermeldung, Gold bleibt', 'caster', 2000, [B('potion'), B('potion'), B('potion'), B('potion'), B('potion'), B('potion')]);
   for(const c of ITEM_CASES) items.push(sim({hero:c.hero, inBase:true}, (P,E)=>{
     G.gold = c.gold; H.hp = hMaxHp();

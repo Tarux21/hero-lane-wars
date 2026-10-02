@@ -258,11 +258,6 @@ const HEROES = {
 const THORN_TXT = 'Einmalig – Dornen: Wirst du von einem normalen Angriff getroffen, wird 6 (+10 % der zusätzlichen Rüstung) Schaden zurückgeworfen.';
 const ITEM_LIST = [
   // Alte Basis-Items (vorerst behalten, billige Füller für den Anfang)
-  {id:'sword',  group:'basis', name:'Schwert',    cost:80,  desc:'+8 Schaden',          stats:()=>({dmg:10*CFG.itemMul*CFG.itemPower.sword})},
-  {id:'armor',  group:'basis', name:'Rüstung',    cost:80,  desc:'+6,5 Rüstung',        stats:()=>({armor:5*CFG.itemMul*CFG.itemPower.armor})},
-  {id:'heart',  group:'basis', name:'Herz',       cost:100, desc:'+180 Leben',          stats:()=>({hp:150*CFG.itemMul*CFG.itemPower.heart})},
-  {id:'gloves', group:'basis', name:'Handschuhe', cost:90,  desc:'+27,5% Angriffstempo',stats:()=>({as:0.25*CFG.itemMul*CFG.itemPower.gloves})},
-  {id:'staff',  group:'basis', name:'Stab',       cost:110, desc:'+48 Zauberkraft',     stats:()=>({sp:30*CFG.itemMul*CFG.itemPower.staff})},
   // Teile
   {id:'bigSword',   group:'teil', name:'Großes Schwert', cost:300, desc:'+50 Angriffsschaden',             stats:{dmg:50}},
   {id:'rake',       group:'teil', name:'Harke',          cost:200, desc:'+30 Angriffsschaden',             stats:{dmg:30}},
@@ -1326,7 +1321,6 @@ function buildShop(){
     ['Fertige Items – Tank',                 i=>i.group==='fertig' && CAT[i.id]==='tank'],
     ['Mischitems (klassenübergreifende Builds)', i=>i.group==='fertig' && CAT[i.id]==='mix'],
     ['Wirtschaft',                           i=>i.group==='fertig' && CAT[i.id]==='gold'],
-    ['Einfache Basis-Items',                 i=>i.group==='basis'],
     ['Verbrauchsgegenstände',                i=>i.group==='verbrauch'],
   ];
   for(const [label,filter] of sections){
@@ -1414,9 +1408,9 @@ if(CFG.debug){
 // ====== GEGNER-BOT ======
 // Spielt wie ein Mensch: Reaktionszeit, gelegentliche Fehler, Einkaufsreisen per Backport, Sende-Entscheidungen.
 const BOT_CLASS = {
-  tank:   {bias:[0,1,1,-10],  items:['sword','armor','gloves','heart','sword','armor','gloves','heart','sword']},
-  damage: {bias:[0,1,1,-10],  items:['sword','gloves','heart','sword','gloves','armor','boots','sword','heart']},
-  caster: {bias:[0,1,.5,-10], items:['staff','boots','heart','staff','gloves','staff','armor','heart','staff']},
+  tank:   {bias:[0,1,1,-10],  items:['rake','cloth','dagger','ruby','rake','cloth','dagger','ruby','rake']},
+  damage: {bias:[0,1,1,-10],  items:['rake','dagger','ruby','rake','dagger','cloth','boots','rake','ruby']},
+  caster: {bias:[0,1,.5,-10], items:['tome','boots','ruby','tome','dagger','tome','cloth','ruby','tome']},
 };
 const BOT_SEND_W = t => t<480 ? {grunt:3,tank:3,archer:2,fast:1,elite:0} : {grunt:1,tank:3,archer:2,fast:1,elite:3};
 const nearCount = r => { let n=0; for(const u of G.units) if(u.lane===0 && Math.hypot(u.x-H.x,u.y-H.y)<=r) n++; return n; };
@@ -1425,30 +1419,30 @@ const dist2 = (a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 
 // Bauplan je Klasse: Reihenfolge der Käufe (fertige Items kombinieren die Teile im Rucksack automatisch)
 const BOT_BUILD = {
-  tank:   ['cloth','cloth','strongArmor','cloth','thornArmor','thornShirt','thornPlate','hat','hatGuard','heart','potion','heart','potion'],
-  damage: ['bigSword','rake','critCloak','mightyBlade','hat','hatWind','gloves','heart','potion','sword','potion'],
-  caster: ['bigStaff','bigStaff','arcaneCrown','hat','hatSage','heart','staff','potion','gloves','heart','potion'],
+  tank:   ['cloth','cloth','strongArmor','cloth','thornArmor','thornShirt','thornPlate','hat','hatGuard','ruby','potion','ruby','potion'],
+  damage: ['bigSword','rake','critCloak','mightyBlade','hat','hatWind','dagger','ruby','potion','rake','potion'],
+  caster: ['bigStaff','bigStaff','arcaneCrown','hat','hatSage','ruby','tome','potion','dagger','ruby','potion'],
 };
 // Alternative Baupläne (für Simulationen: I.build = BOT_VARIANTS.xyz)
 const BOT_VARIANTS = {
-  damageStorm: ['rake','critCloak','windCloak','stormBreaker','hat','hatWind','gloves','heart','potion','sword','potion'],
-  casterTime:  ['bigStaff','timeAmulet','timeStaff','hat','hatSage','heart','staff','potion','gloves','heart','potion'],
-  tankTitan:   ['cloth','lifeStone','regenBand','titanPlate','hat','hatGuard','heart','potion','heart','potion'],
-  casterMask:  ['wand','ruby','tome','guise','tormentMask','hat','hatSage','heart','potion','gloves','potion'],
-  damageRuin:  ['rake','bloodGem','cutlass','windCloak','ruinBlade','hat','hatWind','heart','potion','sword','potion'],
-  tankSpring:  ['lifeStone','ruby','regenBand','lifeSpring','hat','hatGuard','cloth','potion','heart','potion'],
+  damageStorm: ['rake','critCloak','windCloak','stormBreaker','hat','hatWind','dagger','ruby','potion','rake','potion'],
+  casterTime:  ['bigStaff','timeAmulet','timeStaff','hat','hatSage','ruby','tome','potion','dagger','ruby','potion'],
+  tankTitan:   ['cloth','lifeStone','regenBand','titanPlate','hat','hatGuard','ruby','potion','ruby','potion'],
+  casterMask:  ['wand','ruby','tome','guise','tormentMask','hat','hatSage','ruby','potion','dagger','potion'],
+  damageRuin:  ['rake','bloodGem','cutlass','windCloak','ruinBlade','hat','hatWind','ruby','potion','rake','potion'],
+  tankSpring:  ['lifeStone','ruby','regenBand','lifeSpring','hat','hatGuard','cloth','potion','ruby','potion'],
   // Neue Items (klassenübergreifend)
-  damageCleave: ['bigSword','dagger','cleaver','hat','hatWind','rake','bloodGem','cutlass','potion','heart','potion'],
-  casterSpark:  ['dagger','wand','windCloak','sparkBlade','hat','hatBlood','bigStaff','bigStaff','arcaneCrown','potion','heart','potion'],
-  casterVamp:   ['bloodGem','spellGem','ruby','soulDrinker','hat','hatBlood','bigStaff','bigStaff','arcaneCrown','potion','heart','potion'],
-  casterTank:   ['ruby','tome','guise','regenBand','moonstone','hat','hatGuard','lifeStone','heart','potion','potion'],
+  damageCleave: ['bigSword','dagger','cleaver','hat','hatWind','rake','bloodGem','cutlass','potion','ruby','potion'],
+  casterSpark:  ['dagger','wand','windCloak','sparkBlade','hat','hatBlood','bigStaff','bigStaff','arcaneCrown','potion','ruby','potion'],
+  casterVamp:   ['bloodGem','spellGem','ruby','soulDrinker','hat','hatBlood','bigStaff','bigStaff','arcaneCrown','potion','ruby','potion'],
+  casterTank:   ['ruby','tome','guise','regenBand','moonstone','hat','hatGuard','lifeStone','ruby','potion','potion'],
   tankGiant:    ['lifeStone','bigSword','giantsMight','hat','hatGuard','cloth','cloth','strongArmor','ruby','bulwark','potion','potion'],
   damageVamp:   ['bloodGem','spellGem','ruby','soulDrinker','bigSword','rake','critCloak','mightyBlade','hat','hatBlood','potion','potion'],
   goldDamage:   ['coinPouch','coinPouch','merchantChain','bigSword','rake','critCloak','mightyBlade','hat','hatWind','potion','potion'],
 };
 // Build-Auswahl des Gegners: pro Klasse mehrere gleichwertige Builds (aus der Balance-Messung), zufällig gewählt
 const BOT_POOL = (()=>{
-  const FD=['gloves','heart','potion','sword','potion'], FC=['heart','staff','potion','gloves','potion'], FT=['heart','potion','heart','potion'];
+  const FD=['dagger','ruby','potion','rake','potion'], FC=['ruby','tome','potion','dagger','potion'], FT=['ruby','potion','ruby','potion'];
   return {
     damage: [
       ['bigSword','rake','critCloak','mightyBlade','hat','hatWind',...FD],
