@@ -149,7 +149,7 @@ Skills werden von der Eingabe **zwischen** zwei `update`-Aufrufen gewirkt (Taste
 - Landung: `circleHit(H.x, H.y, 80 + 4*(r−1), dmg, {slow: r>=5 ? CFG.leapSlow (2,5 s) : 0})` (früher Betäubung 1,5 s; geändert Oktober 2026); ab Rang 3 zusätzlich eine Zone (Giftpfütze, früher Schadensfeld) `{r:100, t:4, every:1, dmg:fdmg}` am Landepunkt (tickt sofort im nächsten Update-Teil, dann jede Sekunde).
 - Stirbt der Held während des Sprungs, entfällt die Landung (siehe 1.8).
 
-### 3.4 R – Schwertregen (Zeile 762–772)
+### 3.4 R – Dolchhagel (früher Schwertregen; Zeile 762–772)
 
 - Cooldown 50 s, max. Rang 1, ab Level 10. **Zufällige Ziele**: alle Gegner mit Abstand `<= 650` zum Helden werden mit `sort(()=>Math.random()−.5)` gemischt, die ersten 5 genommen. Keine Ziele → „Keine Ziele!“, Rückgabe **false**. (In den Golden Values ist `Math.random` fest 0.5, die Auswahl ist dann die ersten 5 in Listenreihenfolge.)
 - `dmg = dmgOf(60, 0, 1, 0, 0.8)`, `fdmg = dmgOf(18, 0, 1, 0, 0.3)`. Für das i-te Ziel (i = 0…4) mit der **beim Cast gemerkten Position (x,y)** nach `0.3 + 0.25*i` s: `circleHit(x, y, 60, dmg)` und Zone `{x, y, r:70, t:8, every:1, dmg:fdmg}`. Die Zone wird im Timer-Schritt erzeugt und tickt im selben Frame (Timer laufen vor den Zonen).
@@ -206,7 +206,7 @@ Skills werden von der Eingabe **zwischen** zwei `update`-Aufrufen gewirkt (Taste
 | Held | Q | W | E | R |
 |---|---|---|---|---|
 | Tank | Schockwelle 6.5 s | Eiserne Haut (passiv) | Schildwurf 10 s | Titanenstoß 50 s |
-| Damage | Wirbel 5 s | Kampfrausch 20 s | Sprung 10 s | Schwertregen 50 s |
+| Damage | Wirbel 5 s | Giftklingen 20 s | Sprung 10 s | Dolchhagel 50 s |
 | Caster | Feuerfeld 10 s | Frostnova 12 s | Kettenblitz 8 s | Elementar 90 s |
 
 ## 7. Auffälligkeiten im Prototyp (nur gemeldet, nicht geändert)

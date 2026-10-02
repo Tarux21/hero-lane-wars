@@ -247,7 +247,7 @@ const UNITS = {
 };
 const HEROES = {
   tank:   {name:'Tank',   desc:'Viel Leben & Rüstung. Schockwelle, Eiserne Haut (Dornen), Schildwurf, Titanenstoß.', hp:416, hpl:60, dmg:22, dpl:3.5, armor:6.4, armorl:0.96, as:1.0, range:38, spd:175, col:'#4a90e2'},
-  damage: {name:'Damage', desc:'Hoher Nahkampfschaden. Wirbel (heilt), Giftklingen, Sprung, Schwertregen.', hp:488, hpl:65, dmg:26, dpl:4.5, armor:5, armorl:1.0, as:1.1, range:38, spd:195, col:'#e2584a'},
+  damage: {name:'Damage', desc:'Hoher Nahkampfschaden. Wirbel (heilt), Giftklingen, Sprung, Dolchhagel.', hp:488, hpl:65, dmg:26, dpl:4.5, armor:5, armorl:1.0, as:1.1, range:38, spd:195, col:'#e2584a'},
   caster: {name:'Caster', desc:'Fernkampf. Feuerfeld, Frostnova, Kettenblitz, Meteoritenregen.', hp:260, hpl:32, dmg:12, dpl:1.8, armor:1, armorl:0.4, as:0.9, range:230, spd:180, col:'#b06cf0'},
 };
 // ====== ITEMS (Rucksack-System wie in League of Legends) ======
@@ -763,7 +763,7 @@ const SK = {
          circleHit(H.x,H.y,80+4*(r-1),dmg,{slow:r>=5?CFG.leapSlow:0},'#ffb36b');
          if(r>=3) G.zones.push({x:H.x, y:H.y, r:100, t:4, tick:0, every:1, dmg:fdmg, c:'#ff9a4a'});
        }}; }},
-    {name:'Schwertregen', cd:50, max:1, info:['5 Schwerter stürzen auf Gegner, jeder Einschlag hinterlässt 8 Sek. ein Blitzfeld'],
+    {name:'Dolchhagel', cd:50, max:1, info:['5 Dolche stürzen auf Gegner, jeder Einschlag hinterlässt 8 Sek. ein Giftfeld'],
      cast(r){
        const pool = enemies().filter(u=>Math.hypot(u.x-H.x,u.y-H.y)<=650).sort(()=>Math.random()-.5).slice(0,5);
        if(!pool.length){ G.fx.push({k:'text', x:H.x-30, y:H.y-40, t:1.2, s:'Keine Ziele!', c:'#ff9a8a'}); return false; }
@@ -1748,7 +1748,7 @@ const TIP = {
     r=>`Schaden ${rd(dmgOf(30,10,r,0,.7))} · Radius ${95+5*(r-1)} · Heilung ${f1(CFG.whirlHeal[r-1]*100)} % Leben je Gegner (max. ${CFG.whirlHealCap})`,
     r=>`Angriffstempo +${Math.round((.4+.12*(r-1))*100)} % · Lauftempo +40 · ${r>=3?10:6} s${r>=3?' · Gift '+rd(dmgOf(CFG.poisonBase,CFG.poisonPer,r,0,CFG.poisonK))+'/s ('+CFG.poisonTime+' s)':''}${r>=5?' · Angriffe treffen im Umkreis mit':''}`,
     r=>`Sprung bis 420 · Aufprall ${rd(dmgOf(20,8,r,0,.4))} (Radius ${80+4*(r-1)})${r>=3?' · Giftpfütze '+rd(dmgOf(10,4,r,0,.15))+'/s (4 s)':''}${r>=5?' · Verlangsamung '+f1(CFG.leapSlow)+' s':''}`,
-    r=>`5 Schwerter: je ${rd(dmgOf(60,0,1,0,.8))} Schaden · Blitzfeld ${rd(dmgOf(18,0,1,0,.3))}/s (8 s)`],
+    r=>`5 Dolche: je ${rd(dmgOf(60,0,1,0,.8))} Schaden · Giftfeld ${rd(dmgOf(18,0,1,0,.3))}/s (8 s)`],
   caster:[
     r=>`Feld ${rd(dmgOf(9,5,r,.2,.08))}/s (5 s) · Radius ${90+6*(r-1)}${r>=3?' · jagt Gegner':''}${r>=5?' · Meteor '+rd(dmgOf(120,0,1,.8,.3)):''}`,
     r=>`Schaden ${rd(dmgOf(20,10,r,.3,0))} · Reichweite ${200+15*(r-1)} · Verlangsamung ${f1(3+.5*(r-1))} s${r>=5?' · Betäubung 1,6 s':r>=3?' · Betäubung 0,8 s':''}`,

@@ -264,7 +264,7 @@
   },
   "damage": {
    "name": "Damage",
-   "desc": "Hoher Nahkampfschaden. Wirbel (heilt), Giftklingen, Sprung, Schwertregen.",
+   "desc": "Hoher Nahkampfschaden. Wirbel (heilt), Giftklingen, Sprung, Dolchhagel.",
    "hp": 488,
    "hpl": 65,
    "dmg": 26,
@@ -1175,11 +1175,11 @@
     ]
    },
    {
-    "name": "Schwertregen",
+    "name": "Dolchhagel",
     "cd": 50,
     "max": 1,
     "info": [
-     "5 Schwerter stürzen auf Gegner, jeder Einschlag hinterlässt 8 Sek. ein Blitzfeld"
+     "5 Dolche stürzen auf Gegner, jeder Einschlag hinterlässt 8 Sek. ein Giftfeld"
     ]
    }
   ],
