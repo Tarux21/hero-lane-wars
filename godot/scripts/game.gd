@@ -2313,28 +2313,47 @@ func _show_end() -> void:
 	row.add_child(menu)
 
 
-## Figur ausrichten und Animation wählen: läuft → move_anim, sonst Angriff (wenn ein Ziel da ist) oder Ruhe.
-## Gilt für Helden und Monster (Dictionary mit x, y, fig, px, py, target).
-func _animate(e: Dictionary, delta: float, attack_anim: String, move_anim: String, idle_anim: String) -> void:
+## Sichtbare Position und Figur: Die Spiellogik rechnet in Schritten von 0,05 s, die Anzeige gleitet weich zur
+## aktuellen Position (kein Ruckeln). Figur dreht sich schnell in Laufrichtung bzw. zum Ziel, Animation passt zum Tempo.
+## e: Held oder Monster (x, y, fig, target). ref: Lauftempo (m/s), bei dem die Laufanimation normal schnell läuft.
+func _animate(e: Dictionary, node: Node3D, side_idx: int, delta: float, attack_anim: String, move_anim: String, idle_anim: String, ref: float) -> void:
+	var tgt := Vector2(e["x"], e["y"])
+	var vis: Vector2 = e.get("vis", tgt)
+	var old := vis
+	if vis.distance_to(tgt) > 150.0:
+		vis = tgt                                       # Sprung (Backport, Wiederbelebung): sofort
+	else:
+		vis = vis.lerp(tgt, 1.0 - exp(-delta * 22.0))
+	e["vis"] = vis
+	node.position = _wp(vis.x, vis.y, side_idx)
 	var fig: Dictionary = e["fig"]
-	if fig.is_empty():
+	if fig.is_empty() or delta <= 0.0:
 		return
-	var dx: float = (e["y"] - e["py"]) * S
-	var dz: float = -(e["x"] - e["px"]) * S
-	var moved := dx * dx + dz * dz > 1e-8
-	if e["px"] == 0.0 and e["py"] == 0.0:
-		moved = false
-	e["px"] = e["x"]
-	e["py"] = e["y"]
+	var vx: float = (vis.y - old.y) * S / delta         # Weltgeschwindigkeit (m/s), x = quer, z = längs
+	var vz: float = -(vis.x - old.x) * S / delta
+	var speed := sqrt(vx * vx + vz * vz)
+	var hold: float = fig.get("hold", 0.0)
+	hold = 0.18 if speed > 0.5 else maxf(0.0, hold - delta)       # kurzes Nachhalten: kein Flackern zwischen Laufen und Stehen
+	fig["hold"] = hold
+	var moving := hold > 0.0
 	var want_yaw: float = fig["yaw"]
-	if moved:
-		want_yaw = atan2(dx, dz)
-	elif e.get("target") != null and e["target"] is Dictionary and e["target"].has("x"):
-		want_yaw = atan2((e["target"]["y"] - e["y"]), -(e["target"]["x"] - e["x"]))
-	fig["yaw"] = lerp_angle(fig["yaw"], want_yaw, minf(1.0, delta * 12.0))
+	var mt: Variant = e.get("move_to")
+	var tg: Variant = e.get("target")
+	if mt is Dictionary and mt.has("x"):
+		want_yaw = atan2((mt["y"] - vis.y), -(mt["x"] - vis.x))
+	elif mt is Vector2:
+		want_yaw = atan2(mt.y - vis.y, -(mt.x - vis.x))
+	elif speed > 0.5:
+		want_yaw = atan2(vx, vz)
+	elif tg is Dictionary and tg.has("x"):
+		want_yaw = atan2((tg["y"] - vis.y), -(tg["x"] - vis.x))
+	fig["yaw"] = lerp_angle(fig["yaw"], want_yaw, 1.0 - exp(-delta * 30.0))
 	(fig["inner"] as Node3D).rotation.y = fig["yaw"]
-	var anim := move_anim if moved else (attack_anim if (e.get("target") != null or e.get("type") != null) else idle_anim)
+	var anim := move_anim if moving else (attack_anim if (tg != null or e.get("type") != null) else idle_anim)
 	_play_anim(fig, anim)
+	var ap: AnimationPlayer = fig["anim"]
+	if ap != null:
+		ap.speed_scale = clampf(speed / ref, 0.7, 2.0) if moving and anim == move_anim else 1.0
 
 
 func _sync_visuals(delta: float) -> void:
@@ -2342,18 +2361,16 @@ func _sync_visuals(delta: float) -> void:
 	for p in players:                    # alle Helden: Position, Sichtbarkeit, Lebensanzeige
 		var pn: Node3D = p["node"]
 		pn.visible = p["dead"] <= 0.0 and p["side"]["idx"] == hero["side"]["idx"]      # Gegner-Seite bleibt verdeckt
-		pn.position = _wp(p["x"], p["y"], p["side"]["idx"])
-		_animate(p, delta, HERO_MODEL[p["key"]][1] if HERO_MODEL.has(p["key"]) else "", "Run", "Idle")
+		_animate(p, pn, p["side"]["idx"], delta, HERO_MODEL[p["key"]][1] if HERO_MODEL.has(p["key"]) else "", "Run", "Idle", 5.0)
 		p["label"].text = "Lv %d" % p["lvl"]
 		_set_bar(p["bar"], p["bar_w"], p["hp"] / skills.h_max_hp(p), p["side"]["idx"] == hero["side"]["idx"])
 	for s in sides:                      # alle Monster beider Seiten
 		for u in s["units"]:
 			var n: Node3D = u["node"]
-			n.position = _wp(u["x"], u["y"], s["idx"])
 			n.visible = s["idx"] == hero["side"]["idx"]
-			if n.visible and not u["fig"].is_empty():
-				_animate(u, delta, "Bite_InPlace" if u["fig"]["anim"] != null and u["fig"]["anim"].has_animation("Bite_InPlace") else "Bite_Front",
-					"Flying" if u["fig"].get("flies", false) else "Walk", "Flying" if u["fig"].get("flies", false) else "Idle")
+			if n.visible:
+				_animate(u, n, s["idx"], delta, "Bite_InPlace" if u["fig"]["anim"] != null and u["fig"]["anim"].has_animation("Bite_InPlace") else "Bite_Front",
+					"Flying" if u["fig"].get("flies", false) else "Walk", "Flying" if u["fig"].get("flies", false) else "Idle", 2.5)
 			_set_bar(u["bar"], u["bar_w"], u["hp"] / u["max"], true)
 	var fog_x: float = lane_xs[lanes_per_team - 1] + lane_half_g * S + WALL
 	for fx in fx_list:                   # Effekte und Zahlen auf der Gegner-Seite ausblenden
