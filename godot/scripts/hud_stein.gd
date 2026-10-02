@@ -29,6 +29,9 @@ var menu_confirm: Control
 var menu_open := false
 var was_paused := false
 var vol_slider: HSlider
+var bar: PanelContainer
+var mini_reserved := 270.0
+var display_btn: OptionButton
 
 
 func _init(game: Node) -> void:
@@ -62,6 +65,10 @@ static func make_theme() -> Theme:
 	t.set_color("font_disabled_color", "Button", Color("#7f7765"))
 	t.set_stylebox("panel", "TooltipPanel", box(Color("#262321"), GOLD, 3, 3, 8))
 	t.set_color("font_color", "TooltipLabel", TEXT)
+	t.set_stylebox("panel", "PopupMenu", box(Color("#262321"), GOLD, 2, 3, 6))
+	t.set_stylebox("hover", "PopupMenu", box(Color("#4a443d"), GOLD_HI, 1, 2, 4))
+	t.set_color("font_color", "PopupMenu", TEXT)
+	t.set_color("font_hover_color", "PopupMenu", Color("#fff3c4"))
 	t.set_color("font_color", "CheckBox", TEXT)
 	t.set_color("font_hover_color", "CheckBox", Color("#fff3c4"))
 	return t
@@ -69,15 +76,9 @@ static func make_theme() -> Theme:
 
 # ---------------------------------------------------------------- untere Leiste
 func build_bar(layer: CanvasLayer, mini_w: float) -> void:
-	var bar := PanelContainer.new()
-	bar.anchor_left = 0.0
-	bar.anchor_right = 1.0
-	bar.anchor_top = 1.0
-	bar.anchor_bottom = 1.0
-	bar.offset_left = mini_w + 28.0
-	bar.offset_right = -10.0
-	bar.offset_top = -160.0
-	bar.offset_bottom = -8.0
+	mini_reserved = mini_w + 28.0
+	bar = PanelContainer.new()                           # kompakter Block: so breit wie sein Inhalt, mittig unten (Position in update())
+	bar.custom_minimum_size = Vector2(0, 152)
 	bar.add_theme_stylebox_override("panel", box(STONE, GOLD, 4, 4, 10))
 	layer.add_child(bar)
 	var row := HBoxContainer.new()
@@ -85,10 +86,8 @@ func build_bar(layer: CanvasLayer, mini_w: float) -> void:
 	bar.add_child(row)
 	row.add_child(_portrait_block())
 	row.add_child(_skills_block())
-	var spacer := Control.new()
-	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.add_child(spacer)
 	row.add_child(_right_block())
+	bar.reset_size()
 
 
 func _portrait_block() -> Control:
@@ -290,6 +289,7 @@ func _small_button(text: String) -> Button:
 func update() -> void:
 	if slots.is_empty() or g.hero.is_empty():
 		return
+	_place_bar()
 	var h: Dictionary = g.hero
 	var sk = g.skills
 	name_label.text = "%s   Level %d" % [str(h["d"]["name"]), h["lvl"]]
@@ -341,6 +341,19 @@ func update() -> void:
 		pause_btn.text = "Weiter (P)" if g.paused else "Pause (P)"
 
 
+## Leiste mittig unten, aber nie über die Minimap links
+func _place_bar() -> void:
+	if bar == null:
+		return
+	var vp: Vector2 = g.get_viewport().get_visible_rect().size
+	var w: float = bar.get_combined_minimum_size().x
+	var hgt: float = maxf(bar.get_combined_minimum_size().y, 152.0)
+	bar.size = Vector2(w, hgt)
+	var x: float = maxf((vp.x - w) / 2.0, mini_reserved)
+	x = minf(x, maxf(0.0, vp.x - w - 6.0))
+	bar.position = Vector2(x, vp.y - hgt - 8.0)
+
+
 func _skill_tip(i: int, def: Dictionary, r: int, rmax: int, unlock: int) -> String:
 	var sk = g.skills
 	var h: Dictionary = g.hero
@@ -381,7 +394,7 @@ func build_menu(layer: CanvasLayer) -> void:
 	center.set_anchors_preset(Control.PRESET_FULL_RECT)
 	menu_root.add_child(center)
 	var stack := Control.new()
-	stack.custom_minimum_size = Vector2(380, 330)
+	stack.custom_minimum_size = Vector2(380, 400)
 	center.add_child(stack)
 	menu_main = _menu_panel("Menü", [["Weiter spielen", toggle_menu], ["Optionen", func(): _show_page(menu_options)], ["Speichern", Callable()],
 		["Zurück zum Hauptmenü", func(): _show_page(menu_confirm)]])
@@ -407,7 +420,7 @@ func build_menu(layer: CanvasLayer) -> void:
 
 func _menu_panel(title: String, entries: Array) -> PanelContainer:
 	var pc := PanelContainer.new()
-	pc.set_anchors_preset(Control.PRESET_FULL_RECT)
+	pc.set_anchors_preset(Control.PRESET_TOP_WIDE)
 	pc.add_theme_stylebox_override("panel", box(STONE, GOLD, 4, 4, 18))
 	var vb := VBoxContainer.new()
 	vb.add_theme_constant_override("separation", 10)
@@ -432,7 +445,7 @@ func _menu_panel(title: String, entries: Array) -> PanelContainer:
 
 func _build_options() -> PanelContainer:
 	var pc := PanelContainer.new()
-	pc.set_anchors_preset(Control.PRESET_FULL_RECT)
+	pc.set_anchors_preset(Control.PRESET_TOP_WIDE)
 	pc.add_theme_stylebox_override("panel", box(STONE, GOLD, 4, 4, 18))
 	var vb := VBoxContainer.new()
 	vb.add_theme_constant_override("separation", 12)
@@ -457,6 +470,17 @@ func _build_options() -> PanelContainer:
 			g.snd.volume = v / 100.0
 		g._save_volume(v / 100.0))
 	vb.add_child(vol_slider)
+	var dl := Label.new()
+	dl.text = "Anzeige"
+	vb.add_child(dl)
+	display_btn = OptionButton.new()
+	display_btn.add_item("Fenster", 0)
+	display_btn.add_item("Vollbild (randlos, empfohlen)", 1)
+	display_btn.add_item("Exklusives Vollbild", 2)
+	display_btn.focus_mode = Control.FOCUS_NONE
+	display_btn.custom_minimum_size = Vector2(0, 34)
+	display_btn.item_selected.connect(func(idx: int): g.set_display_mode(display_btn.get_item_id(idx)))
+	vb.add_child(display_btn)
 	var shake := CheckBox.new()
 	shake.text = "Bildschirmwackeln"
 	shake.button_pressed = g.shake_on
@@ -484,6 +508,8 @@ func _build_options() -> PanelContainer:
 func _show_page(page: Control) -> void:
 	for p in [menu_main, menu_options, menu_confirm]:
 		(p as Control).visible = p == page
+	if page == menu_options and display_btn != null:
+		display_btn.select(display_btn.get_item_index(g.display_mode))
 	if page == menu_options and vol_slider != null:
 		vol_slider.set_value_no_signal((g.snd.volume if g.snd != null else 0.4) * 100.0)
 

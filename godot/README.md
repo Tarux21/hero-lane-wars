@@ -85,3 +85,5 @@ Helden (Krieger, Schurke, Magier) und Monster (GreenDemon, Cyclops, Skull, Bat, 
 - **Menü (Esc, pausiert):** Weiter spielen, Optionen (Lautstärke, Bildschirmwackeln, Tipps erneut zeigen), Speichern (noch gesperrt, kommt später), Zurück zum Hauptmenü (mit Rückfrage).
 - Links oben das Schild mit Gold, Einkommen, Leben, Welle und Zeit; links die Steintafel „Monster senden“; Minimap links unten.
 - Bilder zum Prüfen: `-- --hero=damage --uitip --sim=60 --shot=bild.png` (Hinweis der Fähigkeit E), `-- --uimenu --sim=10 --shot=bild.png` (Menü offen).
+- **Layout:** Die Leiste ist ein kompakter Block in der Mitte unten (so breit wie ihr Inhalt), die Minimap bleibt links unten, die Leiste rutscht bei kleinen Fenstern nach rechts, damit sie nie über der Minimap liegt.
+- **Anzeige (Optionen, F11):** Fenster, Vollbild (randlos, empfohlen) oder exklusives Vollbild; wird gespeichert (`user://settings.cfg`, Abschnitt display). F11 wechselt zwischen Fenster und Vollbild.

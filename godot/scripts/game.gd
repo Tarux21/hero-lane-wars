@@ -52,6 +52,7 @@ var vfx: FxLib                        # Fähigkeiten-Effekte
 var skillbar: Array = []              # Oberfläche: die 4 Skill-Plätze
 var ui: HudStein                       # Oberfläche im Steinrahmen-Stil (hud_stein.gd)
 var shake_on := true                  # Bildschirmwackeln an/aus (Optionen)
+var display_mode := 0                    # 0 Fenster, 1 Vollbild (randlos), 2 exklusives Vollbild
 var alerts_box: VBoxContainer         # Meldungen oben in der Mitte
 var tips_seen: Dictionary = {}         # schon gezeigte Einsteiger-Tipps (gespeichert)
 var ui_t_base := 0.0
@@ -106,6 +107,7 @@ var selftest_items := false
 var shopshot := false                 # Test: Shop offen, Gold und ein paar Items fürs Screenshot
 var dbgshot := false                 # Test: Testfenster offen fürs Bild
 var uimenu := false                   # Test: Menü offen fürs Bild
+var uioptions := false
 var uitip := false                    # Test: Hinweistexte der Fähigkeiten ausgeben
 var golden := false                   # Szenario-Runner (Vergleich mit dem Prototyp)
 var golden_filter := ""
@@ -128,6 +130,7 @@ var menu_layer: CanvasLayer
 
 func _ready() -> void:
 	get_window().theme = HudStein.make_theme()      # Steinrahmen-Stil für alle Felder, Knöpfe und Hinweise
+	_apply_saved_display()
 	cfg = Data.cfg
 	skills = SkillsLib.new(self)
 	items = ItemsLib.new(self)
@@ -167,6 +170,9 @@ func _ready() -> void:
 			dbgshot = true
 		elif a == "--uimenu":
 			uimenu = true
+		elif a == "--uioptions":
+			uimenu = true
+			uioptions = true
 		elif a == "--uitip":
 			uitip = true
 		elif a == "--selftest-items":
@@ -1886,8 +1892,39 @@ func _load_volume() -> float:
 	var cf := ConfigFile.new()
 	if cf.load("user://settings.cfg") == OK:
 		shake_on = bool(cf.get_value("sound", "shake", true))
+		display_mode = clampi(int(cf.get_value("display", "mode", 0)), 0, 2)
 		return clampf(float(cf.get_value("sound", "volume", 0.4)), 0.0, 1.0)
 	return 0.4
+
+
+## Beim Start: gespeicherte Anzeige anwenden, aber nicht in Tests und Bild-Läufen (feste Auflösung)
+func _apply_saved_display() -> void:
+	for a in OS.get_cmdline_user_args():
+		for t in ["--sim", "--shot", "--selftest", "--golden", "--fxtest", "--menushot", "--menu-test", "--shopshot", "--dbgshot", "--uimenu", "--uitip", "--botplay", "--autoplay"]:
+			if a.begins_with(t):
+				return
+	var cf := ConfigFile.new()
+	if cf.load("user://settings.cfg") == OK:
+		display_mode = clampi(int(cf.get_value("display", "mode", 0)), 0, 2)
+		set_display_mode(display_mode, false)
+
+
+## Anzeige: Fenster, Vollbild (randlos) oder exklusives Vollbild; wird gespeichert (F11 wechselt zwischen Fenster und Vollbild)
+func set_display_mode(m: int, save: bool = true) -> void:
+	display_mode = m
+	if DisplayServer.get_name() != "headless":
+		match m:
+			0:
+				DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
+			1:
+				DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
+			_:
+				DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN)
+	if save:
+		var cf := ConfigFile.new()
+		cf.load("user://settings.cfg")
+		cf.set_value("display", "mode", m)
+		cf.save("user://settings.cfg")
 
 
 func set_shake_on(on: bool) -> void:
@@ -2694,6 +2731,9 @@ func _mouse_info() -> Dictionary:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_F11:
+		set_display_mode(0 if display_mode != 0 else 1)           # F11: Fenster <-> Vollbild
+		return
 	if started and event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_F2 and test_panel != null:
 		test_panel.visible = not test_panel.visible
 		return
@@ -2989,6 +3029,10 @@ func _selftest() -> void:
 	check.call("Oberfläche: Menü öffnet und pausiert", ui.menu_open and paused)
 	ui.toggle_menu()
 	check.call("Oberfläche: Menü schließt und setzt fort", not ui.menu_open and not paused)
+	set_display_mode(1, false)
+	check.call("Anzeige: Vollbild-Modus wird gemerkt", display_mode == 1)
+	set_display_mode(0, false)
+	check.call("Anzeige: Fenster-Modus wird gemerkt", display_mode == 0)
 	var tip_txt: String = ui._skill_tip(0, skills.skill_def(hero, 0), 0, 5, 1)
 	check.call("Oberfläche: Hinweis enthält Name und Rang-1-Zahlen", tip_txt.contains(str(skills.skill_def(hero, 0)["name"])) and tip_txt.contains("Schaden"))
 	_dbg("god", 0)
@@ -3118,6 +3162,8 @@ func _run_simulation(secs: float, shot_path: String) -> void:
 		ui.menu_root.get_parent().add_child(tt)
 	if uimenu and ui != null:
 		ui.toggle_menu()
+		if uioptions:
+			ui._show_page(ui.menu_options)
 	if shot_path != "":
 		_sync_visuals(1.0)
 		await get_tree().process_frame
