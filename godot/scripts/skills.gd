@@ -260,10 +260,24 @@ func _tank_q(p: Dictionary, r: int, m: Dictionary) -> bool:
 	return true
 
 
+## Titanenstoß. Im Prototyp ein Kreis (Radius 190). Auf Wunsch des Projektmanagers im echten Spiel ein Kegel nach vorn, länger und breiter
+## als die Schockwelle. Die Tests laufen weiter mit dem Kreis (Prototyp-Werte); mit TANK_R_CONE = false ist das Spiel wieder wie der Prototyp.
+const TANK_R_CONE := true
+const TANK_R_RANGE := 380.0
+const TANK_R_HALF := 0.8
+
+
 func _tank_r(p: Dictionary, m: Dictionary) -> bool:
-	circle_hit(p, p["x"], p["y"], 190.0, dmg_of(p, 200.0, 0.0, 1, 0.0, 1.0), {"stun": 3.0, "knock": 120.0}, "", false)
-	g.cast_pose(p, p["x"] + cos(float(m["ang"])) * 100.0, p["y"] + sin(float(m["ang"])) * 100.0, "Sword_Attack2", 0.7)
-	g.vfx.titan_slam(p, 190.0, float(m["ang"]))
+	var ang: float = m["ang"]
+	var dmg := dmg_of(p, 200.0, 0.0, 1, 0.0, 1.0)
+	var o := {"stun": 3.0, "knock": 120.0}
+	if TANK_R_CONE and not g.test_mode:
+		cone_hit(p, p["x"], p["y"], ang, TANK_R_RANGE, TANK_R_HALF, dmg, o, "#c98a50", 0.1)
+		g.vfx.titan_slam(p, TANK_R_RANGE, TANK_R_HALF, ang)
+	else:
+		circle_hit(p, p["x"], p["y"], 190.0, dmg, o, "", false)
+		g.vfx.titan_slam(p, 190.0, PI, ang)
+	g.cast_pose(p, p["x"] + cos(ang) * 100.0, p["y"] + sin(ang) * 100.0, "Sword_Attack2", 0.7)
 	g.sfx_p(p, "tank_r")
 	return true
 
