@@ -31,7 +31,13 @@ func _init() -> void:
 	debris = _lowpass(debris, 2200.0)
 	var rumble := _up(SfxCaster._rumble(rng, 1.4, 140.0, 0.01, 2.2))
 	var low_boom := _up(SfxCaster._boom(0.9, 70.0, 32.0, 3.5))
-	var variants := {"A-mehr-Schlag": [1.0, 0.55, 0.9, 0.7, 0.5], "B-mehr-Stein": [0.8, 0.5, 0.55, 1.1, 0.8]}
+	# Schlag am Anfang: Original-Explosion ungefiltert (erste 0,3 s, schnell abklingend) und ein kurzer, harter Rauschstoß
+	var punch := PackedFloat32Array()
+	punch.resize(int(0.3 * OUT))
+	for i in punch.size():
+		punch[i] = hit[i] * exp(-9.0 * float(i) / (0.3 * OUT))
+	var snap := _up(SfxCaster._noise(rng, 0.09, 3200.0, 450.0, 0.5, 0.0005, 5.0))
+	var variants := {"C-weniger-Geroell-mehr-Impact": [1.0, 1.2, 1.0, 0.28, 0.35]}
 	for name in variants:
 		var v: Array = variants[name]                 # [thud, crack, boom, debris, rumble]
 		var buf := PackedFloat32Array()
@@ -41,17 +47,20 @@ func _init() -> void:
 		_add(buf, low_boom, 0.0, v[2])
 		_add(buf, debris, 0.12, v[3])
 		_add(buf, rumble, 0.05, v[4])
+		_add(buf, punch, 0.0, 1.4)
+		_add(buf, snap, 0.0, 0.9)
 		var peak := 0.0001
 		for s in buf:
 			peak = maxf(peak, absf(s))
 		var n := buf.size()
 		for i in n:
-			var x := buf[i] / peak * 0.95
+			var x := buf[i] / peak * 1.0
 			var fade := 1.0
 			if i > n - int(0.45 * OUT):
 				fade = float(n - 1 - i) / (0.45 * OUT)
-			buf[i] = tanh(x * 1.1) / tanh(1.1) * 0.95 * fade
+			buf[i] = tanh(x * 1.3) / tanh(1.3) * 0.95 * fade
 		_save(dir.path_join("Vorschlag-Tank-Schockwelle-%s.wav" % name), buf)
+		_save(ProjectSettings.globalize_path("res://assets/sounds/tank_q.wav"), buf)      # Spiel nutzt diese Fassung
 		print("geschrieben: Vorschlag-Tank-Schockwelle-%s.wav" % name)
 	quit()
 
