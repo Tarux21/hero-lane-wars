@@ -99,6 +99,8 @@ var lane_off_g: Array[float] = []    # Quer-Mitte jeder Lane deines Teams in Spi
 
 var cam: Camera3D
 var hud: Label
+var hud_mid: Label
+var hud_right: Label
 var msg: Label
 var started := false
 var trace := false
@@ -898,6 +900,25 @@ func _build_hud() -> void:
 	hud_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hud_panel.add_child(hud)
 	layer.add_child(hud_panel)
+	hud_mid = Label.new()                                # Plakette oben in der Mitte: Welle und Zeit
+	hud_mid.add_theme_font_size_override("font_size", 17)
+	hud_mid.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var mid_panel := PanelContainer.new()
+	mid_panel.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	mid_panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	mid_panel.position.y = 8.0
+	mid_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	mid_panel.add_child(hud_mid)
+	layer.add_child(mid_panel)
+	hud_right = Label.new()                              # rechts oben: Kills
+	hud_right.add_theme_font_size_override("font_size", 15)
+	var right_panel := PanelContainer.new()
+	right_panel.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	right_panel.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	right_panel.position = Vector2(-8, 8)
+	right_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	right_panel.add_child(hud_right)
+	layer.add_child(right_panel)
 	msg = Label.new()
 	msg.set_anchors_preset(Control.PRESET_CENTER_TOP)
 	msg.position = Vector2(-120, 80)
@@ -2695,18 +2716,10 @@ func _sync_visuals(delta: float) -> void:
 	ring.visible = hero["bp"] > 0.0
 	var prog: float = hero["bp"] / maxf(0.01, hero["bp_max"])
 	ring.scale = Vector3(0.4 + 0.6 * prog, 1.0, 0.4 + 0.6 * prog)
-	var bp_txt := "in der Basis"
-	if hero["dead"] > 0.0:
-		bp_txt = "Held tot: %ds" % int(ceil(hero["dead"]))
-	elif hero["bp"] > 0.0:
-		bp_txt = "Cast %.1fs (Schaden unterbricht)" % hero["bp"]
-	elif not _in_base():
-		bp_txt = "CD %ds" % int(ceil(hero["bp_cd"])) if hero["bp_cd"] > 0.0 else "bereit"
 	var min_t := int(t) / 60
-	hud.text = "Gold %d    Einkommen +%.0f / %ds    Team-Leben %d  (Gegner %d)    Welle %d    Zeit %d:%02d
-Kills %d    [B] Backport: %s" % [
-		int(hero["gold"]), hero["income"], int(cfg["incomeTick"]), team_lives[0], team_lives[1], sides[0]["wave"], min_t, int(t) % 60,
-		kills, bp_txt]
+	hud.text = "Team-Leben  %d   (Gegner %d)\nEinkommen  +%.0f alle %d s" % [team_lives[0], team_lives[1], hero["income"], int(cfg["incomeTick"])]
+	hud_mid.text = "Welle %d\nZeit %d:%02d" % [sides[0]["wave"], min_t, int(t) % 60]
+	hud_right.text = "Kills  %d" % kills + ("\nHeld tot: %d s" % int(ceil(hero["dead"])) if hero["dead"] > 0.0 else "")
 	if mini != null:
 		mini.queue_redraw()
 	_update_skillbar()
