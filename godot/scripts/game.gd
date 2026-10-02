@@ -64,6 +64,8 @@ var acc := 0.0                         # Zeit-Sammler für feste Spielschritte
 var end_shown := false
 var end_layer: CanvasLayer
 var pause_label: Label
+var test_panel: PanelContainer         # Testfenster (F2): Level, Ränge, Gold, Monster usw. zum schnellen Ausprobieren
+var test_vals: Dictionary = {}
 var send_btns: Array = []              # Knöpfe zum Monster-Senden
 var bot: BotLib                               # Bot-Steuerung der Computer-Spieler (bot.gd)
 var snd: SfxLib                        # Sounds (sfx.gd)
@@ -99,6 +101,7 @@ var trace := false
 var selftest := false
 var selftest_items := false
 var shopshot := false                 # Test: Shop offen, Gold und ein paar Items fürs Screenshot
+var dbgshot := false                 # Test: Testfenster offen fürs Bild
 var golden := false                   # Szenario-Runner (Vergleich mit dem Prototyp)
 var golden_filter := ""
 var golden_eco := false
@@ -154,6 +157,8 @@ func _ready() -> void:
 			autoplay_skills = true
 		elif a == "--shopshot":
 			shopshot = true
+		elif a == "--dbgshot":
+			dbgshot = true
 		elif a == "--selftest-items":
 			selftest_items = true
 			no_bots = true
@@ -289,6 +294,8 @@ func _start_game() -> void:
 		bot.setup(hero, bot_diff, bot_style)
 	_build_hud()
 	started = true
+	if dbgshot and test_panel != null:
+		test_panel.visible = true
 	if shopshot:                         # Test: Shop zeigen
 		hero["gold"] = 1500.0
 		for id in ["bigSword", "rake", "hat", "heart"]:
@@ -688,6 +695,132 @@ func _mat(col: Color) -> StandardMaterial3D:
 	return mat
 
 
+## Testfenster (F2), wie im Browser-Prototyp: Werte des eigenen Helden und der Partie verstellen, ohne lange zu spielen.
+func _build_test_panel(layer: CanvasLayer) -> void:
+	test_panel = PanelContainer.new()
+	test_panel.anchor_left = 1.0
+	test_panel.anchor_right = 1.0
+	test_panel.offset_left = -352.0
+	test_panel.offset_right = -12.0
+	test_panel.custom_minimum_size = Vector2(340, 0)
+	test_panel.offset_top = 44.0
+	test_panel.add_theme_stylebox_override("panel", _flat(Color(0.1, 0.12, 0.17, 0.92)))
+	test_panel.visible = false
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 4)
+	test_panel.add_child(box)
+	var head := Label.new()
+	head.text = "Testfenster (F2)"
+	head.add_theme_color_override("font_color", Color("#ffd166"))
+	box.add_child(head)
+	for row in [["Level", "lvl", -1], ["Freie Skillpunkte", "sp", -1], ["Rang Q", "rank0", 0], ["Rang W", "rank1", 1], ["Rang E", "rank2", 2], ["Rang R", "rank3", 3]]:
+		var h := HBoxContainer.new()
+		var l := Label.new()
+		l.text = row[0]
+		l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		h.add_child(l)
+		var key: String = row[1]
+		for d in [-1, 1]:
+			var b := Button.new()
+			b.text = "−" if d < 0 else "+"
+			b.focus_mode = Control.FOCUS_NONE
+			b.custom_minimum_size = Vector2(30, 0)
+			var dd: int = d
+			b.pressed.connect(func(): _dbg(key, dd))
+			h.add_child(b)
+			if d < 0:
+				var v := Label.new()
+				v.custom_minimum_size = Vector2(34, 0)
+				v.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+				test_vals[key] = v
+				h.add_child(v)
+		box.add_child(h)
+	var grid := GridContainer.new()
+	grid.columns = 2
+	for bt in [["Alles max", "allmax"], ["Skills zurücksetzen", "reset"], ["Cooldowns 0", "cd"], ["+1000 Gold", "gold"], ["Welle jetzt", "wave"], ["Monster löschen", "clear"],
+			["Übungspuppen", "dummies"], ["Unsterblich: aus", "god"], ["Gegner-Leben ∞: aus", "inf"], ["Held heilen", "heal"]]:
+		var b2 := Button.new()
+		b2.text = bt[0]
+		b2.focus_mode = Control.FOCUS_NONE
+		b2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var act: String = bt[1]
+		b2.pressed.connect(func(): _dbg(act, 0))
+		grid.add_child(b2)
+		test_vals[act] = b2
+	box.add_child(grid)
+	var note := Label.new()
+	note.text = "Ränge ohne Level-Sperre.
+Puppen: stehende Monster zum Ausprobieren."
+	note.add_theme_font_size_override("font_size", 12)
+	box.add_child(note)
+	layer.add_child(test_panel)
+
+
+## Aktion des Testfensters
+func _dbg(a: String, d: int) -> void:
+	if hero.is_empty():
+		return
+	var mx := int(cfg["maxLevel"])
+	if a == "lvl":
+		hero["lvl"] = clampi(hero["lvl"] + d, 1, mx)
+		hero["xp"] = 0.0
+		hero["hp"] = minf(maxf(hero["hp"], 1.0), skills.h_max_hp(hero))
+	elif a == "sp":
+		hero["sp"] = maxi(0, hero["sp"] + d)
+	elif a.begins_with("rank"):
+		var i := int(a.substr(4))
+		hero["ranks"][i] = clampi(hero["ranks"][i] + d, 0, int(skills.skill_def(hero, i)["max"]))
+	elif a == "allmax":
+		hero["lvl"] = mx
+		for i in 4:
+			hero["ranks"][i] = int(skills.skill_def(hero, i)["max"])
+		hero["sp"] = 0
+		hero["hp"] = skills.h_max_hp(hero)
+	elif a == "reset":
+		hero["ranks"] = [0, 0, 0, 0]
+		hero["sp"] = hero["lvl"]
+	elif a == "cd":
+		hero["cds"] = [0.0, 0.0, 0.0, 0.0]
+		hero["bp_cd"] = 0.0
+		hero["pot_cd"] = 0.0
+	elif a == "gold":
+		hero["gold"] += 1000.0
+	elif a == "wave":
+		cur_side = 0
+		_spawn_wave(sides[0])
+	elif a == "clear":
+		for u in units.duplicate():
+			_free(u["node"])
+		units.clear()
+	elif a == "dummies":                  # 9 stehende, sehr zähe Monster vor dem Helden
+		for i in 9:
+			_spawn_unit("grunt", 0.0, 1.0, hero["lane"], 0)
+			var u: Dictionary = units[units.size() - 1]
+			u["x"] = hero["x"] + 170.0 + (i % 3) * 55.0 + (i / 3) * 40.0
+			u["y"] = hero["y"] - 70.0 + (i / 3) * 70.0 + (i % 3) * 20.0
+			u["hp"] = 1e6
+			u["max"] = 1e6
+			u["stun"] = 1e7
+	elif a == "god":
+		hero["god"] = not hero.get("god", false)
+	elif a == "inf":
+		team_lives[1] = int(cfg["startLives"]) if team_lives[1] > 100000000 else 1000000000
+	elif a == "heal":
+		hero["hp"] = skills.h_max_hp(hero)
+		hero["dead"] = 0.0
+
+
+func _update_test_panel() -> void:
+	if test_panel == null or not test_panel.visible or hero.is_empty():
+		return
+	(test_vals["lvl"] as Label).text = str(hero["lvl"])
+	(test_vals["sp"] as Label).text = str(hero["sp"])
+	for i in 4:
+		(test_vals["rank%d" % i] as Label).text = str(hero["ranks"][i])
+	(test_vals["god"] as Button).text = "Unsterblich: " + ("an" if hero.get("god", false) else "aus")
+	(test_vals["inf"] as Button).text = "Gegner-Leben ∞: " + ("an" if team_lives[1] > 100000000 else "aus")
+
+
 ## Lautstärkeregler oben rechts (wird gespeichert). 0 = stumm.
 func _build_volume_slider(layer: CanvasLayer) -> void:
 	if snd == null:
@@ -724,6 +857,7 @@ func _build_hud() -> void:
 	var layer := CanvasLayer.new()
 	add_child(layer)
 	_build_volume_slider(layer)
+	_build_test_panel(layer)
 	vignette = TextureRect.new()         # roter Rand: Lebensverlust, Tod, wenig Leben
 	var grad := Gradient.new()
 	grad.offsets = PackedFloat32Array([0.55, 1.0])
@@ -1727,6 +1861,8 @@ func _hit_unit(u: Dictionary, dmg: float) -> float:
 func _damage_hero(p: Dictionary, dmg: float, src: Variant = null) -> void:
 	if p["dead"] > 0.0:
 		return
+	if p.get("god", false):
+		return                           # Testfenster: unsterblich
 	var my_units: Array = units_of(p)
 	var raw := dmg                       # Dornen/Reflexion rechnen mit dem ungekürzten Schaden
 	dmg *= (1.0 - float(p["dr"]))        # verringerter Schaden durch Items
@@ -2536,6 +2672,7 @@ func _sync_visuals(delta: float) -> void:
 	_update_skillbar()
 	_update_shop()
 	_update_send()
+	_update_test_panel()
 
 
 func _ground_point(screen_pos: Vector2) -> Vector3:
@@ -2557,6 +2694,9 @@ func _mouse_info() -> Dictionary:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if started and event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_F2 and test_panel != null:
+		test_panel.visible = not test_panel.visible
+		return
 	if started and event is InputEventKey and event.pressed and event.keycode == KEY_SPACE:
 		cam_free = false                  # Leertaste: Kamera zurück zum Helden
 	if event is InputEventMouseButton and event.pressed:   # Mausrad: Kamera näher/weiter weg
@@ -2817,6 +2957,20 @@ func _selftest() -> void:
 	space.pressed = true
 	_unhandled_input(space)
 	check.call("Leertaste: Kamera wieder am Helden", not cam_free)
+	# 7. Testfenster
+	_dbg("allmax", 0)
+	check.call("Testfenster: Alles max (Level %d, Rang Q %d)" % [hero["lvl"], hero["ranks"][0]], hero["lvl"] == int(cfg["maxLevel"]) and hero["ranks"][0] == int(skills.skill_def(hero, 0)["max"]))
+	_dbg("reset", 0)
+	check.call("Testfenster: Skills zurücksetzen", hero["ranks"][0] == 0 and hero["sp"] == hero["lvl"])
+	_dbg("dummies", 0)
+	var n_before := units.size()
+	_dbg("clear", 0)
+	check.call("Testfenster: Puppen und Löschen (%d -> %d)" % [n_before, units.size()], n_before >= 9 and units.size() == 0)
+	_dbg("god", 0)
+	var hp0: float = hero["hp"]
+	_damage_hero(hero, 50.0)
+	check.call("Testfenster: Unsterblich", hero["hp"] == hp0)
+	_dbg("god", 0)
 	# 7. Monster der 2. Lane laufen am Ende auf den gemeinsamen Team-Kristall zu
 	units.clear()
 	hero["x"] = 2000.0

@@ -6,6 +6,7 @@ Ziel: Das Spiel als 3D-Spiel mit Kamera von schräg oben (wie LoL/Warcraft). Der
 - Spiel direkt: `Godot-Spiel-starten.bat` im Projektordner (Doppelklick). Der Pfad zu Godot steht oben in der Datei.
 - Editor: `Godot-Editor-oeffnen.bat`.
 - Steuerung: **Rechtsklick** auf den Boden = laufen, auf ein Monster = angreifen. Der Held greift automatisch an.
+- **Testfenster (F2):** Level, Skillpunkte, Ränge Q W E R, Alles max, Cooldowns 0, +1000 Gold, Welle jetzt, Monster löschen, Übungspuppen (stehende Monster zum Ausprobieren), Unsterblich, Gegner-Leben ∞, Held heilen. Zum schnellen Testen von Fähigkeiten und Sounds.
 
 ## Stand (Meilenstein 1)
 Enthalten: 3D-Szene, Kamera, Held (alle 3 Klassen mit Originalwerten), Auto-Angriffe, Monsterwellen (Elite ab Welle 10, Boss Welle 20 nur als starker Gegner), Level/XP, Gold und Einkommen, Lebensverlust, Tod und Wiederbelebung, Anzeige.
