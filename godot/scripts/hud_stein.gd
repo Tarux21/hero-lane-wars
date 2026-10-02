@@ -36,6 +36,7 @@ var was_paused := false
 var bar: HBoxContainer
 var mini_reserved := 270.0
 var options_panel: ScrollContainer
+var menu_stack: Control
 var tip: Control                     # Hinweis der Fähigkeit unter der Maus (steht immer an derselben Stelle über der Leiste)
 var tip_idx := -1
 var tip_text := ""
@@ -486,6 +487,7 @@ func build_menu(layer: CanvasLayer) -> void:
 	menu_root.add_child(center)
 	var stack := Control.new()
 	stack.custom_minimum_size = Vector2(620, 620)
+	menu_stack = stack
 	center.add_child(stack)
 	menu_main = _menu_panel("Menü", [["Weiter spielen", toggle_menu], ["Optionen", func(): _show_page(menu_options)], ["Speichern", Callable()],
 		["Zurück zum Hauptmenü", func(): _show_page(menu_confirm)]])
@@ -563,6 +565,9 @@ func _build_options() -> PanelContainer:
 
 
 func _show_page(page: Control) -> void:
+	var vh: float = g.get_viewport().get_visible_rect().size.y                   # bei großer Oberfläche ist weniger Platz: Fenster passt sich an
+	menu_stack.custom_minimum_size = Vector2(620, minf(620.0, vh - 30.0))
+	options_panel.custom_minimum_size.y = clampf(vh - 200.0, 200.0, 470.0)
 	for p in [menu_main, menu_options, menu_confirm]:
 		(p as Control).visible = p == page
 
