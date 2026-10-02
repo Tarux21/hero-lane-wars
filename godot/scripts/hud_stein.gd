@@ -1,27 +1,30 @@
 extends RefCounted
-## Oberfläche im Steinrahmen-Stil (Warcraft-Look), alles im Code gezeichnet: Thema (Knöpfe, Felder, Hinweise), untere Leiste
-## mit Heldenbild, Lebens- und Erfahrungsbalken, vier Fähigkeitsfeldern mit Bildchen, Rucksack, Knöpfen für Shop, Pause und Menü,
-## sowie das Menü (Optionen mit Lautstärke, Speichern (folgt), Zurück zum Hauptmenü).
+## Oberfläche (Stein-/Metall-Stil, Anordnung nach dem League-of-Legends-Vorbild), alles im Code gezeichnet: Thema (Knöpfe, Felder, Hinweise),
+## untere Leiste mit rundem Heldenbild, Fähigkeiten (Bildchen, Plus-Knöpfe, Rang-Punkte), Leben und Erfahrung, Rucksack mit Gold (Klick = Shop),
+## Trank und Backport, sowie das Menü (Esc: Optionen mit Lautstärke und Anzeige, Speichern (folgt), Zurück zum Hauptmenü).
+## Das Aussehen ändert sich mit der Klasse: Tank = Eisen, Schurke = dunkel, Magier = lila.
 
 const SkillIcon := preload("res://scripts/skill_icon.gd")
 const SkillSlot := preload("res://scripts/skill_slot.gd")
 
-const STONE := Color("#3b3733")
-const STONE_DARK := Color("#27241f")
-const GOLD := Color("#b49a5c")
-const GOLD_HI := Color("#e8c46a")
-const TEXT := Color("#ecdfbd")
-const TEXT_DIM := Color("#9a917c")
+const PALETTES := {
+	"stone": {"bg": Color("#3b3733"), "dark": Color("#27241f"), "border": Color("#b49a5c"), "hi": Color("#e8c46a"), "text": Color("#ecdfbd"), "dim": Color("#9a917c"), "plate": Color("#2b2824"), "inset": Color("#1c1a17")},
+	"tank": {"bg": Color("#3b4048"), "dark": Color("#23272d"), "border": Color("#8d99a8"), "hi": Color("#d3dbe6"), "text": Color("#e4e9f0"), "dim": Color("#8e97a3"), "plate": Color("#2a2e35"), "inset": Color("#1a1d22")},
+	"damage": {"bg": Color("#1d1b1e"), "dark": Color("#101012"), "border": Color("#8a3030"), "hi": Color("#d05555"), "text": Color("#ddd4d4"), "dim": Color("#8a7f7f"), "plate": Color("#18171a"), "inset": Color("#0b0b0d")},
+	"caster": {"bg": Color("#35264d"), "dark": Color("#1f1530"), "border": Color("#a384d8"), "hi": Color("#d6c1ff"), "text": Color("#efe4ff"), "dim": Color("#9d8cbd"), "plate": Color("#271a3a"), "inset": Color("#170f24")},
+}
 
 var g: Node
+var pal: Dictionary = PALETTES["stone"]
 var slots: Array = []
 var hp_bar: ProgressBar
 var hp_label: Label
 var xp_bar: ProgressBar
 var xp_label: Label
-var name_label: Label
-var portrait: Control
-var pause_btn: Button
+var level_label: Label
+var portrait_wrap: Control
+var gold_btn: Button
+var bp_btn: Button
 var menu_root: Control
 var menu_main: Control
 var menu_options: Control
@@ -29,16 +32,18 @@ var menu_confirm: Control
 var menu_open := false
 var was_paused := false
 var vol_slider: HSlider
-var bar: PanelContainer
+var bar: HBoxContainer
 var mini_reserved := 270.0
 var display_btn: OptionButton
 
 
 func _init(game: Node) -> void:
 	g = game
+	if not g.hero.is_empty():
+		pal = PALETTES.get(str(g.hero["key"]), PALETTES["stone"])
 
 
-static func box(bg: Color, border: Color = GOLD, bw: int = 3, radius: int = 3, margin: int = 8) -> StyleBoxFlat:
+static func box(bg: Color, border: Color, bw: int = 3, radius: int = 3, margin: int = 8) -> StyleBoxFlat:
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = bg
 	sb.border_color = border
@@ -48,82 +53,90 @@ static func box(bg: Color, border: Color = GOLD, bw: int = 3, radius: int = 3, m
 	return sb
 
 
-## Gemeinsames Thema für das ganze Fenster: Steinfelder, Goldrand, Pergament-Schrift
-static func make_theme() -> Theme:
+## Gemeinsames Thema für das ganze Fenster in den Farben der Klasse
+static func make_theme(p: Dictionary = {}) -> Theme:
+	if p.is_empty():
+		p = PALETTES["stone"]
 	var t := Theme.new()
-	t.set_color("font_color", "Label", TEXT)
-	t.set_stylebox("panel", "PanelContainer", box(STONE, GOLD, 3, 3, 8))
-	t.set_stylebox("panel", "Panel", box(STONE, GOLD, 3, 3, 8))
-	t.set_stylebox("normal", "Button", box(STONE_DARK, Color("#7a6a46"), 2, 3, 6))
-	t.set_stylebox("hover", "Button", box(Color("#4a443d"), GOLD_HI, 2, 3, 6))
-	t.set_stylebox("pressed", "Button", box(Color("#1f1c18"), GOLD_HI, 2, 3, 6))
-	t.set_stylebox("disabled", "Button", box(Color("#2a2825"), Color("#4d4636"), 2, 3, 6))
+	t.set_color("font_color", "Label", p["text"])
+	t.set_stylebox("panel", "PanelContainer", box(p["bg"], p["border"], 3, 3, 8))
+	t.set_stylebox("panel", "Panel", box(p["bg"], p["border"], 3, 3, 8))
+	t.set_stylebox("normal", "Button", box(p["dark"], p["border"].darkened(0.3), 2, 3, 6))
+	t.set_stylebox("hover", "Button", box(p["bg"].lightened(0.1), p["hi"], 2, 3, 6))
+	t.set_stylebox("pressed", "Button", box(p["inset"], p["hi"], 2, 3, 6))
+	t.set_stylebox("disabled", "Button", box(p["dark"].lightened(0.04), p["border"].darkened(0.6), 2, 3, 6))
 	t.set_stylebox("focus", "Button", StyleBoxEmpty.new())
-	t.set_color("font_color", "Button", TEXT)
-	t.set_color("font_hover_color", "Button", Color("#fff3c4"))
-	t.set_color("font_pressed_color", "Button", Color("#fff3c4"))
-	t.set_color("font_disabled_color", "Button", Color("#7f7765"))
-	t.set_stylebox("panel", "TooltipPanel", box(Color("#262321"), GOLD, 3, 3, 8))
-	t.set_color("font_color", "TooltipLabel", TEXT)
-	t.set_stylebox("panel", "PopupMenu", box(Color("#262321"), GOLD, 2, 3, 6))
-	t.set_stylebox("hover", "PopupMenu", box(Color("#4a443d"), GOLD_HI, 1, 2, 4))
-	t.set_color("font_color", "PopupMenu", TEXT)
-	t.set_color("font_hover_color", "PopupMenu", Color("#fff3c4"))
-	t.set_color("font_color", "CheckBox", TEXT)
-	t.set_color("font_hover_color", "CheckBox", Color("#fff3c4"))
+	t.set_color("font_color", "Button", p["text"])
+	t.set_color("font_hover_color", "Button", p["hi"].lightened(0.3))
+	t.set_color("font_pressed_color", "Button", p["hi"].lightened(0.3))
+	t.set_color("font_disabled_color", "Button", p["dim"].darkened(0.2))
+	t.set_stylebox("panel", "TooltipPanel", box(p["dark"], p["border"], 3, 3, 8))
+	t.set_color("font_color", "TooltipLabel", p["text"])
+	t.set_color("font_color", "CheckBox", p["text"])
+	t.set_color("font_hover_color", "CheckBox", p["hi"])
+	t.set_stylebox("panel", "PopupMenu", box(p["dark"], p["border"], 2, 3, 6))
+	t.set_stylebox("hover", "PopupMenu", box(p["bg"].lightened(0.1), p["hi"], 1, 2, 4))
+	t.set_color("font_color", "PopupMenu", p["text"])
+	t.set_color("font_hover_color", "PopupMenu", p["hi"])
 	return t
 
 
 # ---------------------------------------------------------------- untere Leiste
 func build_bar(layer: CanvasLayer, mini_w: float) -> void:
 	mini_reserved = mini_w + 28.0
-	bar = PanelContainer.new()                           # kompakter Block: so breit wie sein Inhalt, mittig unten (Position in update())
-	bar.custom_minimum_size = Vector2(0, 152)
-	bar.add_theme_stylebox_override("panel", box(STONE, GOLD, 4, 4, 10))
+	bar = HBoxContainer.new()                            # Block: Heldenbild, Fähigkeiten und Balken, Rucksack; mittig unten (Position in update())
+	bar.add_theme_constant_override("separation", 6)
 	layer.add_child(bar)
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 16)
-	bar.add_child(row)
-	row.add_child(_portrait_block())
-	row.add_child(_skills_block())
-	row.add_child(_right_block())
+	bar.add_child(_portrait())
+	bar.add_child(_center_panel())
+	bar.add_child(_items_panel())
 	bar.reset_size()
 
 
-func _portrait_block() -> Control:
-	var hb := HBoxContainer.new()
-	hb.add_theme_constant_override("separation", 10)
-	var frame := PanelContainer.new()
-	frame.add_theme_stylebox_override("panel", box(Color("#1c1a17"), GOLD, 3, 3, 4))
-	frame.custom_minimum_size = Vector2(84, 84)
+func _portrait() -> Control:
+	portrait_wrap = Control.new()
+	portrait_wrap.custom_minimum_size = Vector2(70, 100)      # ragt nach oben über die Leiste hinaus
+	portrait_wrap.size_flags_vertical = Control.SIZE_SHRINK_END
+	portrait_wrap.z_index = 3
+	portrait_wrap.mouse_filter = Control.MOUSE_FILTER_STOP
 	var ic := SkillIcon.new()
 	ic.kind = "class_" + str(g.hero["key"])
-	ic.plate = Color.html(str(g.hero["d"]["col"])).darkened(0.55)
-	ic.custom_minimum_size = Vector2(72, 72)
-	frame.add_child(ic)
-	hb.add_child(frame)
-	portrait = ic
+	ic.round_look = true
+	ic.plate = Color.html(str(g.hero["d"]["col"])).darkened(0.6)
+	ic.ring = pal["border"]
+	ic.position = Vector2(-4, 8)
+	ic.size = Vector2(88, 88)
+	ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	portrait_wrap.add_child(ic)
+	var badge := PanelContainer.new()
+	badge.add_theme_stylebox_override("panel", box(pal["dark"], pal["border"], 2, 14, 2))
+	badge.position = Vector2(50, 72)
+	badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	level_label = Label.new()
+	level_label.add_theme_font_size_override("font_size", 13)
+	level_label.add_theme_color_override("font_color", pal["hi"])
+	level_label.custom_minimum_size = Vector2(22, 0)
+	level_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	badge.add_child(level_label)
+	portrait_wrap.add_child(badge)
+	return portrait_wrap
+
+
+func _center_panel() -> Control:
+	var pc := PanelContainer.new()
+	pc.add_theme_stylebox_override("panel", box(pal["bg"], pal["border"], 3, 4, 8))
 	var vb := VBoxContainer.new()
 	vb.add_theme_constant_override("separation", 4)
-	vb.custom_minimum_size = Vector2(176, 0)
-	name_label = Label.new()
-	name_label.add_theme_font_size_override("font_size", 16)
-	vb.add_child(name_label)
-	hp_bar = _bar(Color("#4cd964"), 24.0)
+	pc.add_child(vb)
+	vb.add_child(_skills_block())
+	hp_bar = _bar(Color("#4cd964"), 20.0)
 	hp_label = _bar_label(hp_bar)
 	vb.add_child(hp_bar)
-	xp_bar = _bar(Color("#6fa8ff"), 16.0)
+	xp_bar = _bar(Color("#6fa8ff"), 14.0)
 	xp_label = _bar_label(xp_bar)
-	xp_label.add_theme_font_size_override("font_size", 11)
+	xp_label.add_theme_font_size_override("font_size", 10)
 	vb.add_child(xp_bar)
-	var hint := Label.new()
-	hint.text = "Lebensbalken: auch über dem Helden"
-	hint.add_theme_font_size_override("font_size", 10)
-	hint.add_theme_color_override("font_color", TEXT_DIM)
-	hint.visible = false
-	vb.add_child(hint)
-	hb.add_child(vb)
-	return hb
+	return pc
 
 
 func _bar(fill: Color, h: float) -> ProgressBar:
@@ -132,7 +145,7 @@ func _bar(fill: Color, h: float) -> ProgressBar:
 	pb.custom_minimum_size = Vector2(0, h)
 	pb.min_value = 0.0
 	pb.max_value = 1.0
-	pb.add_theme_stylebox_override("background", box(Color("#15130f"), Color("#7a6a46"), 2, 2, 0))
+	pb.add_theme_stylebox_override("background", box(pal["inset"], pal["border"].darkened(0.3), 2, 2, 0))
 	pb.add_theme_stylebox_override("fill", box(fill, fill, 0, 2, 0))
 	return pb
 
@@ -142,7 +155,7 @@ func _bar_label(pb: ProgressBar) -> Label:
 	l.set_anchors_preset(Control.PRESET_FULL_RECT)
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	l.add_theme_font_size_override("font_size", 13)
+	l.add_theme_font_size_override("font_size", 12)
 	l.add_theme_color_override("font_outline_color", Color.BLACK)
 	l.add_theme_constant_override("outline_size", 4)
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -152,7 +165,7 @@ func _bar_label(pb: ProgressBar) -> Label:
 
 func _skills_block() -> Control:
 	var hb := HBoxContainer.new()
-	hb.add_theme_constant_override("separation", 10)
+	hb.add_theme_constant_override("separation", 8)
 	slots.clear()
 	var keys := ["Q", "W", "E", "R"]
 	var icon_kinds: Dictionary = {
@@ -161,25 +174,26 @@ func _skills_block() -> Control:
 		"caster": ["firefield", "frostcone", "chain", "elemental"]}
 	for i in 4:
 		var col := VBoxContainer.new()
-		col.add_theme_constant_override("separation", 3)
+		col.add_theme_constant_override("separation", 2)
 		var plus := Button.new()
 		plus.text = "+"
-		plus.custom_minimum_size = Vector2(36, 24)
+		plus.custom_minimum_size = Vector2(34, 22)
 		plus.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 		plus.focus_mode = Control.FOCUS_NONE
-		plus.add_theme_color_override("font_color", GOLD_HI)
+		plus.add_theme_color_override("font_color", pal["hi"])
 		plus.tooltip_text = "Fähigkeit verbessern (Skillpunkt einsetzen)"
 		var idx: int = i
 		plus.pressed.connect(func(): g.skills.learn(g.hero, idx))
 		col.add_child(plus)
 		var slot := SkillSlot.new()
-		slot.add_theme_stylebox_override("panel", box(Color("#1c1a17"), GOLD, 3, 3, 4))
+		slot.set_meta("pal", pal)
+		slot.add_theme_stylebox_override("panel", box(pal["inset"], pal["border"], 3, 3, 3))
 		var holder := Control.new()
-		holder.custom_minimum_size = Vector2(64, 64)
+		holder.custom_minimum_size = Vector2(60, 60)
 		slot.add_child(holder)
 		var ic := SkillIcon.new()
 		ic.kind = str(icon_kinds[str(g.hero["key"])][i])
-		ic.plate = Color("#2b2824")
+		ic.plate = pal["plate"]
 		ic.set_anchors_preset(Control.PRESET_FULL_RECT)
 		holder.add_child(ic)
 		var cd := ColorRect.new()
@@ -194,7 +208,7 @@ func _skills_block() -> Control:
 		cdl.set_anchors_preset(Control.PRESET_FULL_RECT)
 		cdl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		cdl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		cdl.add_theme_font_size_override("font_size", 20)
+		cdl.add_theme_font_size_override("font_size", 19)
 		cdl.add_theme_color_override("font_outline_color", Color.BLACK)
 		cdl.add_theme_constant_override("outline_size", 6)
 		cdl.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -203,16 +217,16 @@ func _skills_block() -> Control:
 		kl.text = keys[i]
 		kl.position = Vector2(4, 0)
 		kl.add_theme_font_size_override("font_size", 12)
-		kl.add_theme_color_override("font_color", GOLD_HI)
+		kl.add_theme_color_override("font_color", pal["hi"])
 		kl.add_theme_color_override("font_outline_color", Color.BLACK)
 		kl.add_theme_constant_override("outline_size", 4)
 		kl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		holder.add_child(kl)
 		var lock := Label.new()
 		lock.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-		lock.offset_top = -18.0
+		lock.offset_top = -17.0
 		lock.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		lock.add_theme_font_size_override("font_size", 11)
+		lock.add_theme_font_size_override("font_size", 10)
 		lock.add_theme_color_override("font_outline_color", Color.BLACK)
 		lock.add_theme_constant_override("outline_size", 4)
 		lock.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -220,31 +234,20 @@ func _skills_block() -> Control:
 		col.add_child(slot)
 		var pips := Label.new()
 		pips.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		pips.add_theme_font_size_override("font_size", 11)
-		pips.add_theme_color_override("font_color", GOLD_HI)
+		pips.add_theme_font_size_override("font_size", 10)
+		pips.add_theme_color_override("font_color", pal["hi"])
 		col.add_child(pips)
 		hb.add_child(col)
 		slots.append({"plus": plus, "slot": slot, "icon": ic, "cd": cd, "cdl": cdl, "lock": lock, "pips": pips, "key": keys[i], "h": 66.0})
 	return hb
 
 
-func _right_block() -> Control:
+func _items_panel() -> Control:
+	var pc := PanelContainer.new()
+	pc.add_theme_stylebox_override("panel", box(pal["bg"], pal["border"], 3, 4, 8))
 	var vb := VBoxContainer.new()
-	vb.add_theme_constant_override("separation", 6)
-	var btns := HBoxContainer.new()
-	btns.add_theme_constant_override("separation", 6)
-	g.shop_btn = _small_button("Shop (Tab)")
-	g.shop_btn.pressed.connect(g._toggle_shop)
-	btns.add_child(g.shop_btn)
-	pause_btn = _small_button("Pause (P)")
-	pause_btn.pressed.connect(g._toggle_pause)
-	btns.add_child(pause_btn)
-	var menu_btn := _small_button("Menü (Esc)")
-	menu_btn.pressed.connect(toggle_menu)
-	btns.add_child(menu_btn)
-	vb.add_child(btns)
-	var lower := HBoxContainer.new()
-	lower.add_theme_constant_override("separation", 6)
+	vb.add_theme_constant_override("separation", 4)
+	pc.add_child(vb)
 	var grid := GridContainer.new()
 	grid.columns = 3
 	grid.add_theme_constant_override("h_separation", 4)
@@ -252,10 +255,10 @@ func _right_block() -> Control:
 	g.bag_btns.clear()
 	for i in int(g.cfg["bagSize"]):
 		var b := Button.new()
-		b.custom_minimum_size = Vector2(64, 46)
+		b.custom_minimum_size = Vector2(62, 40)
 		b.clip_text = true
 		b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		b.add_theme_font_size_override("font_size", 11)
+		b.add_theme_font_size_override("font_size", 10)
 		b.focus_mode = Control.FOCUS_NONE
 		var slot_i: int = i
 		b.pressed.connect(func():
@@ -264,25 +267,34 @@ func _right_block() -> Control:
 					g._flash_msg("Verkaufen nur in der Basis (Backport: B)"))
 		grid.add_child(b)
 		g.bag_btns.append(b)
-	lower.add_child(grid)
+	vb.add_child(grid)
+	gold_btn = Button.new()                              # Klick auf das Gold öffnet den Shop
+	gold_btn.custom_minimum_size = Vector2(0, 28)
+	gold_btn.focus_mode = Control.FOCUS_NONE
+	gold_btn.add_theme_color_override("font_color", Color("#f2c94c"))
+	gold_btn.add_theme_color_override("font_hover_color", Color("#ffe48a"))
+	gold_btn.tooltip_text = "Klick: Shop öffnen oder schließen (Taste Tab)"
+	gold_btn.pressed.connect(g._toggle_shop)
+	g.shop_btn = gold_btn
+	vb.add_child(gold_btn)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 4)
 	g.pot_btn = Button.new()
-	g.pot_btn.custom_minimum_size = Vector2(62, 96)
-	g.pot_btn.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	g.pot_btn.add_theme_font_size_override("font_size", 12)
+	g.pot_btn.custom_minimum_size = Vector2(92, 44)
+	g.pot_btn.add_theme_font_size_override("font_size", 11)
 	g.pot_btn.focus_mode = Control.FOCUS_NONE
+	g.pot_btn.tooltip_text = "Heiltrank trinken (Taste F)"
 	g.pot_btn.pressed.connect(func(): g.items.drink_potion(g.hero))
-	lower.add_child(g.pot_btn)
-	vb.add_child(lower)
-	return vb
-
-
-func _small_button(text: String) -> Button:
-	var b := Button.new()
-	b.text = text
-	b.custom_minimum_size = Vector2(84, 34)
-	b.focus_mode = Control.FOCUS_NONE
-	b.add_theme_font_size_override("font_size", 13)
-	return b
+	row.add_child(g.pot_btn)
+	bp_btn = Button.new()
+	bp_btn.custom_minimum_size = Vector2(92, 44)
+	bp_btn.add_theme_font_size_override("font_size", 11)
+	bp_btn.focus_mode = Control.FOCUS_NONE
+	bp_btn.tooltip_text = "Backport: zurück in die Basis (Taste B), Schaden unterbricht"
+	bp_btn.pressed.connect(func(): g._start_backport(g.hero))
+	row.add_child(bp_btn)
+	vb.add_child(row)
+	return pc
 
 
 # ---------------------------------------------------------------- Aktualisierung (jedes Bild)
@@ -292,11 +304,11 @@ func update() -> void:
 	_place_bar()
 	var h: Dictionary = g.hero
 	var sk = g.skills
-	name_label.text = "%s   Level %d" % [str(h["d"]["name"]), h["lvl"]]
+	level_label.text = str(h["lvl"])
 	var mx: float = sk.h_max_hp(h)
 	hp_bar.max_value = mx
 	hp_bar.value = clampf(h["hp"], 0.0, mx)
-	hp_label.text = "Leben  %d / %d" % [int(h["hp"]), int(mx)] if h["dead"] <= 0.0 else "Gefallen: %ds" % int(ceil(h["dead"]))
+	hp_label.text = "%d / %d" % [int(h["hp"]), int(mx)] if h["dead"] <= 0.0 else "Gefallen: %ds" % int(ceil(h["dead"]))
 	var frac: float = h["hp"] / maxf(1.0, mx)
 	var fill: Color = Color("#4cd964").lerp(Color("#ff4d3d"), clampf(1.0 - frac * 1.6, 0.0, 1.0))
 	hp_bar.add_theme_stylebox_override("fill", box(fill, fill, 0, 2, 0))
@@ -337,28 +349,37 @@ func update() -> void:
 			cdr_rect.anchor_bottom = 0.0
 			s["cdl"].text = ""
 		(s["slot"] as Control).tooltip_text = _skill_tip(i, def, r, rmax, unlock)
-	if pause_btn != null:
-		pause_btn.text = "Weiter (P)" if g.paused else "Pause (P)"
+	gold_btn.text = "Gold  %d" % int(h["gold"])
+	if h["bp"] > 0.0:
+		bp_btn.text = "Backport (B)\n%.1fs" % h["bp"]
+	elif g._in_base():
+		bp_btn.text = "Backport (B)\nin der Basis"
+	elif h["bp_cd"] > 0.0:
+		bp_btn.text = "Backport (B)\nCD %ds" % int(ceil(h["bp_cd"]))
+	else:
+		bp_btn.text = "Backport (B)\nbereit"
+	portrait_wrap.tooltip_text = "%s  ·  Level %d\nAngriff %d  ·  Rüstung %d\nAngriffstempo %.2f  ·  Lauftempo %d\nZauberkraft %d\n\nEsc: Menü  ·  P: Pause" % [
+		str(h["d"]["name"]), h["lvl"], int(sk.h_dmg(h)), int(sk.h_armor(h)), sk.h_as(h), int(sk.h_spd(h)), int(sk.h_sp(h))]
 
 
-## Leiste mittig unten, aber nie über die Minimap links
+## Block mittig unten, aber nie über die Minimap links
 func _place_bar() -> void:
 	if bar == null:
 		return
 	var vp: Vector2 = g.get_viewport().get_visible_rect().size
-	var w: float = bar.get_combined_minimum_size().x
-	var hgt: float = maxf(bar.get_combined_minimum_size().y, 152.0)
-	bar.size = Vector2(w, hgt)
-	var x: float = maxf((vp.x - w) / 2.0, mini_reserved)
-	x = minf(x, maxf(0.0, vp.x - w - 6.0))
-	bar.position = Vector2(x, vp.y - hgt - 8.0)
+	var ms := bar.get_combined_minimum_size()
+	bar.size = ms
+	var x: float = maxf((vp.x - ms.x) / 2.0, mini_reserved)
+	x = minf(x, maxf(0.0, vp.x - ms.x - 6.0))
+	bar.position = Vector2(x, vp.y - ms.y - 8.0)
 
 
 func _skill_tip(i: int, def: Dictionary, r: int, rmax: int, unlock: int) -> String:
 	var sk = g.skills
 	var h: Dictionary = g.hero
 	var passive: bool = def.get("passive", false)
-	var t := "[b][color=#e8c46a]%s[/color][/b]   [color=#b8b0a0](Taste %s)[/color]\n" % [str(def["name"]), str(slots[i]["key"])]
+	var hi: String = "#" + (pal["hi"] as Color).to_html(false)
+	var t := "[b][color=%s]%s[/color][/b]   [color=#b8b0a0](Taste %s)[/color]\n" % [hi, str(def["name"]), str(slots[i]["key"])]
 	var meta := "Rang %d von %d" % [r, rmax]
 	if not passive:
 		meta = "Abklingzeit %s s  ·  " % sk._f1(float(def["cd"]) * (1.0 - float(h["cdr"]))) + meta
@@ -375,7 +396,7 @@ func _skill_tip(i: int, def: Dictionary, r: int, rmax: int, unlock: int) -> Stri
 		else:
 			t += "[color=#8fd8ff]Rang 1:[/color] %s" % sk.tip(h, i, 1)
 	if int(h["sp"]) > 0 and sk.can_learn(h, i):
-		t += "\n\n[color=#e8c46a]Klick auf das Plus verbessert diese Fähigkeit.[/color]"
+		t += "\n\n[color=%s]Klick auf das Plus verbessert diese Fähigkeit.[/color]" % hi
 	return t
 
 
@@ -421,7 +442,7 @@ func build_menu(layer: CanvasLayer) -> void:
 func _menu_panel(title: String, entries: Array) -> PanelContainer:
 	var pc := PanelContainer.new()
 	pc.set_anchors_preset(Control.PRESET_TOP_WIDE)
-	pc.add_theme_stylebox_override("panel", box(STONE, GOLD, 4, 4, 18))
+	pc.add_theme_stylebox_override("panel", box(pal["bg"], pal["border"], 4, 4, 18))
 	var vb := VBoxContainer.new()
 	vb.add_theme_constant_override("separation", 10)
 	pc.add_child(vb)
@@ -429,7 +450,7 @@ func _menu_panel(title: String, entries: Array) -> PanelContainer:
 	tl.text = title
 	tl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	tl.add_theme_font_size_override("font_size", 24)
-	tl.add_theme_color_override("font_color", GOLD_HI)
+	tl.add_theme_color_override("font_color", pal["hi"])
 	vb.add_child(tl)
 	for e in entries:
 		var b := Button.new()
@@ -446,7 +467,7 @@ func _menu_panel(title: String, entries: Array) -> PanelContainer:
 func _build_options() -> PanelContainer:
 	var pc := PanelContainer.new()
 	pc.set_anchors_preset(Control.PRESET_TOP_WIDE)
-	pc.add_theme_stylebox_override("panel", box(STONE, GOLD, 4, 4, 18))
+	pc.add_theme_stylebox_override("panel", box(pal["bg"], pal["border"], 4, 4, 18))
 	var vb := VBoxContainer.new()
 	vb.add_theme_constant_override("separation", 12)
 	pc.add_child(vb)
@@ -454,7 +475,7 @@ func _build_options() -> PanelContainer:
 	tl.text = "Optionen"
 	tl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	tl.add_theme_font_size_override("font_size", 24)
-	tl.add_theme_color_override("font_color", GOLD_HI)
+	tl.add_theme_color_override("font_color", pal["hi"])
 	vb.add_child(tl)
 	var vl := Label.new()
 	vl.text = "Lautstärke"

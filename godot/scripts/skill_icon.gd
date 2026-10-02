@@ -5,6 +5,8 @@ extends Control
 
 var kind := "shock"
 var plate := Color("#2b2a28")
+var round_look := false              # rund (Heldenbild): Kreis statt Quadrat, Zeichnung etwas kleiner
+var ring := Color("#b49a5c")
 
 
 func _ready() -> void:
@@ -46,7 +48,11 @@ func _dagger(cx: float, cy: float, ang: float, len: float, col: Color, handle: C
 
 
 func _draw() -> void:
-	draw_rect(Rect2(Vector2.ZERO, size), plate)
+	if round_look:
+		draw_circle(size / 2.0, size.x / 2.0, plate)
+		draw_set_transform(size * 0.14, 0.0, Vector2(0.72, 0.72))
+	else:
+		draw_rect(Rect2(Vector2.ZERO, size), plate)
 	match kind:
 		"shock":
 			var gold := Color("#e8c46a")
@@ -145,4 +151,6 @@ func _draw() -> void:
 			_circle(0.66, 0.2, 0.13, Color("#7fd6ff"))
 			_circle(0.66, 0.2, 0.06, Color("#ffffff"))
 			_circle(0.66, 0.2, 0.18, Color(0.5, 0.85, 1.0, 0.25))
-	draw_rect(Rect2(Vector2.ZERO, size), Color(0, 0, 0, 0), false)
+	if round_look:
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+		draw_arc(size / 2.0, size.x / 2.0 - 2.0, 0.0, TAU, 40, ring, 4.0, true)

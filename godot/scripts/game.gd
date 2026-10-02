@@ -1108,6 +1108,7 @@ func _update_shop() -> void:
 ## Skill-Leiste unten in der Mitte: 4 Plätze (Q W E R) mit Rang, Abklingzeit und "+" zum Lernen.
 func _build_skillbar(layer: CanvasLayer) -> void:
 	ui = HudStein.new(self)
+	get_window().theme = HudStein.make_theme(ui.pal)     # Farben der Klasse (Tank Eisen, Schurke dunkel, Magier lila)
 	ui.build_bar(layer, MINI_W)
 	ui.build_menu(layer)
 
@@ -1166,6 +1167,8 @@ func _draw_minimap() -> void:
 	var z_top: float = m["z_top"]
 	var z_bot: float = m["z_bot"]
 	mini.draw_rect(Rect2(0, 0, MINI_W, MINI_H), Color(0.05, 0.06, 0.08, 0.82))
+	if ui != null:
+		mini.draw_rect(Rect2(1.5, 1.5, MINI_W - 3.0, MINI_H - 3.0), ui.pal["border"], false, 3.0)     # Rahmen in den Farben der Klasse
 	var river_x: float = (lane_xs[lanes_per_team - 1] + lane_xs[lanes_per_team]) / 2.0
 	var rp := _mini_pt(m, river_x - 2.5, z_top)
 	mini.draw_rect(Rect2(rp.x, rp.y, 5.0 * m["sx"], (z_bot - z_top) * m["sy"]), Color("#1f5fa8"))
