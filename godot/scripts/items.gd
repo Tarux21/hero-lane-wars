@@ -144,6 +144,7 @@ func recalc(p: Dictionary) -> void:
 
 
 func drink_potion(p: Dictionary) -> bool:
+	g.cur_side = p["side"]["idx"]
 	if p["dead"] > 0.0 or p["cons"].get("potion", 0) < 1 or p["pot_cd"] > 0.0 or p["hp"] >= g.skills.h_max_hp(p):
 		return false
 	p["cons"]["potion"] -= 1

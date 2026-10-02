@@ -81,7 +81,7 @@ func affect(p: Dictionary, u: Dictionary, dmg: float, o: Dictionary = {}) -> voi
 	if p["spell_vamp"] > 0.0 and dealt > 0.0:                       # Zauberraub: Fähigkeitsschaden heilt (abgeschwächt)
 		var vf := 2.0 if p["uniq"].has("vengeance") and p["hp"] < 0.4 * h_max_hp(p) else 1.0
 		p["hp"] = minf(h_max_hp(p), p["hp"] + dealt * p["spell_vamp"] * vf * float(cfg["svFactor"]))
-	if not g.units.has(u):
+	if not g.units_of(p).has(u):
 		return
 	g.apply_torment(p, u)
 	if o.get("stun", 0.0) > 0.0:
@@ -104,8 +104,8 @@ func _dist(u: Dictionary, x: float, y: float) -> float:
 
 func circle_hit(p: Dictionary, cx: float, cy: float, radius: float, dmg: float, o: Dictionary = {}, col: String = "") -> int:
 	var n := 0
-	for u in g.units.duplicate():
-		if g.units.has(u) and _dist(u, cx, cy) <= radius + u["r"]:
+	for u in g.units_of(p).duplicate():
+		if g.units_of(p).has(u) and _dist(u, cx, cy) <= radius + u["r"]:
 			affect(p, u, dmg, o)
 			n += 1
 	g.fx_ring(cx, cy, radius, 0.45, col if col != "" else str(p["d"]["col"]))
@@ -115,8 +115,8 @@ func circle_hit(p: Dictionary, cx: float, cy: float, radius: float, dmg: float, 
 func cone_hit(p: Dictionary, ox: float, oy: float, ang: float, range_: float, half: float, dmg: float, o: Dictionary = {}, col: String = "") -> void:
 	var ux := cos(ang)
 	var uy := sin(ang)
-	for u in g.units.duplicate():
-		if not g.units.has(u):
+	for u in g.units_of(p).duplicate():
+		if not g.units_of(p).has(u):
 			continue
 		var vx: float = u["x"] - ox
 		var vy: float = u["y"] - oy
@@ -144,7 +144,7 @@ func chain_lightning(p: Dictionary, from: Vector2, first: Dictionary, count: int
 		dmg *= falloff
 		var best: Variant = null
 		var bd := 1e9
-		for u in g.units:
+		for u in g.units_of(p):
 			if hit.has(u):
 				continue
 			var d := _dist(u, from.x, from.y)
@@ -159,10 +159,10 @@ func ground_point(p: Dictionary, m: Dictionary, range_: float) -> Vector2:
 	return Vector2(p["x"] + m["dx"] * k, g.clamp_lane_y(p["y"] + m["dy"] * k))
 
 
-func nearest_enemy(x: float, y: float, max_d: float) -> Variant:
+func nearest_enemy(p: Dictionary, x: float, y: float, max_d: float) -> Variant:
 	var best: Variant = null
 	var bd := max_d
-	for u in g.units:
+	for u in g.units_of(p):
 		var d := _dist(u, x, y)
 		if d < bd:
 			bd = d
@@ -185,6 +185,7 @@ func can_learn(p: Dictionary, i: int) -> bool:
 
 ## m = {dx, dy, dist, ang, wx, wy}: Richtung und Zielpunkt der Maus relativ zum Helden (Spielkoordinaten).
 func cast_slot(p: Dictionary, i: int, m: Dictionary) -> bool:
+	g.cur_side = p["side"]["idx"]
 	if p["dead"] > 0.0 or g.over:
 		return false
 	var s := skill_def(p, i)
@@ -256,7 +257,7 @@ func _tank_q(p: Dictionary, r: int, m: Dictionary) -> bool:
 func _tank_e(p: Dictionary, r: int, m: Dictionary) -> bool:
 	var dmg := dmg_of(p, 35.0, 14.0, r, 0.0, 0.8)
 	var targets := 5 if r >= 3 else 3
-	var cands: Array = g.units.filter(func(u): return _dist(u, p["x"], p["y"]) <= 450.0)
+	var cands: Array = g.units_of(p).filter(func(u): return _dist(u, p["x"], p["y"]) <= 450.0)
 	if cands.is_empty():
 		g.fx_text(p["x"] - 30.0, p["y"] - 40.0, "Keine Ziele!", "#ff9a8a", 1.2, 30)
 		return false
@@ -267,8 +268,8 @@ func _tank_e(p: Dictionary, r: int, m: Dictionary) -> bool:
 
 func _hop(p: Dictionary, from: Vector2, u_in: Variant, left: int, dmg: float, bleed: bool, hit: Array) -> void:
 	var u: Variant = u_in
-	if not g.units.has(u):                                                   # Ziel ist inzwischen tot: nächstes suchen
-		u = _nearest_not_hit(from, hit, 1e9)
+	if not g.units_of(p).has(u):                                                   # Ziel ist inzwischen tot: nächstes suchen
+		u = _nearest_not_hit(p, from, hit, 1e9)
 	if u == null or left <= 0:
 		_come_back(p, from)
 		return
@@ -276,7 +277,7 @@ func _hop(p: Dictionary, from: Vector2, u_in: Variant, left: int, dmg: float, bl
 	g.fx_line(from.x, from.y, u["x"], u["y"], 0.2, "#cfd8e8", 6.0)
 	var pos := Vector2(u["x"], u["y"])
 	affect(p, u, dmg, {"bleed": 3.0 if bleed else 0.0, "bleed_pct": 0.05})
-	var nxt: Variant = _nearest_not_hit(pos, hit, 220.0)
+	var nxt: Variant = _nearest_not_hit(p, pos, hit, 220.0)
 	g.later(0.15, func():
 		if nxt != null and left > 1:
 			_hop(p, pos, nxt, left - 1, dmg, bleed, hit)
@@ -284,10 +285,10 @@ func _hop(p: Dictionary, from: Vector2, u_in: Variant, left: int, dmg: float, bl
 			_come_back(p, pos))
 
 
-func _nearest_not_hit(from: Vector2, hit: Array, max_d: float) -> Variant:
+func _nearest_not_hit(p: Dictionary, from: Vector2, hit: Array, max_d: float) -> Variant:
 	var best: Variant = null
 	var bd := max_d
-	for e in g.units:
+	for e in g.units_of(p):
 		if hit.has(e):
 			continue
 		var d := _dist(e, from.x, from.y)
@@ -345,7 +346,7 @@ func leap_land(p: Dictionary) -> void:
 
 
 func _dmg_r(p: Dictionary) -> bool:
-	var pool: Array = g.pick_random(g.units.filter(func(u): return _dist(u, p["x"], p["y"]) <= 650.0), 5)
+	var pool: Array = g.pick_random(g.units_of(p).filter(func(u): return _dist(u, p["x"], p["y"]) <= 650.0), 5)
 	if pool.is_empty():
 		g.fx_text(p["x"] - 30.0, p["y"] - 40.0, "Keine Ziele!", "#ff9a8a", 1.2, 30)
 		return false
@@ -380,7 +381,7 @@ func _cas_q(p: Dictionary, r: int, m: Dictionary) -> bool:
 
 
 func _cas_e(p: Dictionary, r: int, m: Dictionary) -> bool:
-	var pool: Array = g.units.filter(func(u): return _dist(u, p["x"], p["y"]) <= 520.0)
+	var pool: Array = g.units_of(p).filter(func(u): return _dist(u, p["x"], p["y"]) <= 520.0)
 	if pool.is_empty():
 		return true                                                          # Prototyp: kein Ziel, aber Cooldown läuft trotzdem
 	pool.sort_custom(func(a, b): return _dist(a, m["wx"], m["wy"]) < _dist(b, m["wx"], m["wy"]))
@@ -401,7 +402,7 @@ func _cas_r(p: Dictionary) -> bool:
 
 # ---------------------------------------------------------------- Elementare (Caster-Ultimate)
 func elem_ability(e: Dictionary) -> bool:
-	var tgt: Variant = nearest_enemy(e["x"], e["y"], float(cfg["elemRange"]))
+	var tgt: Variant = nearest_enemy(e["p"], e["x"], e["y"], float(cfg["elemRange"]))
 	if tgt == null:
 		return false                                                         # kein Ziel: bald nochmal versuchen
 	var p: Dictionary = e["p"]
@@ -410,7 +411,7 @@ func elem_ability(e: Dictionary) -> bool:
 		var ang := atan2(tgt["y"] - e["y"], tgt["x"] - e["x"])
 		cone_hit(p, e["x"], e["y"], ang, 260.0, 0.6, 45.0 + 0.5 * sp, {"burn": 6.0, "burn_dps": 16.0 + 0.3 * sp}, "#ff6a2a")
 	elif e["type"] == "frost":
-		var pool: Array = g.pick_random(g.units.filter(func(u): return _dist(u, e["x"], e["y"]) <= float(cfg["elemRange"])), 3)
+		var pool: Array = g.pick_random(g.units_of(p).filter(func(u): return _dist(u, e["x"], e["y"]) <= float(cfg["elemRange"])), 3)
 		for u in pool:
 			g.add_zone({"x": u["x"], "y": u["y"], "r": 75.0, "t": 5.0, "tick": 0.0, "every": 1.0, "dmg": 7.0 + 0.2 * sp, "c": "#8fd8ff", "o": {"slow": 1.5}, "p": p})
 	else:
@@ -427,7 +428,7 @@ func update_elem(e: Dictionary, dt: float) -> bool:
 		return false
 	e["atk_t"] -= dt
 	if e["atk_t"] <= 0.0:
-		var t: Variant = nearest_enemy(e["x"], e["y"], 170.0)
+		var t: Variant = nearest_enemy(e["p"], e["x"], e["y"], 170.0)
 		if t != null:
 			e["atk_t"] = 1.2
 			g.fx_line(e["x"], e["y"], t["x"], t["y"], 0.12, str(ELEM_COL[e["type"]]), 2.0)

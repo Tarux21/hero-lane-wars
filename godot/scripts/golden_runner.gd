@@ -88,7 +88,7 @@ func _simulate(inp: Dictionary, with_casts: bool) -> Dictionary:
 			cast_i += 1
 		while hit_i < hits.size() and float(hits[hit_i]["t"]) <= now + 1e-9:
 			var h: Dictionary = hits[hit_i]
-			g._damage_hero(float(h["dmg"]), dummies[int(h["src"])] if int(h["src"]) < dummies.size() else null)
+			g._damage_hero(p, float(h["dmg"]), dummies[int(h["src"])] if int(h["src"]) < dummies.size() else null)
 			hit_i += 1
 		while next_snap < SNAP_TIMES.size() and absf(float(SNAP_TIMES[next_snap]) - now) < 1e-6:
 			snaps.append(_snapshot(float(SNAP_TIMES[next_snap]), p, dummies, dhp))

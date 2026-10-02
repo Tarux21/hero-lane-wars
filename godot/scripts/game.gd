@@ -10,6 +10,7 @@ const TEAM_SPACE := 28.0             # Abstand zwischen den Lane-Rändern der be
 const WALL_OPEN_BASE := 300.0        # bis hierhin (Spielwerte) ist die Basis offen: nur dort kommt man zur anderen Lane des Teams
 const SkillsLib := preload("res://scripts/skills.gd")
 const ItemsLib := preload("res://scripts/items.gd")
+const BotLib := preload("res://scripts/bot.gd")
 const GoldenRunner := preload("res://scripts/golden_runner.gd")
 const MINI_W := 290.0                # Größe der Minimap (Pixel)
 const MINI_H := 270.0
@@ -20,13 +21,14 @@ var cam_dist := 28.0                 # Kamera-Abstand zum Helden (Mausrad)
 var cfg: Dictionary
 var t := 0.0
 var team_lives: Array[int] = [20, 20]    # Leben je Team (gemeinsam): [dein Team, Gegner-Team]
-var wave := 0
-var wave_t: float
 var income_t := 0.0
 var over := false
 var hero_key := "damage"
-var hero: Dictionary = {}
-var units: Array = []
+var hero: Dictionary = {}            # der Spieler am Computer (players[0])
+var players: Array = []                # alle Spieler (Helden): du, deine Mitspieler (Bots) und die Gegner (Bots)
+var sides: Array = []                  # 2 Seiten (Teams): [0] = dein Team, [1] = Gegner-Team. Jede hat Monster, Leben, Wellen, Spieler
+var cur_side := 0                      # Seite, für die gerade gerechnet/gezeichnet wird (für Effekte aus skills.gd)
+var units: Array = []                 # Monster auf den Lanes DEINER Seite (gleiches Array wie sides[0]["units"])
 var texts: Array = []                # schwebende Zahlen
 var kills := 0
 var autoplay := false
@@ -41,6 +43,11 @@ var timers: Array = []                # zeitverzögerte Skill-Effekte
 var elems: Array = []                 # Caster-Elementare
 var fx_list: Array = []               # Skill-Effekte (Ringe, Kegel, Linien), blenden aus
 var skillbar: Array = []              # Oberfläche: die 4 Skill-Plätze
+var bot: BotLib                               # Bot-Steuerung der Computer-Spieler (bot.gd)
+var no_bots := false                   # Tests: keine Computer-Spieler
+var bot_diff: Dictionary = {}          # gewählte Schwierigkeit der Gegner
+var bot_style := "random"              # gewählter Spielstil der Gegner
+var winner := -1                       # nach Spielende: 0 = dein Team, 1 = Gegner
 var shop_panel: PanelContainer
 var shop_btn: Button
 var pot_btn: Button
@@ -80,6 +87,8 @@ func _ready() -> void:
 	cfg = Data.cfg
 	skills = SkillsLib.new(self)
 	items = ItemsLib.new(self)
+	bot = BotLib.new(self)
+	bot_diff = Data.raw["diff"]["normal"]
 	var sim_secs := 0.0
 	var shot_path := ""
 	var direct := false                  # Kommandozeile gibt Modus vor: Menü überspringen
@@ -106,16 +115,22 @@ func _ready() -> void:
 			shopshot = true
 		elif a == "--selftest-items":
 			selftest_items = true
+			no_bots = true
 			direct = true
 		elif a == "--golden":
 			golden = true
+			no_bots = true
 			direct = true
 		elif a.begins_with("--golden="):
 			golden = true
+			no_bots = true
 			golden_filter = a.substr(9)
 			direct = true
+		elif a == "--no-bots":
+			no_bots = true
 		elif a == "--selftest":
 			selftest = true
+			no_bots = true
 			direct = true
 		elif a.begins_with("--menushot="):
 			menu_shot = a.substr(11)
@@ -127,7 +142,8 @@ func _ready() -> void:
 			return
 		if selftest_items:
 			set_process(false)
-			wave_t = 1e9
+			for s in sides:
+				s["wave_t"] = 1e9
 			_selftest_items()
 			return
 		if golden:
@@ -151,10 +167,12 @@ func _ready() -> void:
 ## Startet eine Partie mit dem gewählten Modus (team_size) und Helden (hero_key).
 func _start_game() -> void:
 	team_lives = [int(cfg["startLives"]), int(cfg["startLives"])]
-	wave_t = cfg["firstWave"]
 	_setup_layout()
+	_setup_sides()
 	_build_world()
 	_spawn_hero()
+	if not no_bots:
+		_spawn_others()
 	_build_hud()
 	started = true
 	if shopshot:                         # Test: Shop zeigen
@@ -163,6 +181,31 @@ func _start_game() -> void:
 			items.buy(hero, id)
 		items.buy(hero, "potion")
 		shop_panel.visible = true
+
+
+## Zwei Seiten (Teams): Monster, Spieler, Wellen und Leben getrennt
+func _setup_sides() -> void:
+	sides.clear()
+	for i in 2:
+		sides.append({"idx": i, "units": [], "players": [], "wave": 0, "wave_t": float(cfg["firstWave"]), "boss_spawned": false, "leak": {}})
+	units = sides[0]["units"]
+
+
+## Mitspieler (Seite 0) und Gegner (Seite 1) als Bots
+func _spawn_others() -> void:
+	var keys: Array = Data.heroes.keys()
+	for s in 2:
+		for slot in team_size:
+			if s == 0 and slot == 0:
+				continue                 # das bist du
+			var key: String = keys[randi() % keys.size()]
+			var p := _make_player(key, s, slot, true)
+			var diff: Dictionary = bot_diff if s == 1 else Data.raw["diff"]["normal"]
+			p["gold_mul"] = float(diff["goldMul"]) if s == 1 else 1.0
+			p["mul"] = float(diff["heroMul"]) if s == 1 else 1.0
+			players.append(p)
+			sides[s]["players"].append(p)
+			bot.setup(p, diff, bot_style)
 
 
 ## Startmenü: Spielmodus (1v1, 2v2, 4v4) und Held wählen.
@@ -230,8 +273,9 @@ func _menu_row(label: String, opts: Array, current: Variant, on_pick: Callable) 
 # ---------------------------------------------------------------- Koordinaten
 ## Spielkoordinaten -> Welt: Die Lane läuft senkrecht über den Bildschirm (Basis unten, Monster kommen von oben).
 ## x = Weg entlang der Lane (0 = Basis), y = quer über alle Lanes deines Teams (Lane 1 hat die Mitte y = 0).
-func _wp(gx: float, gy: float) -> Vector3:
-	return Vector3(gy * S + lane_xs[0], 0.0, -gx * S)
+func _wp(gx: float, gy: float, side_idx: int = -1) -> Vector3:
+	var si := cur_side if side_idx < 0 else side_idx
+	return Vector3(gy * S + lane_xs[si * lanes_per_team], 0.0, -gx * S)
 
 
 ## Berechnet Lane-Breite, Lane-Mitten und Spieler-Plätze aus der Teamgröße.
@@ -762,16 +806,21 @@ func _draw_minimap() -> void:
 		var wa := _mini_pt(m, (lane_xs[0] + lane_xs[1]) / 2.0, z_top)
 		var wb := _mini_pt(m, (lane_xs[0] + lane_xs[1]) / 2.0, -float(WALL_OPEN_BASE) * S)
 		mini.draw_line(wa, wb, Color("#9aa3b5"), 2.0)
-	for u in units:
+	for u in units:                       # Monster auf deinen Lanes: rot
 		var d: Dictionary = u["def"]
 		var r := 2.5 + clampf(float(d["r"]) / 9.0, 0.0, 4.0) * 0.8
-		var w := _wp(u["x"], u["y"])
+		var w := _wp(u["x"], u["y"], 0)
 		mini.draw_circle(_mini_pt(m, w.x, w.z), r, Color("#ff3030"))
-	if hero["dead"] <= 0.0:
-		var hw := _wp(hero["x"], hero["y"])
-		var hp := _mini_pt(m, hw.x, hw.z)
-		mini.draw_circle(hp, 5.5, Color.WHITE)
-		mini.draw_circle(hp, 4.0, Color.html(hero["d"]["col"]))
+	for u in sides[1]["units"]:           # Gegner-Lane: nur deine gesendeten Monster im sichtbaren Abschnitt (orange)
+		if u["from_side"] == 0 and u["x"] <= float(ENEMY_LANE_VIEW):
+			var w2 := _wp(u["x"], u["y"], 1)
+			mini.draw_circle(_mini_pt(m, w2.x, w2.z), 3.0, Color("#ffb040"))
+	for p in sides[0]["players"]:         # Helden deines Teams
+		if p["dead"] <= 0.0:
+			var hw := _wp(p["x"], p["y"], 0)
+			var hp := _mini_pt(m, hw.x, hw.z)
+			mini.draw_circle(hp, 5.5 if p == hero else 4.0, Color.WHITE)
+			mini.draw_circle(hp, 4.0 if p == hero else 2.8, Color.html(p["d"]["col"]))
 	if cam != null and cam_init:          # Sichtfeld der Kamera
 		var sz := get_viewport().get_visible_rect().size
 		var pts := PackedVector2Array()
@@ -794,8 +843,22 @@ func _label3d(text: String, size: int, col: Color) -> Label3D:
 	return l
 
 
+## Erzeugt den Spieler am Computer (Seite 0, Platz 0).
 func _spawn_hero() -> void:
-	var d: Dictionary = Data.heroes[hero_key]
+	players.clear()
+	for s in sides:
+		s["players"].clear()
+	hero = _make_player(hero_key, 0, 0, false)
+	players.append(hero)
+	sides[0]["players"].append(hero)
+
+
+## Erzeugt einen Spieler (Held) auf einer Seite. Gold, Einkommen, Rucksack, Skills usw. hat jeder Spieler selbst.
+func _make_player(key: String, side_idx: int, slot: int, bot: bool) -> Dictionary:
+	var d: Dictionary = Data.heroes[key]
+	var per_lane := int(ceil(float(team_size) / lanes_per_team))
+	var lane_k := slot / per_lane
+	var home_y: float = lane_off_g[lane_k] + slot_ys[slot % per_lane]
 	var node := Node3D.new()
 	var body := MeshInstance3D.new()
 	var cap := CapsuleMesh.new()
@@ -805,7 +868,11 @@ func _spawn_hero() -> void:
 	body.position.y = 1.0
 	body.material_override = _mat(Color.html(d["col"]))
 	node.add_child(body)
-	var lab := _label3d("", 36, Color("#7be07b"))
+	var team_col := Color("#4fd8ff") if side_idx == 0 else Color("#ff6a4a")      # Teamfarbe unter dem Helden
+	var team_ring := _cyl(Vector3(0, 0.05, 0), 1.0, 0.04, team_col, team_col)
+	remove_child(team_ring)
+	node.add_child(team_ring)
+	var lab := _label3d("", 36, Color("#7be07b") if side_idx == 0 else Color("#ff9a8a"))
 	lab.position.y = 2.7
 	node.add_child(lab)
 	add_child(node)
@@ -813,15 +880,17 @@ func _spawn_hero() -> void:
 	ring.visible = false
 	remove_child(ring)                   # _cyl hängt es an die Szene, hier gehört es an den Helden
 	node.add_child(ring)
-	hero = {"key": hero_key, "d": d, "x": 120.0, "y": slot_ys[0], "lvl": 1, "xp": 0.0, "hp": float(d["hp"]), "dead": 0.0, "mul": 1.0,
+	return {"key": key, "d": d, "side": sides[side_idx], "bot": bot, "slot": slot, "home_y": home_y, "lane": lane_k,
+		"x": 120.0, "y": home_y, "lvl": 1, "xp": 0.0, "hp": float(d["hp"]), "dead": 0.0, "mul": 1.0,
 		"atk_t": 0.0, "target": null, "move_to": null, "deaths": 0, "node": node, "label": lab,
 		"bp": 0.0, "bp_cd": 0.0, "ring": ring,
 		"gold": float(cfg["startGold"]), "income": float(cfg["baseIncome"]),     # jeder Spieler hat eigenes Gold und Einkommen
 		"ranks": [0, 0, 0, 0], "cds": [0.0, 0.0, 0.0, 0.0], "sp": 1, "buffs": {}, "leap": null,
 		"last_elem": "", "combo_t": 0.0, "amp_now": false,
-		"bonus_hp": 0.0, "bonus_dmg": 0.0, "bonus_armor": 0.0, "bonus_as": 0.0, "bonus_sp": 0.0, "bonus_spd": 0.0,   # kommen später aus Items
+		"bonus_hp": 0.0, "bonus_dmg": 0.0, "bonus_armor": 0.0, "bonus_as": 0.0, "bonus_sp": 0.0, "bonus_spd": 0.0,
 		"uniq": {}, "spell_vamp": 0.0, "cdr": 0.0, "bonus_regen": 0.0, "dr": 0.0,
-		"bag": [], "cons": {"potion": 0}, "pot_cd": 0.0, "crit_ch": 0.0, "lifesteal": 0.0, "gps": 0.0, "bp_red": 0.0, "dmg_t": 99.0, "bp_max": 0.0}
+		"bag": [], "cons": {"potion": 0}, "pot_cd": 0.0, "crit_ch": 0.0, "lifesteal": 0.0, "gps": 0.0, "bp_red": 0.0, "dmg_t": 99.0, "bp_max": 0.0,
+		"boss_income": 0.0, "sent": {}, "kills": 0, "gold_mul": 1.0, "stat_gold": 0.0}
 
 
 # ---------------------------------------------------------------- Formeln (wie im Browser-Prototyp)
@@ -849,8 +918,14 @@ func _hp_mult() -> float:
 	return 1.0 + (t / 60.0) * float(cfg["hpScalePerMin"])
 
 
-func _in_base() -> bool:
-	return hero["x"] < float(cfg["baseX"]) and hero["dead"] <= 0.0
+func _in_base(p: Dictionary = {}) -> bool:
+	var q: Dictionary = p if not p.is_empty() else hero
+	return q["x"] < float(cfg["baseX"]) and q["dead"] <= 0.0
+
+
+## Monster auf der Seite des Spielers `p` (seine Gegner)
+func units_of(p: Dictionary) -> Array:
+	return p["side"]["units"]
 
 
 # ---------------------------------------------------------------- Schnittstelle für skills.gd (Zufall, Zeitgeber, Felder, Effekte)
@@ -872,7 +947,7 @@ func later(delay: float, fn: Callable) -> void:
 	if delay <= 0.0:
 		fn.call()
 	else:
-		timers.append({"t": delay, "fn": fn})
+		timers.append({"t": delay, "fn": fn, "side": cur_side})   # Seite merken: Effekte werden später für dieselbe Seite gezeichnet
 
 
 func cancel_backport(p: Dictionary) -> void:
@@ -886,7 +961,7 @@ func clamp_lane_y(y: float) -> float:
 
 ## Quälende Maske: Fähigkeitstreffer starten einen Schaden-über-Zeit-Effekt (pro Ziel mit Abklingzeit)
 func apply_torment(p: Dictionary, u: Dictionary) -> void:
-	if not p["uniq"].has("torment") or not units.has(u) or u["torm_cd"] > 0.0:
+	if not p["uniq"].has("torment") or not units_of(p).has(u) or u["torm_cd"] > 0.0:
 		return
 	u["torm_t"] = float(cfg["tormentTime"])
 	u["torm_tick"] = float(cfg["tormentEvery"])
@@ -904,6 +979,7 @@ func _free(n: Variant) -> void:
 
 
 func add_zone(z: Dictionary) -> void:
+	z["side"] = cur_side
 	if test_mode:
 		z["node"] = null
 		zones.append(z)
@@ -1044,14 +1120,15 @@ func _update_fx(delta: float) -> void:
 		var c: Color = z["col"]
 		c.a = 0.22 + 0.1 * sin(t * 6.0)
 		z["mat"].albedo_color = c
-		z["node"].position = _wp(z["x"], z["y"]) + Vector3(0, 0.1, 0)
+		z["node"].position = _wp(z["x"], z["y"], z["side"]) + Vector3(0, 0.1, 0)
 	for e in elems:
-		e["node"].position = _wp(e["x"], e["y"])
+		e["node"].position = _wp(e["x"], e["y"], e["p"]["side"]["idx"])
 		e["label"].text = "%s  %d  (%ds)" % [str(e["type"]).capitalize(), int(e["hp"]), int(e["t"])]
 
 
 # ---------------------------------------------------------------- Einheiten und Wellen
-func _spawn_unit(type: String, off_x: float, spd_mul: float, lane: int = 0) -> void:
+## Erzeugt ein Monster auf einer Lane der Seite `side_idx`. from_side: Seite, die es geschickt hat (-1 = Welle).
+func _spawn_unit(type: String, off_x: float, spd_mul: float, lane: int = 0, side_idx: int = 0, from_side: int = -1) -> void:
 	var u: Dictionary = Data.units[type]
 	var m := _hp_mult()
 	var node: Node3D = null
@@ -1067,13 +1144,14 @@ func _spawn_unit(type: String, off_x: float, spd_mul: float, lane: int = 0) -> v
 		node.add_child(body)
 		add_child(node)
 	var ly: float = lane_half_g - 16.0
-	units.append({"type": type, "lane": lane, "x": float(cfg["spawnX"]) + off_x + rand_pos() * 30.0, "y": lane_off_g[lane] + (rand_pos() * 2.0 - 1.0) * ly,
+	sides[side_idx]["units"].append({"type": type, "lane": lane, "side_idx": side_idx, "from_side": from_side,
+		"x": float(cfg["spawnX"]) + off_x + rand_pos() * 30.0, "y": lane_off_g[lane] + (rand_pos() * 2.0 - 1.0) * ly,
 		"hp": float(u["hp"]) * m, "max": float(u["hp"]) * m,
 		"dmg": float(u["dmg"]) * (1.0 + float(cfg["unitDmgScale"]) * (m - 1.0)),
 		"spd": float(u["spd"]) * spd_mul * float(cfg["speedMul"]), "range": float(u["range"]),
 		"armor": float(u["armor"]), "r": float(u["r"]), "atk_t": 0.0, "node": node, "def": u,
 		"stun": 0.0, "slow": 0.0, "burn": 0.0, "burn_dps": 0.0, "burn_t": 0.0, "bleed": 0.0, "bleed_pct": 0.0, "bleed_t": 0.0,
-		"torm_t": 0.0, "torm_tick": 0.0, "torm_dmg": 0.0, "torm_cd": 0.0})
+		"torm_t": 0.0, "torm_tick": 0.0, "torm_dmg": 0.0, "torm_cd": 0.0, "last_p": {}})
 
 
 ## Zufallswert für Startpositionen (in Tests fest, damit Läufe vergleichbar sind)
@@ -1081,21 +1159,24 @@ func rand_pos() -> float:
 	return 0.5 if deterministic else randf()
 
 
-func _spawn_wave() -> void:
-	wave += 1
-	var n := wave
+func _spawn_wave(side: Dictionary) -> void:
+	side["wave"] += 1
+	var n: int = side["wave"]
 	var count := int(round(float(cfg["waveBase"]) + float(cfg["wavePer"]) * n))
 	var from_x: float = minf(float(cfg["spawnX"]), float(cfg["rampStart"]) + float(cfg["rampStep"]) * (n - 1))
 	var base_off := from_x - float(cfg["spawnX"])
-	for lane in lanes_per_team:          # jede Lane deines Teams bekommt die Welle
+	var si: int = side["idx"]
+	for lane in lanes_per_team:          # jede Lane des Teams bekommt die Welle (gleich groß, egal wie viele Spieler)
 		for i in count:
-			_spawn_unit("grunt", base_off + i * 4.0, float(cfg["waveSpeedMul"]), lane)
+			_spawn_unit("grunt", base_off + i * 4.0, float(cfg["waveSpeedMul"]), lane, si)
 		if n % int(cfg["eliteEvery"]) == 0:
 			for k in int(cfg["eliteCount"]):
-				_spawn_unit("elite", base_off + count * 4.0 + 30.0 + k * 40.0, float(cfg["waveSpeedMul"]), lane)
-		if n == int(cfg["bossWave"]):
-			_spawn_unit("boss", base_off + count * 4.0 + 160.0, float(cfg["waveSpeedMul"]), lane)
-	_flash_msg("Welle %d" % n)
+				_spawn_unit("elite", base_off + count * 4.0 + 30.0 + k * 40.0, float(cfg["waveSpeedMul"]), lane, si)
+		if n == int(cfg["bossWave"]) and not side["boss_spawned"]:
+			side["boss_spawned"] = true
+			_spawn_unit("boss", base_off + count * 4.0 + 160.0, float(cfg["waveSpeedMul"]), lane, si)
+	if si == 0:
+		_flash_msg("Welle %d" % n)
 
 
 func _flash_msg(text: String) -> void:
@@ -1106,10 +1187,15 @@ func _flash_msg(text: String) -> void:
 
 
 func _kill_unit(u: Dictionary, p: Dictionary = {}) -> void:
-	units.erase(u)
+	var side: Dictionary = sides[u["side_idx"]]
+	side["units"].erase(u)
 	_free(u["node"])
-	kills += 1
-	var killer: Dictionary = p if not p.is_empty() else hero
+	var killer: Dictionary = p
+	if killer.is_empty():
+		killer = side["players"][0] if not side["players"].is_empty() else hero
+	if killer["side"]["idx"] == 0:
+		kills += 1
+	killer["kills"] += 1
 	var def: Dictionary = u["def"]
 	killer["gold"] += float(def["gold"]) if def.has("gold") else float(cfg["killGold"])
 	_gain_xp(float(def["xp"]), killer)
@@ -1123,7 +1209,7 @@ func _gain_xp(n: float, p: Dictionary = {}) -> void:
 		pl["lvl"] += 1
 		pl["sp"] += 1                                                     # 1 Skillpunkt pro Level, frei verteilbar
 		pl["hp"] += float(pl["d"]["hpl"])
-		_float_text("LEVEL %d" % pl["lvl"], _wp(pl["x"], pl["y"]) + Vector3(0, 3.2, 0), Color("#ffd166"), 48, 1.2)
+		_float_text("LEVEL %d" % pl["lvl"], _wp(pl["x"], pl["y"], pl["side"]["idx"]) + Vector3(0, 3.2, 0), Color("#ffd166"), 48, 1.2)
 
 
 func _float_text(text: String, pos: Vector3, col: Color, size: int, life: float) -> void:
@@ -1137,11 +1223,13 @@ func _float_text(text: String, pos: Vector3, col: Color, size: int, life: float)
 
 ## Schaden an einem Monster (Rüstung wird abgezogen). Gibt den tatsächlichen Schaden zurück.
 func hit_unit(u: Dictionary, dmg: float, p: Dictionary = {}) -> float:
-	if not units.has(u):
+	if not sides[u["side_idx"]]["units"].has(u):
 		return 0.0
 	var d := _reduce(dmg, u["armor"])
 	u["hp"] -= d
-	_float_text(str(int(round(d))), _wp(u["x"], u["y"]) + Vector3(0, 1.8, 0), Color.WHITE, 30, 0.5)
+	if not p.is_empty():
+		u["last_p"] = p                  # wem Kills durch Brennen/Blutung/Qual gutgeschrieben werden
+	_float_text(str(int(round(d))), _wp(u["x"], u["y"], u["side_idx"]) + Vector3(0, 1.8, 0), Color.WHITE, 30, 0.5)
 	if u["hp"] <= 0.0:
 		_kill_unit(u, p)
 	return d
@@ -1151,29 +1239,30 @@ func _hit_unit(u: Dictionary, dmg: float) -> float:
 	return hit_unit(u, dmg, hero)
 
 
-func _damage_hero(dmg: float, src: Variant = null) -> void:
-	if hero["dead"] > 0.0:
+func _damage_hero(p: Dictionary, dmg: float, src: Variant = null) -> void:
+	if p["dead"] > 0.0:
 		return
+	var my_units: Array = units_of(p)
 	var raw := dmg                       # Dornen/Reflexion rechnen mit dem ungekürzten Schaden
-	dmg *= (1.0 - float(hero["dr"]))     # verringerter Schaden durch Items
-	var eff := _reduce(dmg, _hero_armor())
-	hero["bp"] = 0.0                     # Schaden unterbricht den Backport
-	hero["hp"] -= eff
-	hero["dmg_t"] = 0.0                  # Lebensquell-Harnisch: Zeit seit dem letzten Schaden
-	_float_text("-" + str(int(round(eff))), _wp(hero["x"], hero["y"]) + Vector3(0, 3.0, 0), Color("#ff6b6b"), 30, 0.6)
-	var ir := skills.iron_passive(hero)  # Tank: Dornen geben einen Anteil des Schadens an den Angreifer zurück
-	if ir["reflect"] > 0.0 and src != null and units.has(src):
-		hit_unit(src, raw * float(ir["reflect"]) * float(cfg["reflectMul"]), hero)
-	if src != null and units.has(src) and hero["uniq"].has("thorns"):   # Dornen-Items: fester Schaden + Anteil der Item-Rüstung
-		hit_unit(src, (float(cfg["thornFlat"]) + float(cfg["thornArmorPct"]) * hero["bonus_armor"]) * float(cfg["reflectMul"]), hero)
-	if hero["hp"] <= 0.0:
-		hero["hp"] = 0.0
-		hero["deaths"] += 1
-		hero["dead"] = float(cfg["respawnBase"]) + float(cfg["respawnPerLevel"]) * hero["lvl"]
-		hero["target"] = null
-		hero["move_to"] = null
-		hero["buffs"] = {}
-		hero["leap"] = null
+	dmg *= (1.0 - float(p["dr"]))        # verringerter Schaden durch Items
+	var eff := _reduce(dmg, skills.h_armor(p))
+	p["bp"] = 0.0                        # Schaden unterbricht den Backport
+	p["hp"] -= eff
+	p["dmg_t"] = 0.0                     # Lebensquell-Harnisch: Zeit seit dem letzten Schaden
+	_float_text("-" + str(int(round(eff))), _wp(p["x"], p["y"], p["side"]["idx"]) + Vector3(0, 3.0, 0), Color("#ff6b6b"), 30, 0.6)
+	var ir := skills.iron_passive(p)     # Tank: Dornen geben einen Anteil des Schadens an den Angreifer zurück
+	if ir["reflect"] > 0.0 and src != null and my_units.has(src):
+		hit_unit(src, raw * float(ir["reflect"]) * float(cfg["reflectMul"]), p)
+	if src != null and my_units.has(src) and p["uniq"].has("thorns"):   # Dornen-Items: fester Schaden + Anteil der Item-Rüstung
+		hit_unit(src, (float(cfg["thornFlat"]) + float(cfg["thornArmorPct"]) * p["bonus_armor"]) * float(cfg["reflectMul"]), p)
+	if p["hp"] <= 0.0:
+		p["hp"] = 0.0
+		p["deaths"] += 1
+		p["dead"] = float(cfg["respawnBase"]) + float(cfg["respawnPerLevel"]) * p["lvl"]
+		p["target"] = null
+		p["move_to"] = null
+		p["buffs"] = {}
+		p["leap"] = null
 
 
 # ---------------------------------------------------------------- Spielschritt
@@ -1181,44 +1270,80 @@ func step(dt: float) -> void:
 	if over:
 		return
 	t += dt
-	hero["gold"] += hero["gps"] * dt                                          # Gold-Items: zusätzliches Einkommen pro Sekunde
-	# Einkommen und Wellen
+	# Einkommen: alle Spieler gleichzeitig alle incomeTick Sekunden (jeder sein eigenes Gold)
 	income_t += dt
+	var income_now := false
 	if income_t >= float(cfg["incomeTick"]):
 		income_t -= float(cfg["incomeTick"])
-		hero["gold"] += hero["income"]
-	wave_t -= dt
-	if wave_t <= 0.0:
-		_spawn_wave()
-		wave_t = float(cfg["earlyWaveEvery"]) if wave <= int(cfg["earlyWaves"]) else float(cfg["waveEvery"])
+		income_now = true
+	for p in players:
+		p["gold"] += p["gps"] * dt                                        # Gold-Items: zusätzliches Einkommen pro Sekunde
+		if income_now:
+			var inc: float = p["income"] * p["gold_mul"] * (1.0 + comeback_bonus(p))
+			p["gold"] += inc
+			p["stat_gold"] += inc
+	# Wellen: jede Seite hat ihre eigene
+	for side in sides:
+		side["wave_t"] -= dt
+		if side["wave_t"] <= 0.0:
+			cur_side = side["idx"]
+			_spawn_wave(side)
+			side["wave_t"] = float(cfg["earlyWaveEvery"]) if side["wave"] <= int(cfg["earlyWaves"]) else float(cfg["waveEvery"])
+			for p in side["players"]:
+				if p["boss_income"] > 0.0:                                # Boss besiegt: dauerhaft Gold pro Welle
+					p["gold"] += p["boss_income"]
 	# Zeitverzögerte Skill-Effekte
 	for tm in timers.duplicate():
 		tm["t"] -= dt
 		if tm["t"] <= 0.0:
 			timers.erase(tm)
+			cur_side = tm["side"]
 			tm["fn"].call()
 	_step_zones(dt)
-	_step_hero(dt)
+	for p in players:
+		if p["bot"]:
+			bot.think(p, dt)
+		_step_hero(p, dt)
 	for e in elems.duplicate():
+		cur_side = e["p"]["side"]["idx"]
 		if not skills.update_elem(e, dt):
 			_free(e["node"])
 			elems.erase(e)
-	_step_units(dt)
-	if team_lives[0] <= 0:
-		over = true
-		if msg != null:
-			msg.text = "NIEDERLAGE"
+	for side in sides:
+		_step_units(side, dt)
+	# Ende: Team ohne Leben verliert
+	for i in 2:
+		if team_lives[i] <= 0 and not over:
+			over = true
+			winner = 1 - i
+			if msg != null:
+				msg.text = "SIEG!" if winner == 0 else "NIEDERLAGE"
+
+
+## Aufholhilfe: Wer deutlich weniger Team-Leben hat als der Gegner, bekommt mehr Einkommen (wie im Prototyp).
+func comeback_bonus(p: Dictionary) -> float:
+	var si: int = p["side"]["idx"]
+	var mine: int = team_lives[si]
+	var theirs: int = team_lives[1 - si]
+	if mine >= theirs:
+		return 0.0
+	var behind := theirs - mine
+	if behind < int(cfg["comebackDiff"]):
+		return 0.0
+	return minf(float(cfg["comebackCap"]), float(cfg["comebackPerLife"]) * (behind - int(cfg["comebackDiff"]) + 1))
 
 
 ## Schadensfelder (Feuerfeld, Sprung-Landung, Schwertregen, Frost-Elementar)
 func _step_zones(dt: float) -> void:
 	for z in zones.duplicate():
+		cur_side = z["side"]
+		var zunits: Array = sides[z["side"]]["units"]
 		z["t"] -= dt
 		z["tick"] -= dt
 		if z.get("follow", "") == "enemy":                               # Feld jagt den nächsten Gegner
 			var best: Variant = null
 			var bd := 1e9
-			for u in units:
+			for u in zunits:
 				var d := Vector2(u["x"] - z["x"], u["y"] - z["y"]).length()
 				if d < bd:
 					bd = d
@@ -1230,16 +1355,17 @@ func _step_zones(dt: float) -> void:
 			z["y"] = clamp_lane_y(z["y"])
 		if z["tick"] <= 0.0:
 			z["tick"] += z["every"]
-			for u in units.duplicate():
-				if units.has(u) and Vector2(u["x"] - z["x"], u["y"] - z["y"]).length() <= z["r"] + u["r"]:
+			for u in zunits.duplicate():
+				if zunits.has(u) and Vector2(u["x"] - z["x"], u["y"] - z["y"]).length() <= z["r"] + u["r"]:
 					skills.affect(z["p"], u, z["dmg"], z.get("o", {}))
 		if z["t"] <= 0.0:
 			_free(z["node"])
 			zones.erase(z)
 
 
-func _step_hero(dt: float) -> void:
-	var p := hero
+func _step_hero(p: Dictionary, dt: float) -> void:
+	cur_side = p["side"]["idx"]
+	var my_units: Array = p["side"]["units"]
 	for i in 4:
 		p["cds"][i] = maxf(0.0, p["cds"][i] - dt)
 	p["bp_cd"] = maxf(0.0, p["bp_cd"] - dt)
@@ -1253,13 +1379,13 @@ func _step_hero(dt: float) -> void:
 		p["dead"] -= dt
 		if p["dead"] <= 0.0:
 			p["dead"] = 0.0
-			p["hp"] = _hero_max_hp()
+			p["hp"] = skills.h_max_hp(p)
 			p["x"] = 120.0
-			p["y"] = slot_ys[0]
+			p["y"] = p["home_y"]
 		return
-	var mx := _hero_max_hp()
+	var mx := skills.h_max_hp(p)
 	var ir := skills.iron_passive(p)
-	var regen: float = mx * 0.12 if _in_base() else 1.5 + p["lvl"] * 0.3
+	var regen: float = mx * 0.12 if _in_base(p) else 1.5 + p["lvl"] * 0.3
 	p["dmg_t"] += dt
 	if p["uniq"].has("lifeflow") and p["dmg_t"] >= float(cfg["lifeflowDelay"]):   # Lebensquell-Harnisch: Heilung, wenn lange kein Schaden
 		p["hp"] = minf(mx, p["hp"] + mx * float(cfg["lifeflowPct"]) * dt)
@@ -1281,15 +1407,15 @@ func _step_hero(dt: float) -> void:
 			p["bp"] = 0.0
 			p["bp_cd"] = float(cfg["backportCd"])
 			p["x"] = 120.0
-			p["y"] = slot_ys[0]
+			p["y"] = p["home_y"]
 			p["move_to"] = null
 			p["target"] = null
 			_float_text("Zurück in der Basis", _wp(p["x"], p["y"]) + Vector3(0, 3.2, 0), Color("#7fd6ff"), 36, 1.0)
 		return
-	if autoplay:
+	if autoplay and p == hero:
 		_autoplay_choose()
 	# Ziel gültig? Bewegungsziel bestimmen
-	if p["target"] != null and not units.has(p["target"]):
+	if p["target"] != null and not my_units.has(p["target"]):
 		p["target"] = null
 	var goal: Variant = null
 	var range_: float = float(p["d"]["range"])
@@ -1301,7 +1427,7 @@ func _step_hero(dt: float) -> void:
 		goal = p["move_to"]
 	var old_y: float = p["y"]
 	if goal != null:
-		goal = _route(goal)              # bei Doppel-Lane: nur in der Basis zur anderen Lane
+		goal = _route(p, goal)              # bei Doppel-Lane: nur in der Basis zur anderen Lane
 		var dv: Vector2 = goal - Vector2(p["x"], p["y"])
 		var d := dv.length()
 		if d < 4.0:
@@ -1318,14 +1444,14 @@ func _step_hero(dt: float) -> void:
 	var tgt: Variant = p["target"]
 	if tgt == null:
 		var best := 1e9
-		for u in units:
+		for u in my_units:
 			var dd := Vector2(u["x"] - p["x"], u["y"] - p["y"]).length()
 			if dd <= range_ + u["r"] and dd < best:
 				best = dd
 				tgt = u
 	if tgt != null and Vector2(tgt["x"] - p["x"], tgt["y"] - p["y"]).length() <= range_ + tgt["r"] and p["atk_t"] <= 0.0:
 		p["atk_t"] = 1.0 / skills.h_as(p)
-		var dmg := _hero_dmg()
+		var dmg := skills.h_dmg(p)
 		var tx: float = tgt["x"]
 		var ty: float = tgt["y"]
 		var is_crit := false
@@ -1337,43 +1463,45 @@ func _step_hero(dt: float) -> void:
 				p["buffs"]["critAs"] = {"t": float(cfg["stormCritTime"]), "as": float(cfg["stormCritAs"])}
 		var dealt := hit_unit(tgt, dmg, p)
 		if p["lifesteal"] > 0.0:                                          # Lebensraub (inkl. Rachsucht)
-			var vf := 2.0 if p["uniq"].has("vengeance") and p["hp"] < 0.4 * _hero_max_hp() else 1.0
-			p["hp"] = minf(_hero_max_hp(), p["hp"] + dealt * p["lifesteal"] * vf)
-		if p["uniq"].has("onHitMagic") and units.has(tgt):                # Funkenklinge: magischer Zusatzschaden, ignoriert Rüstung
+			var vf := 2.0 if p["uniq"].has("vengeance") and p["hp"] < 0.4 * skills.h_max_hp(p) else 1.0
+			p["hp"] = minf(skills.h_max_hp(p), p["hp"] + dealt * p["lifesteal"] * vf)
+		if p["uniq"].has("onHitMagic") and my_units.has(tgt):                # Funkenklinge: magischer Zusatzschaden, ignoriert Rüstung
 			var md: float = float(cfg["sparkFlat"]) + float(cfg["sparkAp"]) * skills.h_sp(p)
 			tgt["hp"] -= md
 			fx_text(tx, ty - 14.0, str(int(round(md))), "#9fe0ff", 0.4, 28)
 			if tgt["hp"] <= 0.0:
 				_kill_unit(tgt, p)
-		if p["uniq"].has("giants") and units.has(tgt):                    # Gigantenschlag: % deines max. Lebens
-			hit_unit(tgt, float(cfg["giantsPct"]) * _hero_max_hp(), p)
+		if p["uniq"].has("giants") and my_units.has(tgt):                    # Gigantenschlag: % deines max. Lebens
+			hit_unit(tgt, float(cfg["giantsPct"]) * skills.h_max_hp(p), p)
 		if p["uniq"].has("cleave"):                                       # Splitteraxt: die nächsten Gegner im Umkreis (höchstens cleaveMax)
 			var near: Array = []
-			for u in units:
+			for u in my_units:
 				if u != tgt and Vector2(u["x"] - tx, u["y"] - ty).length() <= 80.0:
 					near.append(u)
 			near.sort_custom(func(a, b): return Vector2(a["x"] - tx, a["y"] - ty).length() < Vector2(b["x"] - tx, b["y"] - ty).length())
 			for u in near.slice(0, int(cfg["cleaveMax"])):
 				hit_unit(u, dmg * float(cfg["cleaveItemPct"]), p)
-		if p["uniq"].has("ruin") and units.has(tgt):                      # Schneide des gefallenen Monarchen: % des aktuellen Lebens
+		if p["uniq"].has("ruin") and my_units.has(tgt):                      # Schneide des gefallenen Monarchen: % des aktuellen Lebens
 			hit_unit(tgt, minf(float(cfg["ruinMax"]), maxf(float(cfg["ruinMin"]), float(cfg["ruinPct"]) * tgt["hp"])), p)
 		var rg: Variant = skills.buff(p, "rage")
 		if rg != null and rg["cleave"]:                                   # Kampfrausch Rang 5: Angriffe treffen Gegner im Umkreis
-			for u in units.duplicate():
-				if u != tgt and units.has(u) and Vector2(u["x"] - tx, u["y"] - ty).length() <= 75.0:
+			for u in my_units.duplicate():
+				if u != tgt and my_units.has(u) and Vector2(u["x"] - tx, u["y"] - ty).length() <= 75.0:
 					hit_unit(u, dmg * 0.5, p)
 		if range_ > 100.0:
 			fx_line(p["x"], p["y"], tx, ty, 0.12, str(p["d"]["col"]), 2.0)
 
 
+
+
 ## Backport (Taste B): Zauberzeit, danach zurück in die Basis; nicht in der Basis, nicht während der Abklingzeit.
-func _start_backport() -> void:
-	if hero["dead"] > 0.0 or hero["bp"] > 0.0 or hero["bp_cd"] > 0.0 or _in_base():
+func _start_backport(p: Dictionary) -> void:
+	if p["dead"] > 0.0 or p["bp"] > 0.0 or p["bp_cd"] > 0.0 or _in_base(p):
 		return
-	hero["bp_max"] = float(cfg["backportCast"]) * (1.0 - float(hero["bp_red"]))   # Hut des Reisenden verkürzt den Cast
-	hero["bp"] = hero["bp_max"]
-	hero["move_to"] = null
-	hero["target"] = null
+	p["bp_max"] = float(cfg["backportCast"]) * (1.0 - float(p["bp_red"]))   # Hut des Reisenden verkürzt den Cast
+	p["bp"] = p["bp_max"]
+	p["move_to"] = null
+	p["target"] = null
 
 
 ## Doppel-Lane (4v4): Die Wand zwischen den Lanes ist nur in der Basis offen.
@@ -1390,17 +1518,17 @@ func _clamp_y(x: float, y: float, old_y: float) -> float:
 
 ## Liegt das Ziel auf der anderen Lane: In der Basis läuft der Held quer hinüber. In der Lane ist die Wand zu,
 ## er läuft nur bis an die Wand (zur anderen Lane kommt man über die Basis, z. B. mit dem Backport).
-func _route(goal: Vector2) -> Vector2:
+func _route(p: Dictionary, goal: Vector2) -> Vector2:
 	if lanes_per_team < 2:
 		return goal
 	var mid: float = (lane_off_g[0] + lane_off_g[1]) / 2.0
-	if (hero["y"] < mid) == (goal.y < mid):
+	if (p["y"] < mid) == (goal.y < mid):
 		return goal
-	if hero["x"] < WALL_OPEN_BASE:
-		return Vector2(minf(hero["x"], WALL_OPEN_BASE - 50.0), goal.y)   # quer durch die Basis
+	if p["x"] < WALL_OPEN_BASE:
+		return Vector2(minf(p["x"], WALL_OPEN_BASE - 50.0), goal.y)   # quer durch die Basis
 	var lo := lane_half_g - 10.0               # Wandbereich quer
 	var hi: float = lane_off_g[1] - lane_half_g + 10.0
-	return Vector2(goal.x, lo if hero["y"] < mid else hi)
+	return Vector2(goal.x, lo if p["y"] < mid else hi)
 
 
 func _autoplay_choose() -> void:
@@ -1427,9 +1555,12 @@ func _autoplay_choose() -> void:
 				skills.cast_slot(hero, i, m)
 
 
-func _step_units(dt: float) -> void:
-	for u in units.duplicate():
-		if not units.has(u):
+func _step_units(side: Dictionary, dt: float) -> void:
+	cur_side = side["idx"]
+	var sunits: Array = side["units"]
+	var heroes: Array = side["players"]
+	for u in sunits.duplicate():
+		if not sunits.has(u):
 			continue
 		# Statuseffekte
 		if u["slow"] > 0.0:
@@ -1439,8 +1570,8 @@ func _step_units(dt: float) -> void:
 			u["burn_t"] += dt
 			if u["burn_t"] >= 1.0:
 				u["burn_t"] -= 1.0
-				hit_unit(u, u["burn_dps"], hero)
-				if not units.has(u):
+				hit_unit(u, u["burn_dps"], u["last_p"])
+				if not sunits.has(u):
 					continue
 		if u["torm_cd"] > 0.0:
 			u["torm_cd"] -= dt
@@ -1452,7 +1583,7 @@ func _step_units(dt: float) -> void:
 				u["hp"] -= u["torm_dmg"]
 				_float_text(str(int(round(u["torm_dmg"]))), _wp(u["x"], u["y"]) + Vector3(0, 1.8, 0), Color("#c77dff"), 26, 0.4)
 				if u["hp"] <= 0.0:
-					_kill_unit(u, hero)
+					_kill_unit(u, u["last_p"])
 					continue
 		if u["bleed"] > 0.0:                                              # Blutung: % des Lebens pro Sekunde, ignoriert Rüstung
 			u["bleed"] -= dt
@@ -1463,40 +1594,59 @@ func _step_units(dt: float) -> void:
 				u["hp"] -= bd
 				_float_text(str(int(round(bd))), _wp(u["x"], u["y"]) + Vector3(0, 1.8, 0), Color("#ff6b6b"), 28, 0.5)
 				if u["hp"] <= 0.0:
-					_kill_unit(u, hero)
+					_kill_unit(u, u["last_p"])
 					continue
 		if u["stun"] > 0.0:
 			u["stun"] -= dt
 			continue
 		u["atk_t"] -= dt
+		# Ziel: der nächste lebende Held in Reichweite, sonst ein Elementar
 		var engaged := false
-		var hero_in: bool = hero["dead"] <= 0.0 and Vector2(u["x"] - hero["x"], u["y"] - hero["y"]).length() <= u["range"] + 14.0
+		var target_hero: Dictionary = {}
+		var th_d := 1e9
+		for q in heroes:
+			if q["dead"] <= 0.0:
+				var dq := Vector2(u["x"] - q["x"], u["y"] - q["y"]).length()
+				if dq <= u["range"] + 14.0 and dq < th_d:
+					th_d = dq
+					target_hero = q
 		var el: Variant = null
-		if not hero_in:
+		if target_hero.is_empty():
 			for e in elems:
-				if Vector2(u["x"] - e["x"], u["y"] - e["y"]).length() <= u["range"] + 18.0:
+				if e["p"]["side"] == side and Vector2(u["x"] - e["x"], u["y"] - e["y"]).length() <= u["range"] + 18.0:
 					el = e
 					break
-		if hero_in or el != null:
+		if not target_hero.is_empty() or el != null:
 			engaged = true
 			if u["atk_t"] <= 0.0:
 				u["atk_t"] = 1.0
-				if hero_in:
-					_damage_hero(u["dmg"], u)
+				if not target_hero.is_empty():
+					_damage_hero(target_hero, u["dmg"], u)
 				else:
 					el["hp"] -= _reduce(u["dmg"], 10.0)
 		if not engaged:
-			# Titanenpanzer-Aura: Gegner nahe am Helden sind langsamer
+			# der nächste lebende Held bestimmt, ob das Monster ihn jagt
+			var near_hero: Dictionary = {}
+			var nh_d := 1e9
+			for q in heroes:
+				if q["dead"] <= 0.0:
+					var dn := Vector2(u["x"] - q["x"], u["y"] - q["y"]).length()
+					if dn < nh_d:
+						nh_d = dn
+						near_hero = q
+			# Titanenpanzer-Aura: Gegner nahe an einem Helden mit Aura sind langsamer
 			var aura := 1.0
-			if hero["dead"] <= 0.0 and hero["uniq"].has("slowAura") and Vector2(u["x"] - hero["x"], u["y"] - hero["y"]).length() <= float(cfg["auraRadius"]):
-				aura = 1.0 - float(cfg["auraSlow"])
+			for q in heroes:
+				if q["dead"] <= 0.0 and q["uniq"].has("slowAura") and Vector2(u["x"] - q["x"], u["y"] - q["y"]).length() <= float(cfg["auraRadius"]):
+					aura = 1.0 - float(cfg["auraSlow"])
+					break
 			var step_len: float = u["spd"] * (0.5 if u["slow"] > 0.0 else 1.0) * aura * dt
 			var dx := -1.0
 			var dy := 0.0
 			var chasing := false
-			if hero["dead"] <= 0.0 and u["type"] != "fast":
-				var hx: float = hero["x"] - u["x"]
-				var hy: float = hero["y"] - u["y"]
+			if not near_hero.is_empty() and u["type"] != "fast":
+				var hx: float = near_hero["x"] - u["x"]
+				var hy: float = near_hero["y"] - u["y"]
 				var dist := maxf(1.0, sqrt(hx * hx + hy * hy))
 				if dist <= (float(cfg["aggroRange"]) if hx <= 40.0 else float(cfg["aggroBehind"])):
 					dx = hx / dist
@@ -1515,9 +1665,11 @@ func _step_units(dt: float) -> void:
 				u["y"] = clampf(u["y"] + dy * step_len, lane_off_g[0] - ly, lane_off_g[lanes_per_team - 1] + ly)
 			else:
 				u["y"] = clampf(u["y"] + dy * step_len, off - ly, off + ly)
-		if u["x"] <= float(cfg["leakX"]):
-			team_lives[0] -= int(u["def"]["lives"])
-			units.erase(u)
+		if u["x"] <= float(cfg["leakX"]):          # durchgebrochen: kostet Team-Leben
+			var l := int(u["def"]["lives"])
+			team_lives[side["idx"]] -= l
+			side["leak"][u["type"]] = side["leak"].get(u["type"], 0) + l
+			sunits.erase(u)
 			_free(u["node"])
 
 
@@ -1531,13 +1683,15 @@ func _process(delta: float) -> void:
 
 func _sync_visuals(delta: float) -> void:
 	var hn: Node3D = hero["node"]
-	hn.visible = hero["dead"] <= 0.0
-	hn.position = _wp(hero["x"], hero["y"])
-	var lab: Label3D = hero["label"]
-	lab.text = "%d / %d" % [int(hero["hp"]), int(_hero_max_hp())]
-	for u in units:
-		var n: Node3D = u["node"]
-		n.position = _wp(u["x"], u["y"])
+	for p in players:                    # alle Helden: Position, Sichtbarkeit, Lebensanzeige
+		var pn: Node3D = p["node"]
+		pn.visible = p["dead"] <= 0.0
+		pn.position = _wp(p["x"], p["y"], p["side"]["idx"])
+		p["label"].text = "%d / %d" % [int(p["hp"]), int(skills.h_max_hp(p))]
+	for s in sides:                      # alle Monster beider Seiten
+		for u in s["units"]:
+			var n: Node3D = u["node"]
+			n.position = _wp(u["x"], u["y"], s["idx"])
 	for f in texts.duplicate():
 		f["t"] -= delta
 		f["node"].position.y += 1.5 * delta
@@ -1565,7 +1719,7 @@ func _sync_visuals(delta: float) -> void:
 		bp_txt = "CD %ds" % int(ceil(hero["bp_cd"])) if hero["bp_cd"] > 0.0 else "bereit"
 	var min_t := int(t) / 60
 	hud.text = "Gold %d   Einkommen +%.0f / %ds   Team-Leben %d  (Gegner %d)   Welle %d   Zeit %d:%02d\nLevel %d   XP %d / %d   HP %d / %d   Kills %d   [B] Backport: %s" % [
-		int(hero["gold"]), hero["income"], int(cfg["incomeTick"]), team_lives[0], team_lives[1], wave, min_t, int(t) % 60,
+		int(hero["gold"]), hero["income"], int(cfg["incomeTick"]), team_lives[0], team_lives[1], sides[0]["wave"], min_t, int(t) % 60,
 		hero["lvl"], int(hero["xp"]), int(_xp_need(hero["lvl"])), int(hero["hp"]), int(_hero_max_hp()), kills, bp_txt]
 	if mini != null:
 		mini.queue_redraw()
@@ -1599,11 +1753,18 @@ func _unhandled_input(event: InputEvent) -> void:
 			cam_dist = clampf(cam_dist - 2.0, 14.0, 50.0)
 		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
 			cam_dist = clampf(cam_dist + 2.0, 14.0, 50.0)
-	if not started or over or hero["dead"] > 0.0:
+	if not started or over:
+		return
+	if event is InputEventKey and event.pressed and not event.echo and event.shift_pressed:
+		var lslot := [KEY_Q, KEY_W, KEY_E, KEY_R].find(event.keycode)
+		if lslot >= 0:
+			skills.learn(hero, lslot)     # Skillpunkte lassen sich auch als toter Held vergeben
+			return
+	if hero["dead"] > 0.0:
 		return
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_B:
-			_start_backport()
+			_start_backport(hero)
 		elif event.keycode == KEY_S:      # Stopp
 			hero["move_to"] = null
 			hero["target"] = null
@@ -1613,12 +1774,10 @@ func _unhandled_input(event: InputEvent) -> void:
 			items.drink_potion(hero)
 		else:
 			var slot := [KEY_Q, KEY_W, KEY_E, KEY_R].find(event.keycode)
-			if slot >= 0:
-				if event.shift_pressed:   # Shift + Taste: Skillpunkt vergeben
-					skills.learn(hero, slot)
-				else:
-					skills.cast_slot(hero, slot, _mouse_info())
+			if slot >= 0 and not event.shift_pressed:
+				skills.cast_slot(hero, slot, _mouse_info())
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_RIGHT:
+		cancel_backport(hero)             # Rechtsklick bricht den Backport ab
 		var p := _ground_point(event.position)
 		var gx := -p.z / S
 		var gy := (p.x - lane_xs[0]) / S
@@ -1626,7 +1785,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		var best := 1e9
 		for u in units:
 			var dd := Vector2(u["x"] - gx, u["y"] - gy).length()
-			if dd <= u["r"] + 14.0 and dd < best:
+			if dd < u["r"] + 8.0 and dd < best:             # Klickfläche wie im Prototyp (Radius + 8)
 				best = dd
 				hit = u
 		if hit != null:
@@ -1647,8 +1806,11 @@ func reset_test(inp: Dictionary, heldpos: Array, layouts: Dictionary) -> void:
 	timers.clear()
 	elems.clear()
 	t = 0.0
-	wave = 0
-	wave_t = 1e9
+	for s in sides:
+		s["wave"] = 0
+		s["wave_t"] = 1e9
+		s["units"].clear()
+		s["boss_spawned"] = false
 	income_t = 0.0
 	over = false
 	team_lives = [int(cfg["startLives"]), int(cfg["startLives"])]
@@ -1767,7 +1929,7 @@ func _selftest_items() -> void:
 	p["bag"] = ["hatTravel"]
 	items.recalc(p)
 	p["x"] = 1000.0
-	_start_backport()
+	_start_backport(hero)
 	check.call("Hut des Reisenden: Backport 2,7 s statt 4,5 s", absf(p["bp"] - 2.7) < 1e-9)
 	print("SELFTEST-ITEMS " + ("OK" if ok else "FEHLER"))
 	get_tree().quit()
@@ -1782,7 +1944,8 @@ func _selftest() -> void:
 			ok = false
 	var run := func(secs: float) -> void:
 		for i in int(secs / 0.05):
-			wave_t = 1e9
+			for s in sides:
+				s["wave_t"] = 1e9
 			units.clear()
 			hero["hp"] = _hero_max_hp()
 			step(0.05)
@@ -1797,13 +1960,13 @@ func _selftest() -> void:
 	check.call("Wand blockiert den Wechsel (y=%.0f bleibt über %.0f)" % [hero["y"], mid], hero["y"] > mid)
 	# 3. Backport: zurück in die Basis, Abklingzeit läuft
 	hero["move_to"] = null
-	_start_backport()
+	_start_backport(hero)
 	check.call("Backport startet in der Lane", hero["bp"] > 0.0)
 	run.call(2.0)
 	check.call("Backport noch nicht fertig nach 2 s", hero["x"] > 900.0)
 	run.call(3.0)
 	check.call("Backport fertig nach 5 s (x=%.0f)" % hero["x"], absf(hero["x"] - 120.0) < 1.0 and hero["bp_cd"] > 60.0)
-	_start_backport()
+	_start_backport(hero)
 	check.call("Kein Backport in der Basis", hero["bp"] == 0.0)
 	# 4. Aus der Basis in Lane 1 laufen
 	hero["move_to"] = Vector2(1000.0, lane_off_g[0])
@@ -1812,8 +1975,8 @@ func _selftest() -> void:
 	# 5. Schaden unterbricht den Backport
 	hero["bp_cd"] = 0.0
 	hero["move_to"] = null
-	_start_backport()
-	_damage_hero(10.0)
+	_start_backport(hero)
+	_damage_hero(hero, 10.0)
 	check.call("Schaden unterbricht den Backport", hero["bp"] == 0.0)
 	# 6. Minimap: Klick setzt die Kamera dorthin, Leertaste zurück zum Helden
 	var mp := _mini_map()
@@ -1838,7 +2001,7 @@ func _selftest() -> void:
 	gr["y"] = lane_off_g[1]
 	hero["dead"] = 99.0                                         # Held aus dem Weg
 	for i in 80:
-		_step_units(0.05)
+		_step_units(sides[0], 0.05)
 		if units.is_empty():
 			break
 	check.call("Monster aus Lane 2 erreichen den Kristall in der Mitte (y=%.0f, Mitte=%.0f)" % [gr["y"], team_mid_y], units.is_empty() or absf(gr["y"] - team_mid_y) < absf(lane_off_g[1] - team_mid_y))
@@ -1856,7 +2019,7 @@ func _run_simulation(secs: float, shot_path: String) -> void:
 			print("t=%.0f Held x=%.0f y=%.0f | Ziel: %s | Einheiten %d" % [t, hero["x"], hero["y"],
 				"-" if tg == null else "x=%.0f y=%.0f lane=%d" % [tg["x"], tg["y"], tg["lane"]], units.size()])
 	print("SIM %.0f s | Welle %d | Leben %d | Gold %d | Level %d | Kills %d | Tode %d | Einheiten %d" % [
-		secs, wave, team_lives[0], int(hero["gold"]), hero["lvl"], kills, hero["deaths"], units.size()])
+		secs, sides[0]["wave"], team_lives[0], int(hero["gold"]), hero["lvl"], kills, hero["deaths"], units.size()])
 	if shot_path != "":
 		_sync_visuals(1.0)
 		await get_tree().process_frame
