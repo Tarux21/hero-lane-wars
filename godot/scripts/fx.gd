@@ -1002,128 +1002,95 @@ func auto_fireball(p: Dictionary, tx: float, ty: float) -> void:
 
 
 # ================================================================ Tank
-## Schild (Bollwerk-Stil)
+## Schild (Turmschild mit Spikes)
 func make_shield() -> Node3D:
-	## Bollwerk-Schild (angelehnt an das "Bulwark of Azzinoth" aus WoW: Burning Crusade): großer Kite-Schild, tiefviolette Fläche,
-	## polierter Metallrand mit Nieten, Hörner oben, leuchtender Kristall in der Mitte. Vorderseite zeigt nach +Z.
+	## Turmschild: hoher, schmaler Schild aus dunklem Eisen mit violetter Einfassung und Spikes auf der Vorderseite.
+	## Vorderseite zeigt nach +Z, Oberkante nach +Y.
 	var root := Node3D.new()
+	var iron := StandardMaterial3D.new()
+	iron.albedo_color = Color(0.24, 0.25, 0.3)
+	iron.metallic = 0.7
+	iron.roughness = 0.5
 	var purple := StandardMaterial3D.new()
-	purple.albedo_color = Color(0.4, 0.18, 0.62)
-	purple.metallic = 0.55
+	purple.albedo_color = Color(0.42, 0.2, 0.62)
+	purple.metallic = 0.5
 	purple.roughness = 0.45
 	var steel := StandardMaterial3D.new()
-	steel.albedo_color = Color(0.62, 0.66, 0.74)
-	steel.metallic = 0.9
-	steel.roughness = 0.28
-	var dark := StandardMaterial3D.new()
-	dark.albedo_color = Color(0.16, 0.1, 0.2)
-	dark.metallic = 0.6
-	dark.roughness = 0.5
-	var fel := StandardMaterial3D.new()
-	fel.albedo_color = Color(0.35, 1.0, 0.45)
-	fel.emission_enabled = true
-	fel.emission = Color(0.3, 1.0, 0.4)
-	fel.emission_energy_multiplier = 2.0
-	root.add_child(_kite(1.0, 0.10, 0.0, steel))              # Metallrand (außen)
-	root.add_child(_kite(0.86, 0.12, 0.02, purple))           # violette Fläche (innen, etwas erhaben)
-	# Rückseite dunkel
-	root.add_child(_kite(0.98, 0.04, -0.06, dark))
-	# Mittelrippe und Querband
-	var rib := MeshInstance3D.new()
-	var rb := BoxMesh.new()
-	rb.size = Vector3(0.09, 1.1, 0.05)
-	rib.mesh = rb
-	rib.material_override = steel
-	rib.position = Vector3(0.0, -0.02, 0.09)
-	root.add_child(rib)
-	var band := MeshInstance3D.new()
-	var bb := BoxMesh.new()
-	bb.size = Vector3(0.72, 0.09, 0.05)
-	band.mesh = bb
-	band.material_override = steel
-	band.position = Vector3(0.0, 0.18, 0.09)
-	root.add_child(band)
-	# Nieten entlang des Rands
-	for k in 10:
-		var a := TAU * k / 10.0
-		var stud := MeshInstance3D.new()
-		var sm := SphereMesh.new()
-		sm.radius = 0.04
-		sm.height = 0.08
-		stud.mesh = sm
-		stud.material_override = steel
-		stud.position = Vector3(cos(a) * 0.3, 0.12 + sin(a) * 0.36, 0.1)
-		root.add_child(stud)
-	# Hörner oben
+	steel.albedo_color = Color(0.72, 0.75, 0.82)
+	steel.metallic = 0.95
+	steel.roughness = 0.25
+	var w := 0.66
+	var h := 1.38
+	var d := 0.09
+	# Tafel (leicht gebogen: Mittelstreifen vorn, Seitenstreifen nach hinten gewinkelt)
+	var plate := MeshInstance3D.new()
+	var pm := BoxMesh.new()
+	pm.size = Vector3(w * 0.5, h, d)
+	plate.mesh = pm
+	plate.material_override = iron
+	root.add_child(plate)
 	for s in [-1.0, 1.0]:
-		var horn := MeshInstance3D.new()
-		var hm := CylinderMesh.new()
-		hm.top_radius = 0.0
-		hm.bottom_radius = 0.07
-		hm.height = 0.34
-		hm.radial_segments = 6
-		horn.mesh = hm
-		horn.material_override = steel
-		horn.position = Vector3(s * 0.4, 0.68, 0.04)
-		horn.rotation_degrees = Vector3(0, 0, -s * 28.0)
-		root.add_child(horn)
-	# leuchtender Kristall in der Mitte
-	var gem := MeshInstance3D.new()
-	var gm := SphereMesh.new()
-	gm.radius = 0.11
-	gm.height = 0.22
-	gem.mesh = gm
-	gem.material_override = fel
-	gem.position = Vector3(0.0, 0.12, 0.13)
-	gem.scale = Vector3(1.0, 1.3, 0.7)
-	root.add_child(gem)
+		var wing := MeshInstance3D.new()
+		var wm := BoxMesh.new()
+		wm.size = Vector3(w * 0.3, h, d)
+		wing.mesh = wm
+		wing.material_override = iron
+		wing.position = Vector3(s * w * 0.38, 0.0, -0.025)
+		wing.rotation_degrees = Vector3(0, -s * 14.0, 0)
+		root.add_child(wing)
+	# violette Einfassung: oben, unten, links, rechts
+	for k in 4:
+		var fr := MeshInstance3D.new()
+		var fm := BoxMesh.new()
+		var horiz := k < 2
+		fm.size = Vector3(w * 1.02, 0.07, 0.05) if horiz else Vector3(0.06, h, 0.05)
+		fr.mesh = fm
+		fr.material_override = purple
+		if horiz:
+			fr.position = Vector3(0.0, (h / 2.0 - 0.02) * (1.0 if k == 0 else -1.0), 0.04)
+		else:
+			var sx := 1.0 if k == 2 else -1.0
+			fr.position = Vector3(sx * (w / 2.0 - 0.02), 0.0, -0.01)
+			fr.rotation_degrees = Vector3(0, -sx * 14.0, 0)
+			fr.position.x = sx * (w * 0.38 + 0.12)
+			fr.position.z = 0.02
+		root.add_child(fr)
+	# Querbänder
+	for yy in [0.38, -0.38]:
+		var band := MeshInstance3D.new()
+		var bm := BoxMesh.new()
+		bm.size = Vector3(w * 0.96, 0.05, 0.03)
+		band.mesh = bm
+		band.material_override = purple
+		band.position = Vector3(0.0, yy, 0.06)
+		root.add_child(band)
+	# Spikes vorne: Raster 3 x 5
+	for ix in 3:
+		for iy in 5:
+			var spike := MeshInstance3D.new()
+			var sm := CylinderMesh.new()
+			sm.top_radius = 0.0
+			sm.bottom_radius = 0.045
+			sm.height = 0.2
+			sm.radial_segments = 6
+			spike.mesh = sm
+			spike.material_override = steel
+			spike.rotation_degrees = Vector3(90, 0, 0)
+			spike.position = Vector3((ix - 1) * 0.19, (iy - 2) * 0.27, 0.13)
+			root.add_child(spike)
+	# großer Mittelspike
+	var big := MeshInstance3D.new()
+	var bgm := CylinderMesh.new()
+	bgm.top_radius = 0.0
+	bgm.bottom_radius = 0.08
+	bgm.height = 0.34
+	bgm.radial_segments = 6
+	big.mesh = bgm
+	big.material_override = steel
+	big.rotation_degrees = Vector3(90, 0, 0)
+	big.position = Vector3(0.0, 0.0, 0.2)
+	root.add_child(big)
 	return root
-
-
-## Kite-Schild-Körper (Spitze nach unten) als Prisma; scale verkleinert die Fläche, z = Lage, depth = Dicke
-func _kite(scale: float, depth: float, z: float, mat: StandardMaterial3D) -> MeshInstance3D:
-	var pts: Array = []
-	var top := 0.62
-	var bottom := -0.66
-	var hw := 0.46
-	var n := 16
-	for i in n + 1:                                       # linke Seite von oben nach unten
-		var f := float(i) / n
-		var y := lerpf(top, bottom, f)
-		var w := hw * pow(1.0 - f, 0.7) * (1.0 if f > 0.02 else 0.94)
-		pts.append(Vector2(-w, y))
-	for i in range(n, -1, -1):                            # rechte Seite von unten nach oben
-		var f := float(i) / n
-		var y := lerpf(top, bottom, f)
-		var w := hw * pow(1.0 - f, 0.7) * (1.0 if f > 0.02 else 0.94)
-		pts.append(Vector2(w, y))
-	var st := SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var cen := Vector2(0.0, 0.05)
-	var hz := depth / 2.0
-	for i in pts.size():
-		var a: Vector2 = (pts[i] - cen) * scale + cen
-		var b: Vector2 = (pts[(i + 1) % pts.size()] - cen) * scale + cen
-		st.set_normal(Vector3(0, 0, 1))                   # Vorderseite
-		st.add_vertex(Vector3(cen.x, cen.y, z + hz))
-		st.add_vertex(Vector3(a.x, a.y, z + hz))
-		st.add_vertex(Vector3(b.x, b.y, z + hz))
-		st.set_normal(Vector3(0, 0, -1))                  # Rückseite
-		st.add_vertex(Vector3(cen.x, cen.y, z - hz))
-		st.add_vertex(Vector3(b.x, b.y, z - hz))
-		st.add_vertex(Vector3(a.x, a.y, z - hz))
-		var nx := Vector3(b.y - a.y, a.x - b.x, 0.0).normalized()      # Rand
-		st.set_normal(nx)
-		st.add_vertex(Vector3(a.x, a.y, z + hz))
-		st.add_vertex(Vector3(a.x, a.y, z - hz))
-		st.add_vertex(Vector3(b.x, b.y, z + hz))
-		st.add_vertex(Vector3(b.x, b.y, z + hz))
-		st.add_vertex(Vector3(a.x, a.y, z - hz))
-		st.add_vertex(Vector3(b.x, b.y, z - hz))
-	var mi := MeshInstance3D.new()
-	mi.mesh = st.commit()
-	mi.material_override = mat
-	return mi
 
 
 ## Schild am linken Unterarm des Modells befestigen (Knochen "LowerArm.L"). Rückgabe in fig["shield"].
@@ -1393,135 +1360,160 @@ func tank_shockwave(p: Dictionary, ang: float, range_: float, half: float, rank:
 	g.shake_near(origin, 4.0 + rank)
 
 
-func titan_slam(p: Dictionary, radius_units: float) -> void:
-	## Titanenstoß (R): kein Kegel wie die Schockwelle, sondern Titanenenergie: Lichtsäule, Energiekuppel, gerade Lichtlinien
-	## nach allen Seiten bis zum Rand des Wirkungskreises, aus denen nacheinander Steinspitzen schießen.
+func titan_slam(p: Dictionary, radius_units: float, ang: float = 0.0) -> void:
+	## Titanenstoß (R): Erdbeben-Welle. Eine gerade Linie aus aufbrechendem Boden läuft nach vorn (Richtung `ang`) bis zum Rand
+	## des Wirkungskreises: Felsplatten schießen schräg aus dem Boden, glühende Magma-Risse ziehen sich die ganze Linie entlang,
+	## Erdfontänen und Funken, der Bildschirm bebt. Farben: Fels, Erde, Magma (rot-orange), bewusst nicht blau oder golden.
 	if g.test_mode:
 		return
 	var side: int = p["side"]["idx"]
 	var origin := _w(p["x"], p["y"], side)
 	var r_m := radius_units * S
-	var ice := Color(0.65, 0.85, 1.0)
-	var gold := Color(1.0, 0.85, 0.45)
-	_glow_sprite(Color(0.85, 0.95, 1.0, 1.0), 8.0, 0.25, origin + Vector3(0, 1.2, 0), 1.8)
-	_light(Color(0.7, 0.85, 1.0), 5.5, 22.0, 0.7, origin + Vector3(0, 2.5, 0))
-	_ring_wave(origin, Color(ice.r, ice.g, ice.b, 0.95), r_m, 0.5)
-	var tw0 := g.create_tween()
-	tw0.tween_interval(0.18)
-	tw0.tween_callback(func(): _ring_wave(origin, Color(gold.r, gold.g, gold.b, 0.8), r_m * 0.9, 0.6, 0.12))
-	# Energiekuppel
-	var dome := MeshInstance3D.new()
-	var dm := SphereMesh.new()
-	dm.radius = 1.0
-	dm.height = 2.0
-	dm.is_hemisphere = true
-	dome.mesh = dm
-	var dmat := StandardMaterial3D.new()
-	dmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	dmat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	dmat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-	dmat.cull_mode = BaseMaterial3D.CULL_DISABLED
-	dmat.albedo_color = Color(0.6, 0.8, 1.0, 0.45)
-	dmat.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
-	dome.material_override = dmat
-	dome.scale = Vector3.ONE * 0.5
-	_put(dome, origin, 0.7)
-	var tw1 := dome.create_tween()
-	tw1.set_parallel(true)
-	tw1.tween_property(dome, "scale", Vector3(r_m, r_m * 0.55, r_m), 0.4).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
-	tw1.tween_property(dmat, "albedo_color:a", 0.0, 0.45).set_ease(Tween.EASE_IN)
-	# Lichtsäule
-	var beam := MeshInstance3D.new()
-	var cyl := CylinderMesh.new()
-	cyl.top_radius = 0.9
-	cyl.bottom_radius = 1.5
-	cyl.height = 14.0
-	cyl.cap_top = false
-	cyl.cap_bottom = false
-	cyl.radial_segments = 16
-	beam.mesh = cyl
-	var bmat := _flat_mat(tex_beam, Color(0.8, 0.92, 1.0, 0.9), true)
-	beam.material_override = bmat
-	beam.position.y = 7.0
-	var bh := Node3D.new()
-	bh.add_child(beam)
-	_put(bh, origin, 0.8)
-	var tw2 := bh.create_tween()
-	tw2.tween_property(bmat, "albedo_color:a", 0.0, 0.7).set_ease(Tween.EASE_IN)
-	# Gerade Lichtlinien mit Steinspitzen
-	var lines := 10
-	var phase := rng.randf() * TAU
-	for k in lines:
-		var a := phase + TAU * k / lines
-		var dir := Vector3(cos(a), 0.0, sin(a))
-		var bar := MeshInstance3D.new()
-		var qm := QuadMesh.new()
-		qm.size = Vector2(1.0, 1.0)
-		qm.orientation = PlaneMesh.FACE_Y
-		qm.center_offset = Vector3(0.5, 0.0, 0.0)
-		bar.mesh = qm
-		var m := _flat_mat(tex_glow, Color(0.8, 0.92, 1.0, 0.85), true)
-		bar.material_override = m
-		bar.rotation.y = -a
-		bar.scale = Vector3(0.1, 1.0, 0.6)
-		_put(bar, origin + Vector3(0, 0.15, 0), 1.0)
-		var tw := bar.create_tween()
-		tw.set_parallel(true)
-		tw.tween_property(bar, "scale", Vector3(r_m, 1.0, 0.7), 0.3).set_ease(Tween.EASE_OUT)
-		tw.tween_property(m, "albedo_color:a", 0.0, 0.8).set_delay(0.15)
-		var count := 6
-		for i in count:                                  # Steinspitzen: erscheinen nacheinander von innen nach außen
-			var d := r_m * float(i + 1) / (count + 0.4)
-			var spike := MeshInstance3D.new()
-			var cm := CylinderMesh.new()
-			cm.top_radius = 0.0
-			cm.bottom_radius = rng.randf_range(0.28, 0.42)
-			var h := rng.randf_range(1.2, 2.4)
-			cm.height = h
-			cm.radial_segments = 5
-			spike.mesh = cm
-			spike.material_override = _mat_spike()
-			var pos := origin + dir * d + Vector3(-dir.z, 0, dir.x) * rng.randf_range(-0.25, 0.25)
-			_put(spike, pos + Vector3(0, 0.0, 0), 1.4)
-			spike.rotation = Vector3(rng.randf_range(-0.2, 0.2), rng.randf() * TAU, rng.randf_range(-0.2, 0.2))
-			spike.scale = Vector3(1.0, 0.01, 1.0)
-			spike.position.y = 0.0
-			var delay := 0.04 + 0.28 * d / r_m
-			var tws := spike.create_tween()
-			tws.tween_interval(delay)
-			tws.tween_method(func(f: float):
-				spike.scale = Vector3(1.0, maxf(0.01, f), 1.0)
-				spike.position.y = h * 0.5 * f, 0.0, 1.0, 0.12)
-			tws.tween_interval(0.55)
-			tws.tween_method(func(f: float):
-				spike.scale = Vector3(1.0, maxf(0.01, 1.0 - f), 1.0)
-				spike.position.y = h * 0.5 * (1.0 - f), 0.0, 1.0, 0.3)
-			if i % 2 == 0:
-				var puff := _ps({"amount": 6, "life": 0.5, "once": true, "explo": 1.0, "shape": "sphere", "radius": 0.2, "dir": Vector3.UP, "spread": 60.0,
-					"vmin": 1.0, "vmax": 3.0, "smin": 0.1, "smax": 0.2, "grav": Vector3(0, -6.0, 0),
-					"ramp": _ramp([[0.0, Color(1, 1, 1, 0.0)], [0.2, Color(0.85, 0.95, 1.0, 1.0)], [1.0, Color(0.6, 0.8, 1.0, 0.0)]])})
-				puff.emitting = false
-				var twp := puff.create_tween()
-				twp.tween_interval(delay)
-				twp.tween_callback(func(): puff.restart())
-				_put(puff, pos + Vector3(0, 0.3, 0), 1.0 + delay)
-	# Funken und Funkenregen
-	var sparks := _ps({"amount": 60, "life": 1.0, "once": true, "explo": 1.0, "shape": "sphere", "radius": 0.5, "dir": Vector3.UP, "spread": 70.0,
-		"vmin": 6.0, "vmax": 15.0, "smin": 0.1, "smax": 0.22, "grav": Vector3(0, -12.0, 0),
-		"ramp": _ramp([[0.0, Color(1, 1, 1, 1.0)], [0.4, Color(0.7, 0.88, 1.0, 0.9)], [1.0, Color(0.5, 0.7, 1.0, 0.0)]])})
-	_put(sparks, origin + Vector3(0, 0.4, 0), 1.4)
-	_dust(origin + Vector3(0, 0.3, 0), Vector3.UP, 75.0, 3.0, 40, 2.4, 1.0)
-	g.shake_near(origin, 14.0)
+	var dir := Vector3(sin(ang), 0.0, -cos(ang))
+	var left := Vector3(-dir.z, 0.0, dir.x)
+	var magma := Color(1.0, 0.36, 0.08)
+	var earth := Color(0.55, 0.38, 0.24)
+	# Aufprall an der Hand des Tanks
+	var tip := origin + dir * 1.0
+	_glow_sprite(Color(1.0, 0.55, 0.2, 1.0), 5.5, 0.22, tip + Vector3(0, 0.8, 0), 1.7)
+	_light(magma, 4.0, 14.0, 0.7, tip + Vector3(0, 1.5, 0))
+	_ring_wave(origin, Color(earth.r, earth.g, earth.b, 0.8), r_m * 0.9, 0.7, 0.1)          # dumpfe Welle im Kreis
+	_dust(origin + Vector3(0, 0.3, 0), Vector3.UP, 75.0, 3.0, 50, 2.6, 1.0)
+	# glühender Boden entlang der Linie
+	var lava := MeshInstance3D.new()
+	var lq := QuadMesh.new()
+	lq.size = Vector2(1.0, 1.0)
+	lq.orientation = PlaneMesh.FACE_Y
+	lq.center_offset = Vector3(0.5, 0.0, 0.0)
+	lava.mesh = lq
+	var lmat := _flat_mat(tex_glow, Color(1.0, 0.4, 0.08, 0.0), true)
+	lava.material_override = lmat
+	lava.rotation.y = -atan2(dir.z, dir.x)
+	lava.scale = Vector3(r_m, 1.0, 3.2)
+	_put(lava, origin + Vector3(0, 0.1, 0), 2.0)
+	var twl := lava.create_tween()
+	twl.tween_property(lmat, "albedo_color:a", 0.75, 0.25)
+	twl.tween_interval(0.6)
+	twl.tween_property(lmat, "albedo_color:a", 0.0, 1.0)
+	# Magma-Risse: eine lange Hauptspalte nach vorn und kurze Nebenrisse
+	var pts: Array = []
+	var steps := 14
+	for i in steps + 1:
+		var f := float(i) / steps
+		pts.append(dir * (0.8 + (r_m - 0.8) * f) + left * rng.randf_range(-0.22, 0.22) * (0.3 + f) + Vector3(0, 0.06, 0))
+	var crack := Node3D.new()
+	crack.add_child(_ground_ribbon(pts, 1.3, Color(0.05, 0.03, 0.02, 0.95), false))
+	var glow_pts: Array = []
+	for pt in pts:
+		glow_pts.append(pt + Vector3(0, 0.03, 0))
+	var glow := _ground_ribbon(glow_pts, 0.7, Color(1.0, 0.42, 0.1, 0.9), true)
+	crack.add_child(glow)
+	var core := _ground_ribbon(glow_pts, 0.16, Color(1.0, 0.85, 0.5, 0.9), true)
+	crack.add_child(core)
+	_put(crack, origin, 2.6)
+	var cm_g := glow.material_override as StandardMaterial3D
+	var cm_c := core.material_override as StandardMaterial3D
+	var cm_d := (crack.get_child(0) as MeshInstance3D).material_override as StandardMaterial3D
+	var tw_c := crack.create_tween()
+	tw_c.tween_interval(0.9)
+	tw_c.set_parallel(true)
+	tw_c.tween_property(cm_c, "albedo_color:a", 0.0, 0.5)
+	tw_c.tween_property(cm_g, "albedo_color:a", 0.0, 1.0)
+	tw_c.chain().tween_property(cm_d, "albedo_color:a", 0.0, 0.6)
+	for k in 6:                                          # Nebenrisse seitlich der Hauptspalte
+		var base_f := rng.randf_range(0.15, 0.9)
+		var sd := left * (1.0 if k % 2 == 0 else -1.0)
+		var bpts: Array = []
+		var start := dir * (0.8 + (r_m - 0.8) * base_f)
+		for i in 5:
+			var f2 := float(i) / 4.0
+			bpts.append(start + (sd * 1.6 + dir * 0.6) * f2 * rng.randf_range(0.8, 1.3) + left * rng.randf_range(-0.2, 0.2) + Vector3(0, 0.06, 0))
+		var bh := Node3D.new()
+		bh.add_child(_ground_ribbon(bpts, 0.5, Color(0.05, 0.03, 0.02, 0.9), false))
+		var bg := _ground_ribbon(bpts, 0.2, Color(1.0, 0.4, 0.1, 0.8), true)
+		bh.add_child(bg)
+		_put(bh, origin, 2.2)
+		var tbg := bh.create_tween()
+		tbg.tween_interval(0.8)
+		tbg.tween_property(bg.material_override, "albedo_color:a", 0.0, 0.9)
+	# Felsplatten schießen nacheinander entlang der Linie schräg aus dem Boden
+	var n := 11
+	for i in n:
+		var f := float(i) / (n - 1)
+		var d := 1.4 + (r_m - 1.4) * f
+		var delay := 0.05 + 0.5 * f
+		var pos := origin + dir * d + left * (0.9 if i % 2 == 0 else -0.9) * rng.randf_range(0.5, 1.0)
+		var slab := MeshInstance3D.new()
+		var bm := BoxMesh.new()
+		var sw := rng.randf_range(1.0, 1.6)
+		var sh := rng.randf_range(1.2, 2.0) * (0.8 + 0.4 * f)
+		bm.size = Vector3(sw, sh, 0.4)
+		slab.mesh = bm
+		slab.material_override = _mat_slab()
+		_put(slab, pos, 2.0)
+		slab.rotation = Vector3(0, atan2(dir.x, dir.z) + rng.randf_range(-0.2, 0.2), 0)
+		slab.rotate_object_local(Vector3.RIGHT, deg_to_rad(rng.randf_range(20.0, 38.0)))
+		slab.scale = Vector3(1.0, 0.01, 1.0)
+		slab.position.y = -0.1
+		var tws := slab.create_tween()
+		tws.tween_interval(delay)
+		tws.tween_method(func(t: float):
+			slab.scale = Vector3(1.0, maxf(0.01, t), 1.0)
+			slab.position.y = sh * 0.5 * t * 0.8, 0.0, 1.0, 0.16).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		tws.tween_interval(0.6)
+		tws.tween_method(func(t: float):
+			slab.scale = Vector3(1.0, maxf(0.01, 1.0 - t), 1.0)
+			slab.position.y = sh * 0.5 * (1.0 - t) * 0.8, 0.0, 1.0, 0.45)
+		# Erdfontäne, Brocken und Funken an dieser Stelle (zeitlich versetzt)
+		var burst := Node3D.new()
+		_put(burst, pos, 1.6 + delay)
+		var dirt := _ps({"amount": 16, "life": 0.9, "once": true, "explo": 1.0, "add": false, "shape": "sphere", "radius": 0.4, "dir": Vector3.UP, "spread": 40.0,
+			"vmin": 3.0, "vmax": 8.0, "smin": 0.35, "smax": 0.9, "grav": Vector3(0, -9.0, 0), "dmin": 0.5, "dmax": 1.5,
+			"ramp": _ramp([[0.0, Color(0.5, 0.36, 0.24, 0.0)], [0.12, Color(0.52, 0.38, 0.26, 0.8)], [1.0, Color(0.34, 0.25, 0.18, 0.0)]])})
+		dirt.emitting = false
+		burst.add_child(dirt)
+		var emb := _ps({"amount": 10, "life": 0.8, "once": true, "explo": 1.0, "shape": "sphere", "radius": 0.3, "dir": Vector3.UP, "spread": 45.0,
+			"vmin": 3.0, "vmax": 9.0, "smin": 0.08, "smax": 0.18, "grav": Vector3(0, -10.0, 0),
+			"ramp": _ramp([[0.0, Color(1.0, 0.9, 0.5, 1.0)], [0.4, Color(1.0, 0.45, 0.1, 0.9)], [1.0, Color(0.6, 0.1, 0.0, 0.0)]])})
+		emb.emitting = false
+		burst.add_child(emb)
+		var lt := OmniLight3D.new()
+		lt.light_color = magma
+		lt.light_energy = 0.0
+		lt.omni_range = 5.0
+		lt.position.y = 0.6
+		burst.add_child(lt)
+		var twb := burst.create_tween()
+		twb.tween_interval(delay)
+		twb.tween_callback(func():
+			dirt.restart()
+			emb.restart()
+			lt.light_energy = 2.0)
+		twb.tween_property(lt, "light_energy", 0.0, 0.4)
+	# Staubfahne hinter der Welle
+	var trail := _ps({"amount": 70, "life": 1.2, "once": true, "explo": 0.0, "add": false, "shape": "sphere", "radius": 0.5, "dir": Vector3.UP, "spread": 30.0,
+		"vmin": 0.8, "vmax": 2.2, "smin": 1.8, "smax": 3.0, "grav": Vector3(0, 0.4, 0), "curve": _curve([0.5, 1.0]),
+		"ramp": _ramp([[0.0, Color(0.5, 0.4, 0.3, 0.0)], [0.15, Color(0.52, 0.42, 0.32, 0.5)], [1.0, Color(0.4, 0.34, 0.28, 0.0)]])})
+	trail.emitting = false
+	_put(trail, origin, 2.2)
+	var twt := trail.create_tween()
+	twt.tween_callback(func():
+		trail.restart())
+	twt.tween_method(func(f: float): trail.position = origin + dir * r_m * f, 0.0, 1.0, 0.6)
+	# Beben: Bildschirm wackelt über die Dauer der Welle
+	var tws2 := g.create_tween()
+	for k in 7:
+		tws2.tween_callback(func(): g.shake_near(origin, 11.0))
+		tws2.tween_interval(0.09)
 
 
-func _mat_spike() -> StandardMaterial3D:
+func _mat_slab() -> StandardMaterial3D:
 	var m := StandardMaterial3D.new()
-	m.albedo_color = Color(0.46, 0.5, 0.58)
-	m.roughness = 0.6
-	m.metallic = 0.2
+	m.albedo_color = Color(0.2, 0.16, 0.13)
+	m.roughness = 0.95
 	m.emission_enabled = true
-	m.emission = Color(0.35, 0.6, 1.0)
-	m.emission_energy_multiplier = 0.6
+	m.emission = Color(1.0, 0.3, 0.05)
+	m.emission_energy_multiplier = 0.08
 	return m
 
 

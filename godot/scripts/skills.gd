@@ -220,7 +220,7 @@ func _cast(p: Dictionary, i: int, r: int, m: Dictionary) -> bool:
 			match i:
 				0: return _tank_q(p, r, m)
 				2: return _tank_e(p, r, m)
-				3: return _tank_r(p)
+				3: return _tank_r(p, m)
 		"damage":
 			match i:
 				0: return _dmg_q(p, r)
@@ -260,10 +260,10 @@ func _tank_q(p: Dictionary, r: int, m: Dictionary) -> bool:
 	return true
 
 
-func _tank_r(p: Dictionary) -> bool:
+func _tank_r(p: Dictionary, m: Dictionary) -> bool:
 	circle_hit(p, p["x"], p["y"], 190.0, dmg_of(p, 200.0, 0.0, 1, 0.0, 1.0), {"stun": 3.0, "knock": 120.0}, "", false)
-	g.cast_pose(p, p["x"] + 100.0, p["y"], "Sword_Attack2", 0.7)
-	g.vfx.titan_slam(p, 190.0)
+	g.cast_pose(p, p["x"] + cos(float(m["ang"])) * 100.0, p["y"] + sin(float(m["ang"])) * 100.0, "Sword_Attack2", 0.7)
+	g.vfx.titan_slam(p, 190.0, float(m["ang"]))
 	g.sfx_p(p, "tank_r")
 	return true
 
