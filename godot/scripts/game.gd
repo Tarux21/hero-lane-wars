@@ -1925,6 +1925,11 @@ func _save_volume(v: float) -> void:
 	apply_settings()
 
 
+func _on_window_resized() -> void:
+	get_window().content_scale_size = get_window().size
+
+
+
 ## Alle Optionen auf das laufende Spiel anwenden (Ton, Grafikqualität, Bildrate, Oberflächengröße). Darf auch im Menü aufgerufen werden.
 func apply_settings() -> void:
 	var u = Data.user
@@ -1936,7 +1941,10 @@ func apply_settings() -> void:
 	Engine.max_fps = u.fps_cap
 	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_ENABLED if u.vsync else DisplayServer.VSYNC_DISABLED)
 	get_window().content_scale_mode = Window.CONTENT_SCALE_MODE_CANVAS_ITEMS      # Texte und Rahmen werden in der neuen Größe scharf gezeichnet (nicht nur gestreckt)
-	get_window().content_scale_size = Vector2i.ZERO                              # keine feste Basisgröße: nur der Faktor der Oberflächengröße zählt (sonst wird bei großen Fenstern alles mitgestreckt)
+	var win := get_window()
+	win.content_scale_size = win.size                                            # Basisgröße = aktuelle Fenstergröße: Faktor 1,0 bleibt exakt 1:1 (scharf), nur die Einstellung skaliert
+	if not win.size_changed.is_connected(_on_window_resized):
+		win.size_changed.connect(_on_window_resized)
 	get_window().content_scale_factor = u.ui_scale
 
 
