@@ -103,6 +103,8 @@ var golden_boss := false
 var botplay := false                  # Test: auch dein Held wird vom Bot gesteuert (ganze Partien Bot gegen Bot)
 var golden_eco_filter := ""
 var menu_shot := ""
+var menu_test := false                # Test: Menü per Skript bedienen (Spiel starten drücken)
+var menu_go: Button
 var mini: Control                    # Minimap
 var life_labels: Array[Label3D] = [] # Lebensanzeige über den Team-Kristallen
 var team_mid_y := 0.0                # Quer-Mitte deines Teams (Spielwerte); bei 4v4 laufen die Lanes hier zusammen
@@ -190,6 +192,8 @@ func _ready() -> void:
 			selftest = true
 			no_bots = true
 			direct = true
+		elif a == "--menu-test":
+			menu_test = true
 		elif a.begins_with("--menushot="):
 			menu_shot = a.substr(11)
 	if direct:
@@ -227,6 +231,17 @@ func _ready() -> void:
 			_run_simulation(sim_secs, shot_path)
 	else:
 		_show_menu()
+		if menu_test:                     # Test: Moduswahl per Skript, "Spiel starten" drücken, 8 s spielen lassen, Bild speichern
+			for i in 3:
+				await get_tree().process_frame
+			menu_go.pressed.emit()
+			for i in 480:
+				await get_tree().process_frame
+			print("MENUTEST gestartet=%s Zeit=%.1f Gold=%d Level=%d Spieler=%d" % [started, t, int(hero["gold"]), hero["lvl"], players.size()])
+			if menu_shot != "":
+				get_viewport().get_texture().get_image().save_png(menu_shot)
+			get_tree().quit()
+			return
 		if menu_shot != "":               # Test: Menü-Bild speichern und beenden
 			for i in 5:
 				await get_tree().process_frame
@@ -332,6 +347,7 @@ func _show_menu() -> void:
 	go.text = "Spiel starten"
 	go.custom_minimum_size = Vector2(260, 54)
 	go.add_theme_font_size_override("font_size", 22)
+	menu_go = go
 	go.pressed.connect(func():
 		menu_layer.queue_free()
 		_start_game())
