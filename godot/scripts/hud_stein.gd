@@ -395,6 +395,8 @@ func _skill_tip(i: int, def: Dictionary, r: int, rmax: int, unlock: int) -> Stri
 	meta += "  ·  ab Level %d" % unlock
 	t += "[color=#b8b0a0]%s[/color]\n\n" % meta
 	for line in def["info"]:
+		if str(line).begins_with("Rang ") or str(line).begins_with("Ab Rang"):       # Rang-Texte erst mit Alt (Erweiterung)
+			continue
 		t += "• %s\n" % str(line)
 	t += "\n"
 	if r > 0:

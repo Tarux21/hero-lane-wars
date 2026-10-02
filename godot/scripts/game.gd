@@ -3175,9 +3175,9 @@ func _run_simulation(secs: float, shot_path: String) -> void:
 	if uitip and shot_path != "" and ui != null:                 # Test: Hinweis der Fähigkeit E als Bild zeigen
 		ui.update()
 		ui._show_tip(0)                                          # Hinweis an der festen Stelle, mit Alt-Erweiterung
-		ui.tip.forced = true
-		ui.tip.extra.visible = true
-		ui.tip.hint.visible = false
+		ui.tip.forced = false
+		ui.tip.extra.visible = false
+		ui.tip.hint.visible = true
 	if uimenu and ui != null:
 		ui.toggle_menu()
 		if uioptions:
