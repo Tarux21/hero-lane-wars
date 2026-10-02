@@ -255,13 +255,86 @@
     return {id:c.id, input:{note:c.note, hero:c.hero, gold:c.gold, actions:c.actions}, steps:log};
   }));
 
+  // =====================================================================================================
+  // (c) ITEM-EFFEKTE mit echtem Rucksack (recalcItems): Auto-Angriffe, Skills und Treffer, 12 s in 0.05-Schritten
+  // =====================================================================================================
+  // Eingaben je Szenario: hero, lvl, ranks, bag (Item-IDs, danach recalcItems), layout (melee|field), dummyHp/dummySpd/dummyArmor, rand, hpFrac,
+  // auto (Held greift an), casts [{t, slot, mouse}], hits [{t, dmg, src}]. Dummys wie in golden-skills (Radius 9, Rüstung 0, Tempo 0, Schaden 0).
+  const LAYOUTS = {
+    field: [[60,0],[100,20],[140,-20],[200,0],[260,30],[300,10],[330,-30],[420,0],[-60,0],[60,60]],
+    melee: [[30,0],[50,25],[70,-20],[90,10],[30,-85],[60,40]],
+  };
+  const SNAP = [0, 10, 20, 40, 80, 160, 240];
+  function runItemScenario(sc){
+    return sim({hero:sc.hero, rand:sc.rand}, (P,E)=>{
+      H.lvl = sc.lvl; H.ranks = sc.ranks.slice(); H.sp = 0; H.x = 1000; H.y = 0;
+      H.bag = sc.bag.slice(); recalcItems();
+      H.hp = hMaxHp() * (sc.hpFrac === undefined ? 0.5 : sc.hpFrac); H.atkT = sc.auto ? 0 : 1e9;
+      const dhp = sc.dummyHp || 100000;
+      LAYOUTS[sc.layout || 'melee'].forEach(([dx, dy], gid) =>
+        G.units.push({gid, type:'grunt', lane:0, x:1000+dx, y:dy, hp:dhp, max:dhp, dmg:0, spd:sc.dummySpd||0, range:0, armor:sc.dummyArmor||0, r:9, atkT:1e9, stun:0, slow:0}));
+      const start = derived();
+      const ev = [];
+      (sc.casts||[]).forEach(c=>ev.push({t:c.t, k:'cast', slot:c.slot, m:c.mouse||[200,0]}));
+      (sc.hits||[]).forEach(h=>ev.push({t:h.t, k:'hit', dmg:h.dmg, src:h.src}));
+      ev.sort((a,b)=>a.t-b.t);
+      const castInfo = [], snaps = [];
+      const snap = t => ({
+        t:r3(t),
+        hero:{hp:r3(H.hp), lvl:H.lvl, xp:r3(H.xp), gold:r3(G.gold), kills:G.stats.kills, x:r3(H.x), y:r3(H.y), dmgT:r3(H.dmgT), comboT:r3(H.comboT), cds:H.cds.map(r3), as:r3(hAs()),
+              buffs:Object.fromEntries(Object.entries(H.buffs).map(([n,v])=>[n, Object.fromEntries(Object.entries(v).map(([k,x])=>[k, typeof x==='number' ? r3(x) : x]))]))},
+        dummyIds:G.units.map(u=>u.gid),
+        dummies:G.units.map(u=>[r3(dhp-u.hp), r3(u.stun), r3(u.slow), r3(u.burn||0), r3(u.burnDps||0), r3(u.bleed||0), r3(u.tormT||0), r3(u.x), r3(u.y)]),
+        zones:G.zones.length, elems:G.elems.map(e=>({type:e.type, hp:r3(e.hp), t:r3(e.t)})),
+      });
+      let ei = 0; const last = SNAP[SNAP.length-1];
+      for(let step = 0; step <= last; step++){
+        const now = step*DT;
+        while(ei < ev.length && ev[ei].t <= now + 1e-9){
+          const e = ev[ei++];
+          if(e.k === 'cast'){ mouse = {x:0, y:0, wx:1000+e.m[0], wy:e.m[1]}; const b0 = H.cds[e.slot]; castSlot(e.slot); castInfo.push({t:e.t, slot:e.slot, ok:b0 <= 0 && H.cds[e.slot] > 0, cdAfter:r3(H.cds[e.slot])}); }
+          else damageHero(e.dmg, e.src === undefined ? null : G.units[e.src]);
+        }
+        if(SNAP.includes(step)) snaps.push(snap(now));
+        if(step < last) update(DT);
+      }
+      return {id:sc.id, input:sc, result:{derived:start, castInfo, snaps}};
+    });
+  }
+  const itemEffects = [];
+  const ITEM_HERO = {mightyBlade:'damage', stormBreaker:'damage', ruinBlade:'damage', cleaver:'damage', cutlass:'damage', sparkBlade:'damage', soulDrinker:'damage', merchantChain:'damage',
+    arcaneCrown:'caster', timeStaff:'caster', tormentMask:'caster', moonstone:'caster', guise:'caster',
+    thornPlate:'tank', thornShirt:'tank', titanPlate:'tank', lifeSpring:'tank', bulwark:'tank', strongArmor:'tank', giantsMight:'tank',
+    hatWind:'damage', hatSage:'caster', hatGuard:'tank', hatBlood:'damage', hatTravel:'damage'};
+  const baseRun = (id, hero, bag, o) => ({id, hero, lvl:8, ranks:[3,3,3,0], bag, layout:'melee', auto:true,
+    casts:[{t:0, slot:0}, {t:1, slot:2}, {t:3, slot:1}], hits:[{t:0, dmg:100, src:0}, {t:7, dmg:100, src:1}], ...(o||{})});
+  for(const [id, hero] of Object.entries(ITEM_HERO)) itemEffects.push(runItemScenario(baseRun('item-'+id, hero, [id])));
+  // Zusatzvarianten fuer Zufall/Dummy-Eigenschaften
+  for(const id of ['mightyBlade','stormBreaker']) itemEffects.push(runItemScenario(baseRun('item-'+id+'-allcrit', 'damage', [id], {rand:0, casts:[], hits:[]})));
+  itemEffects.push(runItemScenario(baseRun('item-critCloak-allcrit', 'damage', ['critCloak'], {rand:0, casts:[], hits:[]})));
+  for(const dh of [100, 1000, 100000]) itemEffects.push(runItemScenario(baseRun('item-ruinBlade-dummyHp'+dh, 'damage', ['ruinBlade'], {dummyHp:dh, casts:[], hits:[]})));
+  itemEffects.push(runItemScenario(baseRun('item-titanPlate-aura-bewegt', 'tank', ['titanPlate'], {layout:'field', auto:false, dummySpd:60, casts:[], hits:[], hpFrac:1})));
+  itemEffects.push(runItemScenario(baseRun('item-ohne-titanPlate-bewegt', 'tank', [], {layout:'field', auto:false, dummySpd:60, casts:[], hits:[], hpFrac:1})));
+  itemEffects.push(runItemScenario(baseRun('item-lifeSpring-lebensfluss', 'tank', ['lifeSpring'], {auto:false, casts:[], hits:[{t:0, dmg:200, src:0}], hpFrac:.4})));
+  itemEffects.push(runItemScenario(baseRun('item-ohne-items-damage', 'damage', [], {})));
+  itemEffects.push(runItemScenario(baseRun('item-ohne-items-caster', 'caster', [], {})));
+  itemEffects.push(runItemScenario(baseRun('item-ohne-items-tank', 'tank', [], {})));
+  // Bauplaene der Bots (Rucksack durch echte Kaeufe mit unbegrenztem Gold)
+  const planBag = (hero, plan) => sim({hero, inBase:true}, (P,E)=>{
+    G.gold = 1e9; const I = {b:{step:0}, build:plan}; botShop(I); return H.bag.slice();
+  });
+  const plans = [['standard', BOT_BUILD]];
+  for(const hero of Object.keys(BOT_POOL)) BOT_POOL[hero].forEach((pl,i)=>plans.push([hero+'-pool'+i, null, hero, pl]));
+  for(const hero of Object.keys(BOT_BUILD)) itemEffects.push(runItemScenario(baseRun('plan-'+hero+'-standard', hero, planBag(hero, BOT_BUILD[hero]), {lvl:10})));
+  for(const [name, , hero, pl] of plans.slice(1)) itemEffects.push(runItemScenario(baseRun('plan-'+name, hero, planBag(hero, pl), {lvl:10})));
+
   // Preistabelle aller Items: Rezeptgeld, Gesamtpreis, Kaufpreis aus leerem Rucksack, Verkaufspreis (floor(0.7 * Gesamtpreis), Double-Rechnung wie im Prototyp)
   const priceTable = ITEM_LIST.map(i=>({id:i.id, group:i.group, cost:i.cost, total:totalCost(i.id), buyFromEmpty:i.consumable ? i.cost : resolveBuy(i.id, []).cost, sell:Math.floor(totalCost(i.id)*CFG.sellRatio), sellRaw:totalCost(i.id)*CFG.sellRatio}));
   // =====================================================================================================
   const data = {
     _hinweis: 'Automatisch erzeugt von regelwerk/golden-economy.js aus index.html. Nicht von Hand aendern.',
     version: VERSION, dt: DT,
-    economy, items, priceTable,
+    economy, items, itemEffects, priceTable,
   };
   window.GOLDEN_ECO = data;
   const json = JSON.stringify(data);
