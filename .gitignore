@@ -24,3 +24,4 @@ referenz/
 
 # Roh-Downloads fremder Sounds (nur lokal; fertige Dateien liegen in godot/assets/sounds)
 /Sounds/
+/godot/assets/sounds_lokal/

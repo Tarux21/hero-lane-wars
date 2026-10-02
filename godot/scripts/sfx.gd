@@ -65,15 +65,17 @@ func _make(voices: Array) -> AudioStreamWAV:
 
 ## Lädt alle WAV-Dateien aus res://assets/sounds (16 Bit, Mono oder Stereo). Dateiname ohne Endung = Klangname, z. B. frost_cast.wav.
 func _load_files() -> void:
-	var dir := DirAccess.open("res://assets/sounds")
-	if dir == null:
-		return
-	for f in dir.get_files():
-		if f.get_extension().to_lower() != "wav":
+	## erst die Sounds im Repository, dann "sounds_lokal" (nur auf diesem Rechner, nicht im Repository): gleichnamige Dateien ersetzen die ersten
+	for folder in ["res://assets/sounds", "res://assets/sounds_lokal"]:
+		var dir := DirAccess.open(folder)
+		if dir == null:
 			continue
-		var w := _read_wav("res://assets/sounds/" + f)
-		if w != null:
-			streams[f.get_basename()] = w
+		for f in dir.get_files():
+			if f.get_extension().to_lower() != "wav":
+				continue
+			var w := _read_wav(folder + "/" + f)
+			if w != null:
+				streams[f.get_basename()] = w
 
 
 func _read_wav(path: String) -> AudioStreamWAV:

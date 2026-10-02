@@ -34,3 +34,6 @@ Alles, was wir nicht selbst gemacht haben, steht hier mit Quelle, Lizenz und Än
 - Neue Dateien: Quelle, Lizenz und Änderungen hier eintragen, **bevor** sie ins Repository kommen. Sounds von Pixabay (Pixabay-Lizenz) nicht unverändert ins öffentliche Repository legen.
 - Unbearbeitete Roh-Downloads liegen im Ordner `Sounds/` (nicht im Repository).
 
+
+## Nur lokal: Artninja-Titanenstoß-Sound
+Auf Wunsch des Projektmanagers liegt in `godot/assets/sounds_lokal/tank_r.wav` (nicht im Repository, per `.gitignore` ausgeschlossen) eine gestreckte Fassung von „explosive_punchy_whoosh_fate_stay_night_HF_inspired_11132025" von **Artninja** (CC BY 4.0). Der Sound enthält laut Beschreibung eine Quelle mit CC BY-NC 4.0 (rope swoosh, Timbre). **Vor einer kommerziellen Veröffentlichung diesen Ordner löschen**, dann spielt der CC0-Ersatz aus `godot/assets/sounds/tank_r.wav`.
