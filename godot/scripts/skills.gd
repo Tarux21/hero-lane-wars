@@ -389,6 +389,7 @@ func _cas_q(p: Dictionary, r: int, m: Dictionary) -> bool:
 	if r >= 5:                                                               # nur ein Feld: es entsteht erst nach dem Meteoreinschlag
 		g.sfx_p(p, "meteor_fall")
 		g.sfx_after(p, "meteor_hit", 0.9)
+		g.sfx_after(p, "fire_ignite", 1.2)                       # danach knistert das Feuerfeld am Boden
 		g.later(0.9, func():
 			circle_hit(p, pt.x, pt.y, 100.0, dmg_of(p, 120.0, 0.0, 1, 0.8, 0.3), {}, "#ff5a2a", false)
 			g.add_zone({"x": pt.x, "y": pt.y, "r": radius, "t": 6.0, "tick": 0.0, "every": 1.0, "dmg": tick, "c": "#ff7a2a", "follow": follow, "p": p, "kind": "fire"}))
