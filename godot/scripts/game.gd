@@ -14,6 +14,7 @@ const BotLib := preload("res://scripts/bot.gd")
 const SfxLib := preload("res://scripts/sfx.gd")
 const FxLib := preload("res://scripts/fx.gd")
 const HudStein := preload("res://scripts/hud_stein.gd")
+const ShopLib := preload("res://scripts/shop_stein.gd")
 const GoldenRunner := preload("res://scripts/golden_runner.gd")
 const GoldenEconomyRunner := preload("res://scripts/golden_economy_runner.gd")
 const GoldenBossRunner := preload("res://scripts/golden_boss_runner.gd")
@@ -81,11 +82,9 @@ var bot_diff: Dictionary = {}          # gewählte Schwierigkeit der Gegner
 var bot_style := "random"              # gewählter Spielstil der Gegner
 var diff_key := "normal"               # gewählte Schwierigkeit (leicht/normal/schwer/experte)
 var winner := -1                       # nach Spielende: 0 = dein Team, 1 = Gegner
-var shop_panel: PanelContainer
+var shop: ShopLib                       # Shop-Fenster (shop_stein.gd)
 var shop_btn: Button
 var pot_btn: Button
-var shop_note: Label
-var shop_btns: Array = []              # Shop-Knöpfe [{id, btn}]
 var bag_btns: Array = []               # Rucksack-Plätze
 var cam_init := false
 
@@ -319,7 +318,10 @@ func _start_game() -> void:
 		for id in ["bigSword", "rake", "hat", "heart"]:
 			items.buy(hero, id)
 		items.buy(hero, "potion")
-		shop_panel.visible = true
+		shop.toggle()
+		if OS.get_cmdline_user_args().has("--shoptab"):
+			shop._set_tab(1)
+			shop._select("thornPlate")
 
 
 ## Zwei Seiten (Teams): Monster, Spieler, Wellen und Leben getrennt
@@ -1032,51 +1034,9 @@ func _build_send_panel(layer: CanvasLayer) -> void:
 
 ## Shop (Taste Tab oder Knopf) und Rucksack (immer sichtbar, unten rechts). Kaufen geht nur in der Basis.
 func _build_shop(layer: CanvasLayer) -> void:
-	# Rucksack, Heiltrank und Knöpfe sitzen in der unteren Leiste (hud_stein.gd)
-	# Shop-Fenster (rechts, scrollbar)
-	shop_panel = PanelContainer.new()
-	shop_panel.set_anchors_preset(Control.PRESET_CENTER_RIGHT)
-	shop_panel.offset_left = -360.0
-	shop_panel.offset_right = -14.0
-	shop_panel.offset_top = -330.0
-	shop_panel.offset_bottom = 100.0
-	shop_panel.visible = false
-	layer.add_child(shop_panel)
-	var sc := ScrollContainer.new()
-	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	shop_panel.add_child(sc)
-	var vb := VBoxContainer.new()
-	vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	sc.add_child(vb)
-	shop_note = Label.new()
-	shop_note.add_theme_font_size_override("font_size", 13)
-	vb.add_child(shop_note)
-	shop_btns.clear()
-	var groups := [["basis", "Basis-Items"], ["teil", "Teile"], ["hut", "Hüte (nur einer im Rucksack)"], ["zwischen", "Zwischenstufen"],
-		["fertig", "Fertige Items"], ["verbrauch", "Verbrauchsgegenstände"]]
-	for gr in groups:
-		var lab := Label.new()
-		lab.text = gr[1]
-		lab.add_theme_color_override("font_color", Color("#ffd166"))
-		vb.add_child(lab)
-		for id in items.order:
-			var it: Dictionary = items.item[id]
-			if it["group"] != gr[0]:
-				continue
-			var b := Button.new()
-			b.alignment = HORIZONTAL_ALIGNMENT_LEFT
-			b.clip_text = true
-			b.focus_mode = Control.FOCUS_NONE
-			b.tooltip_text = _item_tip(id)
-			var iid: String = id
-			b.pressed.connect(func():
-				if not items.buy(hero, iid):
-					var why := items.buy_reason(hero, iid)
-					if why != "":
-						_flash_msg(why))
-			vb.add_child(b)
-			shop_btns.append({"id": id, "btn": b})
-
+	# Rucksack, Heiltrank und Knöpfe sitzen in der unteren Leiste (hud_stein.gd), das Shop-Fenster steht in shop_stein.gd
+	shop = ShopLib.new(self)
+	shop.build(layer)
 
 func _item_tip(id: String) -> String:
 	var it: Dictionary = items.item[id]
@@ -1092,7 +1052,11 @@ func _item_tip(id: String) -> String:
 
 
 func _toggle_shop() -> void:
-	shop_panel.visible = not shop_panel.visible
+	if shop != null:
+		shop.toggle()
+		if OS.get_cmdline_user_args().has("--shoptab"):
+			shop._set_tab(1)
+			shop._select("thornPlate")
 
 
 func _update_shop() -> void:
@@ -1109,21 +1073,8 @@ func _update_shop() -> void:
 		else:
 			b.text = "–"
 			b.tooltip_text = "leerer Platz"
-	if not shop_panel.visible:
-		return
-	shop_note.text = "Gold %d   %s" % [int(hero["gold"]), "Shop offen: du kannst kaufen und verkaufen." if in_base else "Shop zu: zurück in die Basis (Backport B)."]
-	for e in shop_btns:
-		var id: String = e["id"]
-		var b: Button = e["btn"]
-		var it: Dictionary = items.item[id]
-		var price: int
-		if it.get("consumable", false):
-			price = int(it["cost"])
-		else:
-			price = int(items.resolve_buy(id, hero["bag"])["cost"])
-		var why: String = items.buy_reason(hero, id)
-		b.text = "%s  –  %d g%s" % [str(it["name"]), price, "" if why == "" else "   (" + why + ")"]
-		b.modulate = Color("#8dff9a") if why == "" else Color(1, 1, 1, 0.55)
+	if shop != null:
+		shop.update()
 
 
 ## Skill-Leiste unten in der Mitte: 4 Plätze (Q W E R) mit Rang, Abklingzeit und "+" zum Lernen.
@@ -1131,6 +1082,8 @@ func _build_skillbar(layer: CanvasLayer) -> void:
 	ui = HudStein.new(self)
 	get_window().theme = HudStein.make_theme(ui.pal)     # Farben der Klasse (Tank Eisen, Schurke dunkel, Magier lila)
 	ui.build_bar(layer, MINI_W)
+	if shop != null:
+		layer.move_child(shop.root, -1)                        # Shop liegt über Leiste, Minimap und Senden-Feld
 	ui.build_menu(layer)
 
 
@@ -2769,6 +2722,9 @@ func _unhandled_input(event: InputEvent) -> void:
 			return
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_ESCAPE:
+			if shop != null and shop.visible():
+				shop.close()                           # Esc schließt zuerst den Shop
+				return
 			if ui != null:
 				ui.toggle_menu()                       # Esc öffnet/schließt das Menü (pausiert das Spiel)
 			return
