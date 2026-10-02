@@ -2754,7 +2754,10 @@ func _over_merchant(screen_pos: Vector2) -> bool:
 	var p := _ground_point(screen_pos)
 	var gp: Vector3 = merchant["goblin"]
 	var wp: Vector3 = merchant["wagon"]
-	return Vector2(p.x - gp.x, p.z - gp.z).length() < 2.4 or Vector2(p.x - wp.x, p.z - wp.z).length() < 3.2
+	var cp: Vector3 = merchant["counter"]
+	var ap: Vector3 = merchant["armor"]
+	return (Vector2(p.x - gp.x, p.z - gp.z).length() < 2.0 or Vector2(p.x - wp.x, p.z - wp.z).length() < 3.2
+		or Vector2(p.x - cp.x, p.z - cp.z).length() < 2.0 or Vector2(p.x - ap.x, p.z - ap.z).length() < 1.4)
 
 
 ## Händler: Hinweis beim Darüberfahren, Mauszeiger, und ein kleines "Pst!", wenn der Held herankommt

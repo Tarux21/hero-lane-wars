@@ -67,6 +67,9 @@ def make_materials():
     M["potion_b"] = mat("TrankBlau", (0.2, 0.5, 0.8), emit=(0.3, 0.7, 1.0), strength=2.5)
     M["potion_p"] = mat("TrankLila", (0.5, 0.2, 0.7), emit=(0.7, 0.3, 1.0), strength=2.5)
     M["lantern"] = mat("Laterne", (1.0, 0.8, 0.4), emit=(1.0, 0.7, 0.25), strength=4.0)
+    M["steel"] = mat("Stahl", (0.55, 0.60, 0.68), rough=0.4)
+    M["steel2"] = mat("StahlDunkel", (0.30, 0.33, 0.40), rough=0.45)
+    M["gold"] = mat("Gold", (0.95, 0.72, 0.15), emit=(1.0, 0.7, 0.1), strength=0.7, rough=0.3)
     M["canopy"] = mat("Dach", (0.18, 0.45, 0.22))
     M["canopy2"] = mat("DachStreifen", (0.12, 0.30, 0.15))
 
@@ -691,12 +694,122 @@ def loot_sack():
     sphere(0.1, (0.65, 0.3, 0.07), (1, 1, 0.5), "lantern", 5, 3)
 
 
+def coin_stack(x, y, z, n, r=0.12):
+    for k in range(n):
+        cone(r, r, 0.035, (x + 0.004 * (k % 2), y, z + 0.0175 + 0.036 * k), m="gold", verts=10)
+
+
+def counter():
+    """Verkaufstresen mit Goldmünzen, Tränken, Waage und Rechnungsbuch (Vorderseite = +Y)"""
+    box((2.7, 1.0, 0.12), (0, 0, 1.0), m="wood")                                                    # Platte
+    box((2.76, 1.06, 0.04), (0, 0, 1.07), m="wood2")
+    box((2.6, 0.1, 0.92), (0, 0.45, 0.5), m="wood2")                                                # Front
+    for k in range(5):                                                                              # Frontbretter
+        box((0.5, 0.02, 0.86), (-1.04 + k * 0.52, 0.51, 0.5), m="wood")
+    box((2.62, 0.04, 0.1), (0, 0.52, 0.9), m="gold")                                                # Goldleiste
+    box((2.62, 0.04, 0.1), (0, 0.52, 0.12), m="iron")
+    for sx in (-1, 1):
+        box((0.12, 0.9, 0.95), (sx * 1.27, 0, 0.5), m="wood2")                                      # Seiten
+    box((1.1, 0.04, 0.6), (-0.1, 0.54, 0.52), m="cloth")                                            # Tuch mit Goldrand
+    box((1.14, 0.045, 0.04), (-0.1, 0.55, 0.84), m="gold")
+    sphere(0.12, (-0.1, 0.57, 0.52), (1, 0.4, 1), "gold", 6, 4)                                     # Münzzeichen
+    coin_stack(-1.05, 0.15, 1.07, 9)                                                                # Münzstapel
+    coin_stack(-0.8, 0.25, 1.07, 6, 0.12)
+    coin_stack(-0.65, 0.05, 1.07, 12, 0.12)
+    coin_stack(-0.4, 0.28, 1.07, 4, 0.12)
+    for k in range(9):                                                                              # verstreute Münzen
+        a = k * 2.3
+        box((0.2, 0.2, 0.025), (-0.25 + 0.12 * math.cos(a) * (1 + k * 0.1), 0.12 + 0.15 * math.sin(a), 1.075), (0, 0, a), "gold")
+    sphere(0.28, (0.15, 0.2, 1.22), (1, 1, 0.8), "leather", 8, 6)                                  # Münzbeutel
+    cone(0.12, 0.2, 0.15, (0.15, 0.2, 1.42), m="leather", verts=8)
+    for k in range(4):
+        box((0.12, 0.12, 0.03), (0.3 + 0.07 * k, 0.12 - 0.04 * k, 1.075), (0, 0, k), "gold")
+    for k, pm in enumerate(["potion_g", "potion_b", "potion_p", "potion_g", "potion_b"]):          # Tränke in einer Reihe
+        x = 0.5 + k * 0.17
+        cone(0.075, 0.075, 0.2, (x, -0.28, 1.17), m=pm, verts=8)
+        cone(0.03, 0.03, 0.09, (x, -0.28, 1.31), m="bone", verts=6)
+        cone(0.035, 0.035, 0.03, (x, -0.28, 1.375), m="wood2", verts=6)
+    sphere(0.1, (1.05, -0.1, 1.2), m="potion_g", seg=8, rings=6)                                    # runde Flasche
+    cone(0.03, 0.03, 0.1, (1.05, -0.1, 1.33), m="bone", verts=6)
+    limb((0.92, -0.25, 1.06), (0.92, -0.25, 1.62), 0.025, 0.025, "iron", 4)                          # Waage
+    limb((0.62, -0.25, 1.6), (1.22, -0.25, 1.6), 0.02, 0.02, "iron", 4)
+    for sx in (-1, 1):
+        limb((0.92 + sx * 0.3, -0.25, 1.6), (0.92 + sx * 0.3, -0.25, 1.38), 0.01, 0.01, "iron", 3)
+        cone(0.12, 0.05, 0.03, (0.92 + sx * 0.3, -0.25, 1.36), m="gold", verts=10)
+    sphere(0.1, (0.92, -0.25, 1.64), m="gold", seg=6, rings=4)
+    box((0.42, 0.3, 0.07), (-0.95, -0.28, 1.1), (0, 0, 0.2), "leather")                             # Rechnungsbuch
+    box((0.38, 0.26, 0.04), (-0.95, -0.28, 1.15), (0, 0, 0.2), "bone")
+    limb((-0.8, -0.3, 1.2), (-0.62, -0.2, 1.5), 0.012, 0.0, "bonedark", 3)                           # Feder
+    box((0.7, 0.04, 0.4), (0.0, -0.4, 1.34), (-0.5, 0, 0), "wood")                                   # Preisschild
+    sphere(0.04, (-0.15, -0.38, 1.36), m="gold", seg=4, rings=3)
+    sphere(0.04, (0.0, -0.38, 1.36), m="gold", seg=4, rings=3)
+    sphere(0.04, (0.15, -0.38, 1.36), m="gold", seg=4, rings=3)
+
+
+def armor_stand():
+    """Rüstungsständer mit Brustpanzer, Schulterplatten, Helm mit Federbusch, Schild und Schwert"""
+    for sx in (-1, 1):
+        box((0.12, 0.9, 0.1), (sx * 0.0, 0.0, 0.05), (0, 0, 0.0), "wood")                          # Standfüße
+    box((1.1, 0.12, 0.1), (0, 0, 0.05), m="wood")
+    limb((0, 0, 0.1), (0, 0, 1.2), 0.07, 0.07, "wood", 6)                                           # Mittelstange
+    limb((-0.7, 0, 1.55), (0.7, 0, 1.55), 0.05, 0.05, "wood", 5)                                    # Querholz
+    box((0.46, 0.3, 0.3), (0, 0, 1.05), m="steel2")                                                 # Hüftschutz
+    for k in range(4):                                                                              # Schurz-Platten
+        box((0.12, 0.04, 0.34), (-0.18 + k * 0.12, 0.14, 0.78), (0.15, 0, 0), "steel")
+    cone(0.3, 0.26, 0.55, (0, 0, 1.45), m="steel", verts=10)                                        # Brustpanzer
+    box((0.5, 0.1, 0.5), (0, 0.18, 1.45), (0, 0, 0), "steel")
+    box((0.04, 0.04, 0.5), (0, 0.24, 1.45), m="gold")
+    for k in range(3):
+        box((0.46, 0.02, 0.04), (0, 0.23, 1.25 + 0.12 * k), m="steel2")
+    for sx in (-1, 1):
+        sphere(0.2, (sx * 0.38, 0.0, 1.62), (1.0, 1.1, 0.7), "steel", 8, 5)                         # Schulterplatten
+        sphere(0.16, (sx * 0.42, 0.0, 1.55), (1.0, 1.0, 0.6), "steel2", 8, 5)
+        box((0.1, 0.1, 0.25), (sx * 0.62, 0.0, 1.2), m="steel")                                    # Armschienen
+        sphere(0.07, (sx * 0.62, 0.0, 1.05), m="steel2", seg=5, rings=4)                            # Handschuh
+    sphere(0.24, (0, 0, 1.92), (1.0, 1.05, 1.1), "steel", 10, 7)                                    # Helm
+    box((0.34, 0.08, 0.05), (0, 0.2, 1.95), m="eye")                                                # Sehschlitz
+    box((0.05, 0.1, 0.18), (0, 0.23, 1.9), m="steel2")                                              # Nasensteg
+    path([(0, -0.05, 2.12), (0, -0.2, 2.35), (0, -0.4, 2.2)], 0.1, 0.03, "hat", 6)                 # Federbusch
+    limb((0, 0, 2.1), (0, 0, 2.2), 0.06, 0.02, "gold", 5)
+    # Schild an der Seite
+    cone(0.45, 0.45, 0.06, (0.95, 0.08, 0.75), (math.pi / 2, 0, 0), "steel2", 14)
+    cone(0.4, 0.4, 0.04, (0.95, 0.1, 0.75), (math.pi / 2, 0, 0), "cloth", 14)
+    sphere(0.12, (0.95, 0.14, 0.75), (1, 0.6, 1), "gold", 8, 5)
+    for k in range(8):
+        a = k * math.tau / 8
+        sphere(0.04, (0.95 + 0.36 * math.cos(a), 0.13, 0.75 + 0.36 * math.sin(a)), m="gold", seg=4, rings=3)
+    # Schwert angelehnt
+    box((0.1, 0.03, 1.2), (-0.8, 0.12, 0.75), (-0.1, 0, -0.2), "steel")
+    box((0.4, 0.06, 0.06), (-0.7, 0.1, 1.28), (0, 0, -0.2), "gold")
+    limb((-0.69, 0.1, 1.3), (-0.65, 0.1, 1.55), 0.035, 0.035, "leather", 4)
+    sphere(0.05, (-0.65, 0.1, 1.58), m="gold", seg=5, rings=4)
+
+
+def crate_stack():
+    box((0.9, 0.9, 0.8), (0, 0, 0.4), (0, 0, 0.1), "wood")
+    box((0.92, 0.92, 0.08), (0, 0, 0.82), (0, 0, 0.1), "wood2")
+    box((0.7, 0.7, 0.6), (0.1, 0.0, 1.16), (0, 0, -0.2), "wood2")
+    for k in range(3):
+        limb((-0.05 + 0.1 * k, 0.0, 1.5), (-0.1 + 0.12 * k, 0.1, 1.95), 0.025, 0.025, "steel", 4)    # Schwertgriffe ragen heraus
+        box((0.22, 0.03, 0.04), (-0.05 + 0.1 * k, 0.0, 1.78), (0, 0, 0.4 * k), "gold")
+    box((0.8, 0.8, 0.7), (1.0, 0.1, 0.35), (0, 0, -0.1), "wood")                                    # zweite Kiste, offen
+    box((0.78, 0.04, 0.5), (1.0, -0.3, 0.9), (-1.0, 0, -0.1), "wood2")                              # Deckel
+    for k in range(3):
+        sphere(0.17, (0.8 + 0.2 * k, 0.1, 0.78), (1, 1, 0.7), "cloth" if k % 2 else "cloth2", 6, 4)   # Stoffballen
+    for k in range(3):
+        cone(0.07, 0.07, 0.18, (1.0 + 0.1 * k, 0.3, 0.8), m=["potion_g", "potion_b", "potion_p"][k], verts=8)
+    sphere(0.3, (-1.0, 0.2, 0.28), (1, 1, 0.8), "cloth2", 7, 5)                                      # Sack mit Getreide
+    cone(0.16, 0.26, 0.2, (-1.0, 0.2, 0.55), m="cloth2", verts=8)
+    box((0.5, 0.4, 0.4), (-0.1, 0.9, 0.2), (0, 0, 0.3), "wood2")
+
+
 make_all = [("tree_dead", tree_dead), ("tree_pine", tree_pine), ("bone_pillar", bone_pillar), ("bone_arch", bone_arch),
             ("skull_pile", skull_pile), ("mushroom_glow", mushroom_glow), ("rock_dark", rock_dark), ("brazier", brazier), ("lava_rock", lava_rock),
             ("skel_sit", skel_sit), ("skel_impaled", skel_impaled), ("skel_hang", skel_hang), ("cage_skel", cage_skel), ("wagon", wagon), ("barrels", barrels),
             ("tent", tent), ("campfire", campfire), ("banner", banner), ("sword_grave", sword_grave), ("totem", totem), ("stone_circle", stone_circle),
             ("torch", torch), ("eyes", eyes),
-            ("goblin_merchant", goblin_merchant), ("market_wagon", market_wagon), ("boar", boar), ("cauldron_fire", cauldron_fire), ("loot_sack", loot_sack)]
+            ("goblin_merchant", goblin_merchant), ("market_wagon", market_wagon), ("boar", boar), ("cauldron_fire", cauldron_fire), ("loot_sack", loot_sack),
+            ("counter", counter), ("armor_stand", armor_stand), ("crate_stack", crate_stack)]
 for name, fn in make_all:
     bpy.ops.wm.read_factory_settings(use_empty=True)
     make_materials()

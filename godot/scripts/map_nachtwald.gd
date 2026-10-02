@@ -183,22 +183,29 @@ func _put(name: String, pos: Vector3, yaw: float, s: float = 1.0) -> MeshInstanc
 ## Klick auf den Goblin oder den Wagen öffnet den Shop (game.gd, _over_merchant). Der Goblin ruft "Pst!", wenn der Held näher kommt.
 func build_camp(cx: float, cz: float) -> void:
 	var wagon_p := Vector3(cx, 0.0, cz)
-	var goblin_p := Vector3(cx + 2.4, 0.0, cz + 2.6)
-	var boar_p := Vector3(cx - 4.6, 0.0, cz + 1.2)
-	var fire_p := Vector3(cx - 1.2, 0.0, cz + 4.8)
-	var sack_p := Vector3(cx + 2.6, 0.0, cz + 5.2)
+	var goblin_p := Vector3(cx + 1.7, 0.0, cz + 2.1)                        # steht hinter dem Tresen
+	var counter_p := Vector3(cx + 1.7, 0.0, cz + 3.6)
+	var armor_p := Vector3(cx - 2.4, 0.0, cz + 2.6)
+	var crates_p := Vector3(cx + 5.0, 0.0, cz + 1.6)
+	var boar_p := Vector3(cx - 5.2, 0.0, cz + 0.6)
+	var fire_p := Vector3(cx - 1.6, 0.0, cz + 6.2)
+	var sack_p := Vector3(cx + 4.8, 0.0, cz + 5.0)
 	_put("market_wagon", wagon_p, PI, 1.0)
 	_put("boar", boar_p, PI + 0.35, 1.0)
 	_put("goblin_merchant", goblin_p, PI - 0.15, 1.15)
 	_put("cauldron_fire", fire_p, 0.0, 1.0)
 	_put("loot_sack", sack_p, PI + 0.3, 1.0)
-	for e in [[wagon_p, 3.2], [boar_p, 2.6], [goblin_p, 1.3], [fire_p, 2.0], [sack_p, 1.1], [Vector3(cx - 0.5, 0.0, cz + 2.5), 5.5]]:
+	_put("counter", counter_p, PI, 1.0)
+	_put("armor_stand", armor_p, PI - 0.25, 1.0)
+	_put("crate_stack", crates_p, PI + 0.2, 1.0)
+	for e in [[wagon_p, 3.2], [boar_p, 2.6], [goblin_p, 1.3], [counter_p, 1.9], [armor_p, 1.4], [crates_p, 1.9], [fire_p, 2.0], [sack_p, 1.1], [Vector3(cx - 0.3, 0.0, cz + 3.2), 6.5]]:
 		_reserve(e[0].x, e[0].z, e[1])
 	var fl := _light(fire_p + Vector3(0, 1.2, 0), Color("#ff8a3a"), 2.4, 13.0)       # Lagerfeuer flackert
 	var tw := fl.create_tween().set_loops()
 	tw.tween_property(fl, "light_energy", 1.7 * Data.user.light_factor(), 0.35).set_trans(Tween.TRANS_SINE)
 	tw.tween_property(fl, "light_energy", 2.8 * Data.user.light_factor(), 0.45).set_trans(Tween.TRANS_SINE)
 	_light(wagon_p + Vector3(0, 2.1, 0.9), Color("#ffc060"), 1.3, 8.0)                 # Laterne am Wagen
+	_light(counter_p + Vector3(0.0, 1.9, 0.2), Color("#ffd070"), 1.0, 5.0)              # warmes Licht auf den Münzen und Tränken
 	_light(boar_p + Vector3(0, 2.0, 0.5), Color("#ffb070"), 0.6, 5.0)
 	_motes(fire_p + Vector3(0, 1.6, 0), Vector3(0.4, 0.1, 0.4), 28, Color("#ffaa40"), 0.2, 1.6, 2.4)
 	_motes(fire_p + Vector3(0, 2.2, 0), Vector3(0.3, 0.1, 0.3), 12, Color("#9aff7a"), 0.16, 0.9, 3.0)         # Dampf aus dem Kessel
@@ -212,7 +219,7 @@ func build_camp(cx: float, cz: float) -> void:
 	tag.modulate.a = 0.0
 	tag.outline_modulate.a = 0.0
 	g.add_child(tag)
-	g.merchant = {"goblin": goblin_p, "wagon": wagon_p, "pst": pst, "tag": tag, "near": false, "pst_t": 0.0, "hover": false}
+	g.merchant = {"goblin": goblin_p, "wagon": wagon_p, "counter": counter_p, "armor": armor_p, "pst": pst, "tag": tag, "near": false, "pst_t": 0.0, "hover": false}
 
 
 ## Szenen am Wegrand: Name -> [Radius (Platzbedarf), Größe von, Größe bis]
