@@ -11,7 +11,6 @@ my @jobs = (
  ["275608*", "summon_fire.wav", 0.0, 2.0, 0.004, 0.55, 0.9, 0, 0.6],              # Feuer-Elementar rufen
  ["709888*", "summon_frost.wav", 0.15, 1.7, 0.02, 0.45, 0.9, 0, 0.5, 4],          # Frost-Elementar rufen
  ["745549*", "meteor_hit.wav", 0.0, 2.3, 0.004, 0.5, 0.95, 0, 0],                 # Meteor-Einschlag
- ["845385*", "summon_lightning.wav", 0.45, 2.5, 0.02, 0.5, 0.9, 1, 0.7],          # Blitz-Elementar rufen
  ["367700*", "elem_shot_lightning.wav", 9.25, 9.95, 0.004, 0.2, 0.85, 1, 0],      # Blitz-Elementar Autoangriff (3. Knistern)
  ["541479*", "elem_shot_frost.wav", 0.0, 0.7, 0.003, 0.25, 0.85, 0, 0],               # Frost-Elementar Autoangriff
  ["442827*", "caster_shot.wav", 0.0, 0.65, 0.003, 0.25, 0.85, 0, 0],              # Autoangriff Magier
