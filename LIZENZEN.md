@@ -11,7 +11,7 @@ Alles, was wir nicht selbst gemacht haben, steht hier mit Quelle, Lizenz und Än
 ## Sounds
 | Datei | Quelle | Lizenz | Änderungen |
 |---|---|---|---|
-| `godot/assets/sounds/frost_cast.wav` (Frostnova) | „f_Synth_Wind_Whoosh_6.wav" von **cyclonek**, https://freesound.org/people/cyclonek/sounds/529411/ | **CC BY 4.0** (Namensnennung nötig) https://creativecommons.org/licenses/by/4.0/ | erste von zwei Windstößen ausgeschnitten, Stille am Anfang/Ende entfernt, ein- und ausgeblendet, auf 16 Bit umgewandelt, Lautstärke angepasst |
+| `godot/assets/sounds/frost_cast.wav` (Frostnova) | „f_Synth_Wind_Whoosh_6.wav" von **cyclonek**, https://freesound.org/people/cyclonek/sounds/529411/ | **CC BY 4.0** (Namensnennung nötig) https://creativecommons.org/licenses/by/4.0/ | erste von zwei Windstößen ausgeschnitten und auf 1,6 s gekürzt, Stille am Anfang/Ende entfernt, ein- und ausgeblendet, auf 16 Bit umgewandelt, Lautstärke angepasst |
 
 ### Namensnennung (Text für Abspann)
 „Frostnova-Sound: f_Synth_Wind_Whoosh_6 von cyclonek (freesound.org), CC BY 4.0, bearbeitet."
