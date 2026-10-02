@@ -318,7 +318,7 @@ func _start_game() -> void:
 		test_panel.visible = true
 	if shopshot:                         # Test: Shop zeigen
 		hero["gold"] = 1500.0
-		for id in ["bigSword", "rake", "hat", "ruby", "bigStaff"]:
+		for id in ["bigSword", "rake", "hat", "ruby", "bigStaff", "mightyBlade"]:
 			items.buy(hero, id)
 		items.buy(hero, "potion")
 		shop.toggle()
@@ -1073,10 +1073,14 @@ func _update_shop() -> void:
 		var b: Button = bag_btns[i]
 		if i < hero["bag"].size():
 			var id: String = hero["bag"][i]
-			b.text = str(items.item[id]["name"])
+			var bic: Control = b.get_meta("icon")
+			b.text = ""
+			bic.visible = true
+			bic.set_item(id, shop._tier(id))
 			b.tooltip_text = _item_tip(id) + "\n(Klick: verkaufen, nur in der Basis)"
 		else:
-			b.text = "–"
+			(b.get_meta("icon") as Control).visible = false
+			b.text = ""
 			b.tooltip_text = "leerer Platz"
 	if shop != null:
 		shop.update()

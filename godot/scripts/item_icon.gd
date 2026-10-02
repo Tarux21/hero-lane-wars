@@ -25,6 +25,18 @@ static func has_icon(item_id: String) -> bool:
 	return DRAWN.has(item_id) or ResourceLoader.exists("res://assets/items/%s.png" % item_id)
 
 
+func set_item(item_id: String, item_tier: String) -> void:
+	if item_id == id and item_tier == tier:
+		return
+	id = item_id
+	tier = item_tier
+	tex = null
+	var path := "res://assets/items/%s.png" % id
+	if ResourceLoader.exists(path):
+		tex = load(path)
+	queue_redraw()
+
+
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var path := "res://assets/items/%s.png" % id

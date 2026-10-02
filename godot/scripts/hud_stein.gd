@@ -6,6 +6,7 @@ extends RefCounted
 
 const SkillIcon := preload("res://scripts/skill_icon.gd")
 const SkillSlot := preload("res://scripts/skill_slot.gd")
+const ItemIcon := preload("res://scripts/item_icon.gd")
 
 const PALETTES := {
 	"stone": {"bg": Color("#3b3733"), "dark": Color("#27241f"), "border": Color("#b49a5c"), "hi": Color("#e8c46a"), "text": Color("#ecdfbd"), "dim": Color("#9a917c"), "plate": Color("#2b2824"), "inset": Color("#1c1a17")},
@@ -262,10 +263,16 @@ func _items_panel() -> Control:
 	g.bag_btns.clear()
 	for i in int(g.cfg["bagSize"]):
 		var b := Button.new()
-		b.custom_minimum_size = Vector2(52, 34)
-		b.clip_text = true
-		b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		b.add_theme_font_size_override("font_size", 10)
+		b.custom_minimum_size = Vector2(44, 44)
+		var bic := ItemIcon.new()                         # Bildchen des Items im Rucksack (Name steht im Hinweis)
+		bic.set_anchors_preset(Control.PRESET_FULL_RECT)
+		bic.offset_left = 2.0
+		bic.offset_top = 2.0
+		bic.offset_right = -2.0
+		bic.offset_bottom = -2.0
+		bic.visible = false
+		b.add_child(bic)
+		b.set_meta("icon", bic)
 		b.focus_mode = Control.FOCUS_NONE
 		var slot_i: int = i
 		b.pressed.connect(func():
