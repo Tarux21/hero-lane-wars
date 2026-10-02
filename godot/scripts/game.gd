@@ -315,7 +315,7 @@ func _start_game() -> void:
 		test_panel.visible = true
 	if shopshot:                         # Test: Shop zeigen
 		hero["gold"] = 1500.0
-		for id in ["bigSword", "rake", "hat", "heart"]:
+		for id in ["bigSword", "rake", "hat", "heart", "bigStaff"]:
 			items.buy(hero, id)
 		items.buy(hero, "potion")
 		shop.toggle()

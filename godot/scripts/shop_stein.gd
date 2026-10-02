@@ -21,6 +21,8 @@ var pal: Dictionary
 var root: PanelContainer
 var sel := ""
 var tree_root := ""
+var _owned := {}                            # Rucksack-Zähler beim Aufbau des Baums (gekaufte Teile grau)
+var last_bag: Array = []
 var tab := 0                                # 0 Empfohlen, 1 Alle Items
 var filter := "all"
 var search := ""
@@ -349,7 +351,7 @@ func _tile(id: String, size: float) -> Control:
 	pl.mouse_filter = Control.MOUSE_FILTER_STOP
 	pl.gui_input.connect(func(ev: InputEvent): _on_item_input(ev, iid, false))
 	vb.add_child(pl)
-	tiles.append({"id": id, "btn": b, "box": vb, "frame": col})
+	tiles.append({"id": id, "btn": b, "box": vb, "sty": HudStein.box(col.darkened(0.25), pal["border"].darkened(0.35), 2, 3, 2), "sty_sel": HudStein.box(col, pal["hi"], 4, 3, 2), "is_sel": false})
 	return vb
 
 
@@ -406,6 +408,9 @@ func _select(id: String, as_root: bool = true) -> void:
 		none.add_theme_font_size_override("font_size", 12)
 		none.add_theme_color_override("font_color", pal["dim"])
 		builds_row.add_child(none)
+	_owned = {}
+	for b in g.hero["bag"]:
+		_owned[b] = int(_owned.get(b, 0)) + 1
 	tree_box.add_child(_tree_node(tree_root, 40.0, 0))
 	var it: Dictionary = g.items.item[id]
 	name_label.text = str(it["name"])
@@ -449,11 +454,17 @@ func _small_tile(id: String, size: float, in_tree: bool = false) -> Control:
 
 
 ## Rezeptbaum: das Item oben, darunter nebeneinander seine Teile (jeweils wieder mit ihren Teilen)
-func _tree_node(id: String, size: float, depth: int) -> Control:
+func _tree_node(id: String, size: float, depth: int, parent_owned: bool = false) -> Control:
 	var vb := VBoxContainer.new()
 	vb.add_theme_constant_override("separation", 2)
 	var top := _small_tile(id, size, true)
 	top.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	var is_owned := parent_owned
+	if depth > 0 and not parent_owned and int(_owned.get(id, 0)) > 0:       # schon im Rucksack: nur grau gezeigt, Kauf bleibt möglich
+		_owned[id] = int(_owned[id]) - 1
+		is_owned = true
+	if is_owned:
+		top.modulate = Color(1, 1, 1, 0.38)
 	vb.add_child(top)
 	var it: Dictionary = g.items.item[id]
 	if it.has("parts"):
@@ -466,7 +477,7 @@ func _tree_node(id: String, size: float, depth: int) -> Control:
 		row.add_theme_constant_override("separation", 10)
 		row.alignment = BoxContainer.ALIGNMENT_CENTER
 		for part in it["parts"]:
-			row.add_child(_tree_node(str(part), maxf(30.0, size - 3.0 * (depth + 1)), depth + 1))
+			row.add_child(_tree_node(str(part), maxf(30.0, size - 3.0 * (depth + 1)), depth + 1, is_owned))
 		vb.add_child(row)
 	return vb
 
@@ -532,6 +543,10 @@ func _buy_selected() -> void:
 func refresh_all() -> void:
 	if g.hero.is_empty() or sel == "":
 		return
+	if g.hero["bag"] != last_bag:                              # Rucksack hat sich geändert (Kauf, Verkauf): Baum neu aufbauen
+		last_bag = (g.hero["bag"] as Array).duplicate()
+		_select(sel, false)
+		return
 	gold_label.text = "Gold  %d" % int(g.hero["gold"])
 	var it: Dictionary = g.items.item[sel]
 	var price: int = int(it["cost"]) if it.get("consumable", false) else int(g.items.resolve_buy(sel, g.hero["bag"])["cost"])
@@ -545,6 +560,11 @@ func refresh_all() -> void:
 	name_label.text = "%s   %d Gold" % [str(it["name"]), (g.items.total_cost(sel) if it.has("parts") else int(it["cost"]))]
 	note_label.text = (extra + ("\n" if extra != "" else "") + ("Nicht möglich: " + why if why != "" else "Bereit zum Kauf (Rechtsklick auf ein Item kauft ebenfalls).") +
 		("\nVerkauf: %d Gold" % sell_val if sell_val > 0 else ""))
+	for e in tiles:                                             # gewähltes Item in der Liste hervorheben
+		var is_sel: bool = e["id"] == sel
+		if is_sel != e["is_sel"]:
+			e["is_sel"] = is_sel
+			(e["btn"] as Button).add_theme_stylebox_override("normal", e["sty_sel"] if is_sel else e["sty"])
 	for e in tiles:
 		var tp: int = int(g.items.item[e["id"]]["cost"]) if g.items.item[e["id"]].get("consumable", false) else int(g.items.resolve_buy(e["id"], g.hero["bag"])["cost"])
 		(e["box"] as Control).modulate = Color.WHITE if g.hero["gold"] >= tp else Color(1, 1, 1, 0.55)
