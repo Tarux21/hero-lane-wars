@@ -84,6 +84,7 @@ var shopshot := false                 # Test: Shop offen, Gold und ein paar Item
 var golden := false                   # Szenario-Runner (Vergleich mit dem Prototyp)
 var golden_filter := ""
 var golden_eco := false
+var botplay := false                  # Test: auch dein Held wird vom Bot gesteuert (ganze Partien Bot gegen Bot)
 var golden_eco_filter := ""
 var menu_shot := ""
 var mini: Control                    # Minimap
@@ -156,6 +157,8 @@ func _ready() -> void:
 			diff_key = a.substr(7)
 		elif a.begins_with("--style="):
 			bot_style = a.substr(8)
+		elif a == "--botplay":
+			botplay = true
 		elif a == "--no-bots":
 			no_bots = true
 		elif a == "--selftest":
@@ -214,6 +217,11 @@ func _start_game() -> void:
 	_spawn_hero()
 	if not no_bots:
 		_spawn_others()
+	if botplay:                          # Test: dein Held spielt auch als Bot (gleiche Schwierigkeit wie der Gegner)
+		hero["bot"] = true
+		hero["gold_mul"] = float(bot_diff["goldMul"])
+		hero["mul"] = float(bot_diff["heroMul"])
+		bot.setup(hero, bot_diff, bot_style)
 	_build_hud()
 	started = true
 	if shopshot:                         # Test: Shop zeigen
@@ -2261,8 +2269,8 @@ func _run_simulation(secs: float, shot_path: String) -> void:
 			var tg: Variant = hero["target"]
 			print("t=%.0f Held x=%.0f y=%.0f | Ziel: %s | Einheiten %d" % [t, hero["x"], hero["y"],
 				"-" if tg == null else "x=%.0f y=%.0f lane=%d" % [tg["x"], tg["y"], tg["lane"]], units.size()])
-	print("SIM %.0f s | Welle %d | Team-Leben %d : %d | Gold %d | Level %d | Kills %d | Tode %d | Einheiten %d" % [
-		secs, sides[0]["wave"], team_lives[0], team_lives[1], int(hero["gold"]), hero["lvl"], kills, hero["deaths"], units.size()])
+	print("SIM %.0f s (Ende bei %.0f s, Sieger %s) | Welle %d | Team-Leben %d : %d | Gold %d | Level %d | Kills %d | Tode %d | Einheiten %d" % [
+		secs, t, ("keiner" if winner < 0 else ("A" if winner == 0 else "B")), sides[0]["wave"], team_lives[0], team_lives[1], int(hero["gold"]), hero["lvl"], kills, hero["deaths"], units.size()])
 	for p in players:                    # je Spieler: Seite, Held, Level, Kills, Tode, gesendet, Einkommen, Rucksack
 		var sent_n := 0
 		for k in p["sent"].keys():
