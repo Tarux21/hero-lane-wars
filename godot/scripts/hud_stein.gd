@@ -95,7 +95,7 @@ func _portrait_block() -> Control:
 	var hb := HBoxContainer.new()
 	hb.add_theme_constant_override("separation", 10)
 	var frame := PanelContainer.new()
-	frame.add_theme_stylebox_override("panel", box(Color("#1c1a17"), GOLD, 3, 40, 4))
+	frame.add_theme_stylebox_override("panel", box(Color("#1c1a17"), GOLD, 3, 3, 4))
 	frame.custom_minimum_size = Vector2(84, 84)
 	var ic := SkillIcon.new()
 	ic.kind = "class_" + str(g.hero["key"])
