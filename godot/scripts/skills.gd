@@ -226,7 +226,9 @@ func _cast(p: Dictionary, i: int, r: int, m: Dictionary) -> bool:
 				0: return _dmg_q(p, r)
 				1:
 					p["buffs"]["rage"] = {"t": 10.0 if r >= 3 else 6.0, "as": 0.4 + 0.12 * (r - 1), "spd": 40.0, "cleave": r >= 5}
-					g.fx_ring(p["x"], p["y"], 35.0, 0.5, "#ff8a7a")
+					g.vfx.rage_aura(p, 10.0 if r >= 3 else 6.0)
+					g.cast_pose(p, p["x"] + 100.0, p["y"], "Punch", 0.4)
+					g.sfx_p(p, "damage_w")
 					return true
 				2: return _dmg_e(p, r, m)
 				3: return _dmg_r(p)
@@ -337,7 +339,10 @@ func _come_back(p: Dictionary, from: Vector2) -> void:
 func _dmg_q(p: Dictionary, r: int) -> bool:
 	var radius := 95.0 + 5.0 * (r - 1)
 	var dmg := dmg_of(p, 30.0, 10.0, r, 0.0, 0.7)
-	var n := circle_hit(p, p["x"], p["y"], radius, dmg)
+	var n := circle_hit(p, p["x"], p["y"], radius, dmg, {}, "", false)
+	g.cast_pose(p, p["x"] + 100.0, p["y"], "Dagger_Attack", 0.4)
+	g.vfx.dagger_fan(p, radius, r)
+	g.sfx_p(p, "damage_q")
 	var pct: float = float(cfg["whirlHeal"][r - 1])
 	if pct > 0.0 and n > 0:
 		var heal: float = minf(n, int(cfg["whirlHealCap"])) * pct * h_max_hp(p)
@@ -357,7 +362,9 @@ func _dmg_e(p: Dictionary, r: int, m: Dictionary) -> bool:
 	p["target"] = null
 	var dmg := dmg_of(p, 20.0, 8.0, r, 0.0, 0.4)
 	var fdmg := dmg_of(p, 10.0, 4.0, r, 0.0, 0.15)
-	g.fx_line(sx, sy, pt.x, pt.y, 0.25, "#ffb36b", 6.0)
+	g.vfx.leap_start(p, sx, sy)
+	g.cast_pose(p, pt.x, pt.y, "Roll", 0.45, 2.2)
+	g.sfx_p(p, "damage_e")
 	p["leap"] = {"sx": sx, "sy": sy, "tx": pt.x, "ty": pt.y, "t": 0.22, "T": 0.22, "r": r, "dmg": dmg, "fdmg": fdmg}
 	return true
 
@@ -365,9 +372,11 @@ func _dmg_e(p: Dictionary, r: int, m: Dictionary) -> bool:
 func leap_land(p: Dictionary) -> void:
 	var L: Dictionary = p["leap"]
 	var r: int = L["r"]
-	circle_hit(p, p["x"], p["y"], 80.0 + 4.0 * (r - 1), L["dmg"], {"stun": 1.5 if r >= 5 else 0.0}, "#ffb36b")
+	circle_hit(p, p["x"], p["y"], 80.0 + 4.0 * (r - 1), L["dmg"], {"stun": 1.5 if r >= 5 else 0.0}, "#ffb36b", false)
+	g.vfx.leap_land(p, 80.0 + 4.0 * (r - 1), r)
+	g.sfx_p(p, "damage_e_land")
 	if r >= 3:
-		g.add_zone({"x": p["x"], "y": p["y"], "r": 100.0, "t": 4.0, "tick": 0.0, "every": 1.0, "dmg": L["fdmg"], "c": "#ff9a4a", "p": p})
+		g.add_zone({"x": p["x"], "y": p["y"], "r": 100.0, "t": 4.0, "tick": 0.0, "every": 1.0, "dmg": L["fdmg"], "c": "#ff9a4a", "p": p, "kind": "fire"})
 
 
 func _dmg_r(p: Dictionary) -> bool:
@@ -376,16 +385,19 @@ func _dmg_r(p: Dictionary) -> bool:
 		g.fx_text(p["x"] - 30.0, p["y"] - 40.0, "Keine Ziele!", "#ff9a8a", 1.2, 30)
 		return false
 	var dmg := dmg_of(p, 60.0, 0.0, 1, 0.0, 0.8)
+	g.cast_pose(p, pool[0]["x"], pool[0]["y"], "Dagger_Attack2", 0.6)
+	g.sfx_p(p, "damage_r")
 	var fdmg := dmg_of(p, 18.0, 0.0, 1, 0.0, 0.3)
 	for idx in pool.size():
 		var u: Dictionary = pool[idx]
 		var x: float = u["x"]
 		var y: float = u["y"]
-		g.fx_ring(x, y, 55.0, 0.5, "#fff3a0")
+		g.vfx.dagger_warn(x, y, p["side"]["idx"], 0.3 + 0.25 * idx)
 		g.later(0.3 + 0.25 * idx, func():
-			g.fx_line(x, y - 320.0, x, y, 0.2, "#dfe6f0", 6.0)
-			circle_hit(p, x, y, 60.0, dmg, {}, "#ffe066")
-			g.add_zone({"x": x, "y": y, "r": 70.0, "t": 8.0, "tick": 0.0, "every": 1.0, "dmg": fdmg, "c": "#ffe066", "p": p}))
+			g.vfx.dagger_volley(x, y, p["side"]["idx"], 60.0)
+			g.sfx_p(p, "damage_r_hit", 0.8, 1.0, Vector2(x, y))
+			circle_hit(p, x, y, 60.0, dmg, {}, "", false)
+			g.add_zone({"x": x, "y": y, "r": 70.0, "t": 8.0, "tick": 0.0, "every": 1.0, "dmg": fdmg, "c": "#3f9a45", "p": p, "kind": "poison", "a0": 0.16}))
 	return true
 
 

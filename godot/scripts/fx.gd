@@ -480,6 +480,23 @@ func zone_attach(z: Dictionary) -> void:
 			_crystal(node, Vector3(cos(a) * d, 0.0, sin(a) * d), rng.randf_range(0.5, 1.2), rng.randf() * 0.4)
 
 
+	elif kind == "poison":
+		var ar := r * r
+		node.add_child(_ps({"amount": int(clampf(10.0 + ar * 1.5, 12.0, 60.0)), "life": 2.2, "add": false, "shape": "ring", "radius": r * 0.85, "height": 0.1,
+			"dir": Vector3.UP, "spread": 18.0, "vmin": 0.3, "vmax": 0.9, "smin": 1.4, "smax": 2.6, "grav": Vector3(0, 0.2, 0), "curve": _curve([0.5, 1.0]),
+			"ramp": _ramp([[0.0, Color(0.45, 0.8, 0.3, 0.0)], [0.2, Color(0.4, 0.75, 0.3, 0.42)], [0.8, Color(0.3, 0.45, 0.35, 0.3)], [1.0, Color(0.25, 0.3, 0.3, 0.0)]])}))
+		node.add_child(_ps({"amount": int(clampf(8.0 + ar, 10.0, 36.0)), "life": 1.6, "shape": "ring", "radius": r * 0.9, "height": 0.1,
+			"dir": Vector3.UP, "spread": 10.0, "vmin": 0.4, "vmax": 1.2, "smin": 0.1, "smax": 0.22, "grav": Vector3(0, 0.3, 0),
+			"ramp": _ramp([[0.0, Color(0.7, 1.0, 0.5, 0.0)], [0.25, Color(0.7, 1.0, 0.45, 1.0)], [1.0, Color(0.5, 0.9, 0.4, 0.0)]])}))
+		node.add_child(_ps({"amount": 8, "life": 1.2, "shape": "ring", "radius": r * 0.8, "height": 0.1, "dir": Vector3.UP, "spread": 8.0,
+			"vmin": 0.8, "vmax": 2.0, "smin": 0.14, "smax": 0.26, "grav": Vector3(0, -1.5, 0),
+			"ramp": _ramp([[0.0, Color(0.6, 1.0, 0.4, 0.0)], [0.2, Color(0.6, 1.0, 0.4, 0.9)], [1.0, Color(0.4, 0.7, 0.3, 0.0)]])}))
+		var lt3 := OmniLight3D.new()
+		lt3.light_color = Color(0.5, 1.0, 0.4)
+		lt3.light_energy = 0.9
+		lt3.omni_range = r * 2.0 + 3.0
+		lt3.position.y = 0.8
+		node.add_child(lt3)
 	_zone_delay(z, node)
 
 
@@ -1531,3 +1548,296 @@ func _mat_rock() -> StandardMaterial3D:
 	m.albedo_color = Color(0.4, 0.34, 0.28)
 	m.roughness = 0.95
 	return m
+
+
+# ================================================================ Damage (Schurke)
+## Zweiter Dolch in der linken Hand (Kopie des vorhandenen Dolchs, an der linken Faust befestigt)
+func attach_offhand_dagger(fig: Dictionary) -> void:
+	if g.test_mode:
+		return
+	var inner := fig["inner"] as Node
+	var skel := inner.find_child("Skeleton3D", true, false) as Skeleton3D
+	var src := inner.find_child("Rogue_Dagger", true, false) as MeshInstance3D
+	if skel == null or src == null:
+		return
+	var ba := BoneAttachment3D.new()
+	ba.bone_name = "Fist.L"
+	skel.add_child(ba)
+	var d := MeshInstance3D.new()
+	d.mesh = src.mesh
+	d.material_override = src.material_override
+	d.name = "OffhandDagger"
+	var t_old := Transform3D(Basis.from_euler(src.rotation), src.position)
+	var t_new := Transform3D(Basis(Vector3.UP, PI)) * t_old
+	t_new.origin += Vector3(0.0, 0.11, 0.0)
+	d.transform = t_new
+	ba.add_child(d)
+	fig["offhand"] = d
+
+
+## Dolch als Effektobjekt: Kopie des Dolch-Meshes aus dem Schurken-Modell (Spitze zeigt nach -Z), um die Mitte zentriert
+func _dagger_mesh(scale_f: float) -> Node3D:
+	var holder := Node3D.new()
+	var info: Variant = g.model_cache.get("rpg/Rogue.gltf", null)
+	var src: MeshInstance3D = null
+	if info != null and info["root"] != null:
+		src = (info["root"] as Node).find_child("Rogue_Dagger", true, false) as MeshInstance3D
+	var mi := MeshInstance3D.new()
+	if src != null:
+		mi.mesh = src.mesh
+		mi.position = -src.mesh.get_aabb().get_center() * scale_f
+	else:
+		var bm := BoxMesh.new()
+		bm.size = Vector3(0.12, 0.03, 0.9)
+		mi.mesh = bm
+		var m := StandardMaterial3D.new()
+		m.albedo_color = Color(0.7, 0.75, 0.85)
+		m.metallic = 0.9
+		m.roughness = 0.3
+		mi.material_override = m
+	mi.scale = Vector3.ONE * scale_f
+	holder.add_child(mi)
+	return holder
+
+
+## Q Wirbel als Dolchfächer: der Schurke dreht sich, ein Kranz Dolche fächert nach allen Seiten bis zum Rand des Wirkungskreises
+func dagger_fan(p: Dictionary, radius_units: float, rank: int) -> void:
+	if g.test_mode:
+		return
+	var side: int = p["side"]["idx"]
+	var origin := _w(p["x"], p["y"], side)
+	var r_m := radius_units * S
+	var n := 8 + rank * 2
+	var steel := Color(0.85, 0.92, 1.0)
+	_ring_wave(origin, Color(steel.r, steel.g, steel.b, 0.85), r_m, 0.35, 0.12)
+	var twr := g.create_tween()
+	twr.tween_interval(0.1)
+	twr.tween_callback(func(): _ring_wave(origin, Color(1.0, 1.0, 1.0, 0.5), r_m * 0.8, 0.3, 0.14))
+	_glow_sprite(Color(1, 1, 1, 0.8), 3.0, 0.16, origin + Vector3(0, 1.2, 0), 1.5)
+	_light(Color(0.8, 0.9, 1.0), 2.0, 9.0, 0.3, origin + Vector3(0, 1.5, 0))
+	var fig: Dictionary = p.get("fig", {})
+	if not fig.is_empty():
+		fig["spin"] = 0.35
+	for i in n:
+		var a := TAU * i / n + 0.3
+		var dir := Vector3(cos(a), 0.0, sin(a))
+		var d := _dagger_mesh(0.85)
+		var start := origin + Vector3(0, 1.3, 0)
+		_put(d, start, 1.6)
+		d.basis = Basis.looking_at(dir, Vector3.UP)
+		d.visible = false
+		var trail := _ps({"amount": 14, "life": 0.22, "local": false, "shape": "sphere", "radius": 0.05, "vmin": 0.0, "vmax": 0.3, "spread": 180.0,
+			"smin": 0.18, "smax": 0.32, "curve": _curve([1.0, 0.0]),
+			"ramp": _ramp([[0.0, Color(1, 1, 1, 0.9)], [0.5, Color(0.7, 0.85, 1.0, 0.5)], [1.0, Color(0.6, 0.8, 1.0, 0.0)]])})
+		trail.emitting = false
+		d.add_child(trail)
+		var land := origin + dir * r_m * 0.95 + Vector3(0, 0.35, 0)
+		var delay := float(i) * 0.012
+		var tw := d.create_tween()
+		tw.tween_interval(delay)
+		tw.tween_callback(func():
+			d.visible = true
+			trail.restart())
+		tw.tween_method(func(f: float):
+			d.position = start.lerp(land, f)
+			d.rotate_object_local(Vector3.BACK, 0.5), 0.0, 1.0, 0.28).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
+		tw.tween_callback(func():
+			trail.emitting = false
+			var sp := _ps({"amount": 6, "life": 0.3, "once": true, "explo": 1.0, "shape": "sphere", "radius": 0.05, "dir": Vector3.UP, "spread": 120.0,
+				"vmin": 1.5, "vmax": 4.0, "smin": 0.05, "smax": 0.11, "grav": Vector3(0, -6.0, 0),
+				"ramp": _ramp([[0.0, Color(1, 1, 1, 1.0)], [1.0, Color(0.7, 0.85, 1.0, 0.0)]])})
+			_put(sp, land, 0.5))
+		tw.tween_interval(0.45)
+		tw.tween_property(d, "scale", Vector3.ONE * 0.01, 0.25)
+
+
+## kleiner Schnitt am Ziel (Autoangriff des Schurken)
+func slash_hit(p: Dictionary, tx: float, ty: float) -> void:
+	if g.test_mode:
+		return
+	var side: int = p["side"]["idx"]
+	var pos := _w(tx, ty, side) + Vector3(0, 1.0, 0)
+	_slash(pos, Color(1.0, 1.0, 1.0, 1.0), 1.5, rng.randf_range(-40.0, 40.0), 0.14)
+	var sp := _ps({"amount": 5, "life": 0.25, "once": true, "explo": 1.0, "shape": "sphere", "radius": 0.1, "dir": Vector3.UP, "spread": 90.0,
+		"vmin": 1.5, "vmax": 4.0, "smin": 0.05, "smax": 0.1, "grav": Vector3(0, -6.0, 0),
+		"ramp": _ramp([[0.0, Color(1, 1, 1, 1.0)], [1.0, Color(0.8, 0.9, 1.0, 0.0)]])})
+	_put(sp, pos, 0.4)
+
+
+## Schnittspur: dünner, kamerazugewandter Streifen mit Leuchten, blendet schnell aus. tilt in Grad (Neigung auf dem Bildschirm)
+func _slash(pos: Vector3, col: Color, length: float, tilt_deg: float, life: float) -> void:
+	var up: Vector3 = g.cam.global_transform.basis.y if g.cam != null else Vector3.UP
+	var right: Vector3 = g.cam.global_transform.basis.x if g.cam != null else Vector3.RIGHT
+	var dir := (right * cos(deg_to_rad(tilt_deg)) + up * sin(deg_to_rad(tilt_deg))).normalized()
+	var pts: Array = []
+	for i in 7:
+		var f := float(i) / 6.0 - 0.5
+		var bend := up * (0.25 * (f * f - 0.1)) * length * 0.3
+		pts.append(dir * f * length + bend)
+	var holder := Node3D.new()
+	var glow := _ribbon(pts, 0.22, Color(col.r, col.g, col.b, 0.55))
+	var core := _ribbon(pts, 0.07, Color(1, 1, 1, 1.0))
+	holder.add_child(glow)
+	holder.add_child(core)
+	_put(holder, pos, life + 0.1)
+	var tw := holder.create_tween()
+	tw.tween_interval(life * 0.5)
+	tw.tween_property(holder, "scale", Vector3(1.0, 0.05, 1.0), life * 0.5)
+
+
+## W Kampfrausch: roter Schein mit Flammen und Funken um den Schurken, solange der Rausch anhält
+func rage_aura(p: Dictionary, secs: float) -> void:
+	if g.test_mode:
+		return
+	var node: Node3D = p["node"]
+	if node.has_node("RageFx"):
+		node.get_node("RageFx").queue_free()
+	var holder := Node3D.new()
+	holder.name = "RageFx"
+	node.add_child(holder)
+	var flames := _ps({"amount": 26, "life": 0.7, "tex": tex_flame, "qsize": Vector2(1.0, 1.5), "ang": 12.0, "local": false, "shape": "ring", "radius": 0.8, "height": 0.1,
+		"dir": Vector3.UP, "spread": 12.0, "vmin": 1.0, "vmax": 2.6, "smin": 0.7, "smax": 1.3, "grav": Vector3(0, 1.0, 0), "curve": _curve([0.6, 1.0, 0.0]),
+		"ramp": _ramp([[0.0, Color(1.0, 0.5, 0.3, 0.0)], [0.15, Color(1.0, 0.25, 0.15, 0.75)], [0.6, Color(0.7, 0.08, 0.08, 0.45)], [1.0, Color(0.2, 0.0, 0.0, 0.0)]])})
+	holder.add_child(flames)
+	var embers := _ps({"amount": 10, "life": 1.0, "local": false, "shape": "ring", "radius": 0.9, "height": 0.1, "dir": Vector3.UP, "spread": 20.0,
+		"vmin": 1.2, "vmax": 3.0, "smin": 0.06, "smax": 0.13, "grav": Vector3(0, 0.6, 0),
+		"ramp": _ramp([[0.0, Color(1.0, 0.8, 0.6, 1.0)], [0.6, Color(1.0, 0.3, 0.2, 0.8)], [1.0, Color(0.6, 0.0, 0.0, 0.0)]])})
+	holder.add_child(embers)
+	var lt := OmniLight3D.new()
+	lt.light_color = Color(1.0, 0.25, 0.2)
+	lt.light_energy = 1.4
+	lt.omni_range = 6.0
+	lt.position.y = 1.2
+	holder.add_child(lt)
+	flickers.append({"node": lt, "base": 1.4, "ph": rng.randf() * 6.0})
+	_ring_wave(_w(p["x"], p["y"], p["side"]["idx"]), Color(1.0, 0.25, 0.2, 0.9), 4.5, 0.5)
+	_glow_sprite(Color(1.0, 0.3, 0.2, 0.9), 3.5, 0.25, _w(p["x"], p["y"], p["side"]["idx"]) + Vector3(0, 1.2, 0), 1.5)
+	var tw := holder.create_tween()
+	tw.tween_interval(maxf(0.2, secs - 0.5))
+	tw.tween_callback(func():
+		flames.emitting = false
+		embers.emitting = false
+		lt.light_energy = 0.0)
+	tw.tween_interval(0.8)
+	tw.tween_callback(func(): holder.queue_free())
+
+
+## Flächenschaden der Angriffe (Kampfrausch Rang 5 oder Splitteraxt): sichtbarer Schwung am Hauptziel und Schnitte an den Nebenzielen
+func cleave_fx(p: Dictionary, tx: float, ty: float, others: Array, radius_units: float, col: Color) -> void:
+	if g.test_mode:
+		return
+	var side: int = p["side"]["idx"]
+	var center := _w(tx, ty, side)
+	_ring_wave(center, Color(col.r, col.g, col.b, 0.85), radius_units * S, 0.4, 0.12)
+	for pos2 in others:
+		var wp := _w(pos2.x, pos2.y, side) + Vector3(0, 1.0, 0)
+		_slash(wp, col, 3.0, 35.0, 0.3)
+		_slash(wp, col, 2.4, -35.0, 0.3)
+		var sp := _ps({"amount": 6, "life": 0.3, "once": true, "explo": 1.0, "shape": "sphere", "radius": 0.1, "dir": Vector3.UP, "spread": 100.0,
+			"vmin": 1.5, "vmax": 4.0, "smin": 0.06, "smax": 0.12, "grav": Vector3(0, -6.0, 0),
+			"ramp": _ramp([[0.0, Color(1, 1, 1, 1.0)], [0.4, col], [1.0, Color(col.r, col.g, col.b, 0.0)]])})
+		_put(sp, wp, 0.5)
+
+
+## E Sprung: Absprung (Staubwolke und dunkle Spur)
+func leap_start(p: Dictionary, sx: float, sy: float) -> void:
+	if g.test_mode:
+		return
+	var side: int = p["side"]["idx"]
+	var pos := _w(sx, sy, side)
+	_dust(pos + Vector3(0, 0.3, 0), Vector3.UP, 70.0, 3.0, 24, 1.6, 0.7)
+	_ring_wave(pos, Color(0.7, 0.62, 0.5, 0.7), 2.5, 0.3, 0.1)
+	var node: Node3D = p["node"]
+	var trail := _ps({"amount": 22, "life": 0.35, "local": false, "shape": "sphere", "radius": 0.3, "vmin": 0.0, "vmax": 0.4, "spread": 180.0,
+		"smin": 0.7, "smax": 1.2, "add": false, "curve": _curve([1.0, 0.0]),
+		"ramp": _ramp([[0.0, Color(0.25, 0.1, 0.3, 0.7)], [1.0, Color(0.1, 0.05, 0.15, 0.0)]])})
+	trail.position.y = 1.2
+	node.add_child(trail)
+	var tw := trail.create_tween()
+	tw.tween_interval(0.25)
+	tw.tween_callback(func(): trail.emitting = false)
+	tw.tween_interval(0.5)
+	tw.tween_callback(func(): trail.queue_free())
+
+
+## E Sprung: Landung (Druckwelle, Staub, kleine Risse, Dolche stoßen in den Boden)
+func leap_land(p: Dictionary, radius_units: float, rank: int) -> void:
+	if g.test_mode:
+		return
+	var side: int = p["side"]["idx"]
+	var pos := _w(p["x"], p["y"], side)
+	var r_m := radius_units * S
+	_glow_sprite(Color(1.0, 0.85, 0.6, 1.0), 4.0, 0.2, pos + Vector3(0, 0.6, 0), 1.6)
+	_light(Color(1.0, 0.7, 0.4), 2.5, 9.0, 0.35, pos + Vector3(0, 1.0, 0))
+	_ring_wave(pos, Color(1.0, 0.8, 0.5, 0.9), r_m, 0.4, 0.12)
+	_dust(pos + Vector3(0, 0.3, 0), Vector3.UP, 80.0, 4.5, 40, 2.2, 0.9)
+	_debris(pos + Vector3(0, 0.3, 0), Vector3.UP, 50.0, 7.0, 12 + rank * 2, 1.0)
+	_cracks(pos, 0.0, PI, r_m * 0.9, 5 + rank, 1.2)
+	for k in 2:                                          # zwei Dolche stoßen links und rechts in den Boden
+		var dd := _dagger_mesh(0.6)
+		var off := Vector3((-0.7 if k == 0 else 0.7), 0.0, 0.2)
+		_put(dd, pos + off + Vector3(0, 3.0, 0), 1.2)
+		dd.rotation = Vector3(deg_to_rad(80.0), rng.randf_range(-0.3, 0.3), 0)
+		var tw := dd.create_tween()
+		tw.tween_property(dd, "position:y", 0.45, 0.1).set_ease(Tween.EASE_IN)
+		tw.tween_interval(0.5)
+		tw.tween_property(dd, "scale", Vector3.ONE * 0.01, 0.25)
+	if rank >= 5:                                        # Betäubung: kreisende Sterne
+		var stars := _ps({"amount": 10, "life": 0.9, "once": true, "explo": 0.5, "shape": "ring", "radius": r_m * 0.5, "height": 0.2, "dir": Vector3.UP, "spread": 10.0,
+			"vmin": 1.5, "vmax": 3.0, "smin": 0.2, "smax": 0.3,
+			"ramp": _ramp([[0.0, Color(1.0, 0.95, 0.4, 0.0)], [0.2, Color(1.0, 0.95, 0.4, 1.0)], [1.0, Color(1.0, 0.8, 0.2, 0.0)]])})
+		_put(stars, pos + Vector3(0, 0.5, 0), 1.3)
+	g.shake_near(pos, 6.0 + rank)
+
+
+## R Dolchhagel: Warnkreis am Boden (violett)
+func dagger_warn(x: float, y: float, side: int, secs: float) -> void:
+	if g.test_mode:
+		return
+	var pos := _w(x, y, side)
+	var warn := MeshInstance3D.new()
+	var qm := QuadMesh.new()
+	qm.size = Vector2(1.0, 1.0)
+	qm.orientation = PlaneMesh.FACE_Y
+	warn.mesh = qm
+	var wm := _flat_mat(tex_rune, Color(0.7, 0.4, 1.0, 0.0), true)
+	warn.material_override = wm
+	warn.scale = Vector3(3.2, 1.0, 3.2)
+	_put(warn, pos + Vector3(0, 0.12, 0), secs + 0.3)
+	var tw := warn.create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(wm, "albedo_color:a", 0.9, secs * 0.6)
+	tw.tween_property(warn, "rotation:y", 2.5, secs + 0.2)
+	tw.chain().tween_property(wm, "albedo_color:a", 0.0, 0.25)
+
+
+## R Dolchhagel: ein Schwall Dolche fällt in einen engen Kreis, bleibt kurz im Boden stecken
+func dagger_volley(x: float, y: float, side: int, radius_units: float) -> void:
+	if g.test_mode:
+		return
+	var pos := _w(x, y, side)
+	var r_m := radius_units * S
+	var n := 9
+	for i in n:
+		var a := rng.randf() * TAU
+		var d := sqrt(rng.randf()) * r_m * 0.9
+		var land := pos + Vector3(cos(a) * d, 0.0, sin(a) * d)
+		var dg := _dagger_mesh(0.55)
+		var from := land + Vector3(rng.randf_range(-1.0, 1.0), 14.0, rng.randf_range(-1.0, 1.0))
+		_put(dg, from, 2.0)
+		dg.rotation = Vector3(deg_to_rad(90.0 + rng.randf_range(-12.0, 12.0)), rng.randf() * TAU, 0)
+		var delay := float(i) * 0.03
+		var tw := dg.create_tween()
+		tw.tween_interval(delay)
+		tw.tween_method(func(f: float): dg.position = from.lerp(land + Vector3(0, 0.5, 0), f * f), 0.0, 1.0, 0.16)
+		tw.tween_callback(func():
+			var sp := _ps({"amount": 5, "life": 0.3, "once": true, "explo": 1.0, "shape": "sphere", "radius": 0.08, "dir": Vector3.UP, "spread": 110.0,
+				"vmin": 1.5, "vmax": 4.0, "smin": 0.05, "smax": 0.1, "grav": Vector3(0, -6.0, 0),
+				"ramp": _ramp([[0.0, Color(1, 1, 1, 1.0)], [0.4, Color(0.8, 0.6, 1.0, 0.8)], [1.0, Color(0.6, 0.4, 1.0, 0.0)]])})
+			_put(sp, land, 0.5))
+		tw.tween_interval(2.2)
+		tw.tween_property(dg, "scale", Vector3.ONE * 0.01, 0.4)
+	_ring_wave(pos, Color(0.7, 0.45, 1.0, 0.8), r_m * 1.3, 0.35, 0.12)
+	_glow_sprite(Color(0.8, 0.6, 1.0, 0.9), 3.0, 0.18, pos + Vector3(0, 0.6, 0), 1.5)
+	_light(Color(0.7, 0.5, 1.0), 2.0, 8.0, 0.3, pos + Vector3(0, 1.0, 0))
+	g.shake_near(pos, 2.5)

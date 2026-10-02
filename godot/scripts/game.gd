@@ -1332,6 +1332,8 @@ func _make_player(key: String, side_idx: int, slot: int, bot: bool) -> Dictionar
 		if not fig.is_empty() and key == "tank":          # Tank: breiter und mit Schild am linken Arm
 			(fig["inner"] as Node3D).scale *= Vector3(1.12, 1.0, 1.12)
 			vfx.attach_shield(fig)
+		if not fig.is_empty() and key == "damage":          # Schurke: zweiter Dolch in der linken Hand
+			vfx.attach_offhand_dagger(fig)
 	if fig.is_empty():
 		var body := MeshInstance3D.new()
 		var cap := CapsuleMesh.new()
@@ -1453,7 +1455,7 @@ func sfx(name: String) -> void:
 
 
 func sfx_cast(p: Dictionary, i: int) -> void:
-	if p == hero and p["key"] != "caster" and not (p["key"] == "tank" and snd != null and snd.streams.has("tank_" + "qwer"[i])):      # Caster und Tank haben eigene Klänge je Fähigkeit (sfx_p)
+	if p == hero and p["key"] != "caster" and not (p["key"] in ["tank", "damage"] and snd != null and snd.streams.has(str(p["key"]) + "_" + "qwer"[i])):      # Caster und Tank haben eigene Klänge je Fähigkeit (sfx_p)
 		sfx("cast%d" % i)
 
 
@@ -1497,11 +1499,12 @@ func shake_near(pos: Vector3, px: float) -> void:
 
 
 ## Zauberpose: Figur dreht sich zum Ziel und spielt die Angriffsanimation neu ab
-func cast_pose(p: Dictionary, tx: float, ty: float, anim: String = "", secs: float = 0.55) -> void:
+func cast_pose(p: Dictionary, tx: float, ty: float, anim: String = "", secs: float = 0.55, speed: float = 1.0) -> void:
 	var fig: Dictionary = p.get("fig", {})
 	if fig.is_empty():
 		return
 	fig["force"] = secs
+	fig["force_speed"] = speed
 	fig["force_anim"] = anim
 	fig["face"] = Vector2(tx, ty)
 	fig["cur"] = ""
@@ -1538,7 +1541,7 @@ func add_zone(z: Dictionary) -> void:
 		qm.orientation = PlaneMesh.FACE_Y
 		node.mesh = qm
 		mat = vfx._flat_mat(vfx.tex_disc, col, true)
-		z["a0"] = 0.3
+		z["a0"] = float(z.get("a0", 0.3))
 	else:
 		var cm := CylinderMesh.new()
 		cm.top_radius = float(z["r"]) * S
@@ -2292,15 +2295,21 @@ func _step_hero(p: Dictionary, dt: float) -> void:
 				if u != tgt and Vector2(u["x"] - tx, u["y"] - ty).length() <= 80.0:
 					near.append(u)
 			near.sort_custom(func(a, b): return Vector2(a["x"] - tx, a["y"] - ty).length() < Vector2(b["x"] - tx, b["y"] - ty).length())
+			var item_others: Array = []
 			for u in near.slice(0, int(cfg["cleaveMax"])):
+				item_others.append(Vector2(u["x"], u["y"]))
 				hit_unit(u, dmg * float(cfg["cleaveItemPct"]), p)
+			vfx.cleave_fx(p, tx, ty, item_others, 80.0, Color(1.0, 0.8, 0.4))
 		if p["uniq"].has("ruin") and my_units.has(tgt):                      # Schneide des gefallenen Monarchen: % des aktuellen Lebens
 			hit_unit(tgt, minf(float(cfg["ruinMax"]), maxf(float(cfg["ruinMin"]), float(cfg["ruinPct"]) * tgt["hp"])), p)
 		var rg: Variant = skills.buff(p, "rage")
 		if rg != null and rg["cleave"]:                                   # Kampfrausch Rang 5: Angriffe treffen Gegner im Umkreis
+			var others: Array = []
 			for u in my_units.duplicate():
 				if u != tgt and my_units.has(u) and Vector2(u["x"] - tx, u["y"] - ty).length() <= 75.0:
+					others.append(Vector2(u["x"], u["y"]))
 					hit_unit(u, dmg * 0.5, p)
+			vfx.cleave_fx(p, tx, ty, others, 75.0, Color(1.0, 0.3, 0.25))
 		if range_ > 100.0:
 			if p["key"] == "caster":
 				vfx.auto_fireball(p, tx, ty)
@@ -2309,6 +2318,9 @@ func _step_hero(p: Dictionary, dt: float) -> void:
 				fx_line(p["x"], p["y"], tx, ty, 0.12, str(p["d"]["col"]), 2.0)
 		elif p["key"] == "tank":
 			sfx_p(p, "tank_shot", 0.7)                 # Nahkampf-Schlag des Tanks
+		elif p["key"] == "damage":
+			vfx.slash_hit(p, tx, ty)
+			sfx_p(p, "damage_shot", 0.7)                # Doppelter Dolchhieb des Schurken
 
 
 
@@ -2635,7 +2647,19 @@ func _animate(e: Dictionary, node: Node3D, side_idx: int, delta: float, attack_a
 	_play_anim(fig, anim)
 	var ap: AnimationPlayer = fig["anim"]
 	if ap != null:
-		ap.speed_scale = clampf(speed / ref, 0.7, 2.0) if moving and anim == move_anim else 1.0
+		ap.speed_scale = clampf(speed / ref, 0.7, 2.0) if moving and anim == move_anim else (float(fig.get("force_speed", 1.0)) if force > 0.0 else 1.0)
+	var spin: float = fig.get("spin", 0.0)
+	if spin > 0.0:                                      # Drehung (Dolchfächer): einmal im Kreis
+		fig["spin"] = spin - delta
+		fig["yaw"] += TAU * delta / 0.35
+		(fig["inner"] as Node3D).rotation.y = fig["yaw"]
+	var lp: Variant = e.get("leap", null)
+	if fig.has("model"):                                # Sprung: die Figur steigt im Bogen (der Boden-Ring bleibt unten)
+		var hgt := 0.0
+		if lp is Dictionary:
+			var kk: float = 1.0 - maxf(0.0, float(lp["t"])) / float(lp["T"])
+			hgt = 3.4 * sin(kk * PI)
+		(fig["model"] as Node3D).position.y = hgt
 
 
 func _sync_visuals(delta: float) -> void:
@@ -3060,17 +3084,27 @@ func _fxtest(which: String, prefix: String) -> void:
 		m["wx"] = 1280.0
 	if which == "lookside" and not hero["fig"].is_empty():
 		hero["fig"]["yaw"] = -PI / 2.0
+	if which == "wauto":                              # Kampfrausch Rang 5: Angriff mit Flächenschaden zeigen
+		skills.cast_slot(hero, 1, m)
+		for i in 6:
+			units[i]["x"] = 1060.0 + (i % 3) * 38.0
+			units[i]["y"] = -30.0 + (i / 3) * 45.0
+			units[i]["hp"] = 1e9
+			units[i]["max"] = 1e9
+		hero["target"] = units[0]
 	if which == "auto":                               # Normalangriff zeigen
 		units[0]["x"] = 1220.0
 		units[0]["y"] = 0.0
 		hero["target"] = units[0]
 		units[0]["hp"] = 1e9
 		units[0]["max"] = 1e9
-	elif not which.begins_with("look"):
+	elif not which.begins_with("look") and which != "wauto":
 		skills.cast_slot(hero, slot, m)
 	var t0 := Time.get_ticks_msec()
 	var k := 0
 	var marks := [0.12, 0.3, 0.55, 0.9, 1.4, 2.2, 3.2]
+	if which == "wauto" or which == "auto":
+		marks = [0.1, 0.25, 0.4, 0.55, 0.7, 0.85, 1.0]
 	while k < marks.size():
 		await get_tree().process_frame
 		if (Time.get_ticks_msec() - t0) / 1000.0 >= marks[k]:
