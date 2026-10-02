@@ -328,13 +328,79 @@
   for(const hero of Object.keys(BOT_BUILD)) itemEffects.push(runItemScenario(baseRun('plan-'+hero+'-standard', hero, planBag(hero, BOT_BUILD[hero]), {lvl:10})));
   for(const [name, , hero, pl] of plans.slice(1)) itemEffects.push(runItemScenario(baseRun('plan-'+name, hero, planBag(hero, pl), {lvl:10})));
 
+  itemEffects.push(runItemScenario(baseRun('item-soulDrinker-rachsucht', 'damage', ['soulDrinker'], {hpFrac:.25, casts:[{t:0, slot:0}, {t:1, slot:2}], hits:[]})));   // Leben < 40 %: Lebens- und Zauberraub doppelt
+  itemEffects.push(runItemScenario(baseRun('item-soulDrinker-ohne-rachsucht', 'damage', ['soulDrinker'], {hpFrac:.9, casts:[{t:0, slot:0}, {t:1, slot:2}], hits:[]})));
+
+  // =====================================================================================================
+  // (d) BOT: Kaufplan je Klasse, Skill-Lernreihenfolge, Sendeentscheidung, Modus-Entscheidung (Kampf/Einkaufen/Rueckzug)
+  // =====================================================================================================
+  const bot = {};
+  // d1: Kaufplaene Schritt fuer Schritt (echtes botShop mit genau dem Gold fuer den naechsten Schritt)
+  bot.plans = (()=>{
+    const out = [];
+    const run = (name, hero, plan) => out.push(sim({hero, inBase:true}, (P,E)=>{
+      const I = {b:{step:0}, build:plan}; const rows = []; let guard = 0, total = 0;
+      while(I.b.step < plan.length && guard++ < 80){
+        const before = I.b.step, id = plan[before], nx = botNextCost(I);
+        G.gold = nx; botShop(I);
+        rows.push({planIndex:before, id, costNeeded:nx, stepAfter:I.b.step, goldLeft:r3(G.gold), bag:H.bag.slice(), cons:{...H.cons}});
+        total += nx - G.gold;
+        if(I.b.step === before){ rows[rows.length-1].stuck = true; break; }
+      }
+      return {name, hero, plan, rows, totalSpent:r3(total), finalBag:H.bag.slice(), finalCons:{...H.cons}, derived:derived()};
+    }));
+    for(const hero of Object.keys(BOT_BUILD)) run('standard-'+hero, hero, BOT_BUILD[hero]);
+    for(const hero of Object.keys(BOT_POOL)) BOT_POOL[hero].forEach((pl, i) => run('pool-'+hero+'-'+i, hero, pl));
+    return out;
+  })();
+  // d2: Skill-Lernreihenfolge: pro Level ein Skillpunkt, botLearn vergibt nach Bias und Freischaltlevel
+  bot.learn = Object.keys(BOT_CLASS).map(hero=>sim({hero}, (P,E)=>{
+    const rows = [];
+    for(let l = 1; l <= CFG.maxLevel; l++){ H.lvl = l; if(l > 1) H.sp += 1; botLearn({}); rows.push({lvl:l, ranks:H.ranks.slice(), spLeft:H.sp}); }
+    return {hero, bias:BOT_CLASS[hero].bias, rows};
+  }));
+  // d3: Sendeentscheidung (echtes botSend). E ist der Bot, sendet auf die Lane von P. Math.random fest (rand) -> deterministische Auswahl.
+  const sendCase = c => sim({hero:'damage', enemy:'damage', rand:c.rand}, (P,E)=>{
+    useInst(E);
+    E.diff = DIFF[c.diff]; E.style = c.style; E.build = BOT_BUILD.damage;
+    E.b = {mode:c.mode || 'fight', step:0, trips:0, deaths:0, deathTimes:[], wasDead:false, clock:0, lastSend:c.lastSend === undefined ? -100 : c.lastSend};
+    G.t = c.t; G.gold = c.gold; G.income = 100; H.x = c.inBase ? 120 : 1000; H.y = 0;
+    for(let k = 0; k < c.lane; k++) G.units.push({type:'grunt', lane:0, x:2000+k, y:0, hp:10, max:10, dmg:0, spd:0, range:0, armor:0, r:9, atkT:1e9, stun:0, slow:0});
+    P.H.dead = c.oppDead ? 5 : 0;
+    const before = P.G.units.length; const g0 = G.gold, i0 = G.income;
+    botSend(E, P);
+    const sent = P.G.units.slice(before).map(u=>u.type);
+    return {in:c, out:{sent, gold:r3(G.gold), spent:r3(g0-G.gold), incomeDelta:r3(G.income-i0), lastSend:E.b.lastSend, sentStats:{...G.stats.sent}}};
+  });
+  bot.send = {grid:[], gating:[], randomPicks:[]};
+  const DIFFS = ['easy','normal','hard','expert'], STYLES = ['balanced','rush','eco'];
+  for(const diff of DIFFS) for(const style of STYLES) for(const t of [34.9, 35, 100, 239.9, 240, 479.9, 480, 599.9, 600]) for(const gold of [100, 600, 3000]) for(const oppDead of [false, true]) for(const lane of [0, 23]) for(const inBase of [false, true])
+    bot.send.grid.push(sendCase({diff, style, t, gold, oppDead, lane, inBase, rand:.5}));
+  for(const diff of DIFFS) for(const style of STYLES) for(const since of [0.5, 1.9, 2.4, 2.6, 2.9, 3.1, 3.4, 3.9, 4.1, 5, 8.9, 9.1])
+    bot.send.gating.push(sendCase({diff, style, t:100, gold:600, oppDead:false, lane:0, inBase:true, rand:.5, lastSend:100-since}));
+  for(const rand of [0.01, 0.5, 0.99]) for(const t of [100, 600]) bot.send.randomPicks.push(sendCase({diff:'normal', style:'balanced', t, gold:3000, oppDead:false, lane:0, inBase:true, rand}));
+  bot.send.weights = {before480:BOT_SEND_W(100), from480:BOT_SEND_W(480), unitCosts:Object.fromEntries(Object.entries(UNITS).map(([k,u])=>[k,u.cost]))};
+  bot.send.diff = DIFF; bot.send.style = BOT_STYLE;
+  // d4: Modus-Entscheidung (botThink): Kampf / Einkaufen / Rueckzug. G.t = 10 -> es wird nicht gesendet (botSend wartet bis t >= 35).
+  bot.mode = [];
+  for(const diff of DIFFS) for(const hpFrac of [.2, .26, .29, .31, .44, .46, .9]) for(const goldRatio of [0, .99, 1, 1.19, 1.21, 1.51, 2.9, 3.1]) for(const enemies of ['keine','nah','fern']) for(const bpCd of [0, 10]) bot.mode.push(sim({hero:'damage', enemy:'damage'}, (P,E)=>{
+    useInst(E); E.diff = DIFF[diff]; E.build = BOT_BUILD.damage; E.style = 'balanced';
+    E.b = {mode:'fight', step:0, trips:0, deaths:0, deathTimes:[], wasDead:false, clock:0, lastSend:-100};
+    G.t = 10; H.x = 1000; H.y = 0; H.bpCd = bpCd; H.hp = hMaxHp()*hpFrac; H.ranks = [0,0,0,0]; H.sp = 0;
+    if(enemies === 'nah') G.units.push({type:'grunt', lane:0, x:1100, y:0, hp:100, max:100, dmg:0, spd:0, range:0, armor:0, r:9, atkT:1e9, stun:0, slow:0});
+    if(enemies === 'fern') G.units.push({type:'grunt', lane:0, x:2000, y:0, hp:100, max:100, dmg:0, spd:0, range:0, armor:0, r:9, atkT:1e9, stun:0, slow:0});
+    const nx = botNextCost(E); G.gold = goldRatio * nx;
+    botThink(E, P, DT);
+    return {in:{diff, hpFrac, goldRatio, nextCost:nx, gold:r3(G.gold), enemies, bpCd}, out:{mode:E.b.mode, backportStarted:H.bp > 0, moveTo:H.moveTo ? [r3(H.moveTo.x), r3(H.moveTo.y)] : null, hasTarget:!!H.target}};
+  }));
+
   // Preistabelle aller Items: Rezeptgeld, Gesamtpreis, Kaufpreis aus leerem Rucksack, Verkaufspreis (floor(0.7 * Gesamtpreis), Double-Rechnung wie im Prototyp)
   const priceTable = ITEM_LIST.map(i=>({id:i.id, group:i.group, cost:i.cost, total:totalCost(i.id), buyFromEmpty:i.consumable ? i.cost : resolveBuy(i.id, []).cost, sell:Math.floor(totalCost(i.id)*CFG.sellRatio), sellRaw:totalCost(i.id)*CFG.sellRatio}));
   // =====================================================================================================
   const data = {
     _hinweis: 'Automatisch erzeugt von regelwerk/golden-economy.js aus index.html. Nicht von Hand aendern.',
     version: VERSION, dt: DT,
-    economy, items, itemEffects, priceTable,
+    economy, items, itemEffects, bot, priceTable,
   };
   window.GOLDEN_ECO = data;
   const json = JSON.stringify(data);
