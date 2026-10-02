@@ -12,6 +12,7 @@ const SkillsLib := preload("res://scripts/skills.gd")
 const ItemsLib := preload("res://scripts/items.gd")
 const BotLib := preload("res://scripts/bot.gd")
 const GoldenRunner := preload("res://scripts/golden_runner.gd")
+const GoldenEconomyRunner := preload("res://scripts/golden_economy_runner.gd")
 const MINI_W := 290.0                # Größe der Minimap (Pixel)
 const MINI_H := 270.0
 const ENEMY_LANE_VIEW := 700.0       # Gegner-Lane auf der Minimap: nur dieser Abschnitt (Spielwerte) bei deren Basis
@@ -20,7 +21,7 @@ var cam_dist := 28.0                 # Kamera-Abstand zum Helden (Mausrad)
 
 var cfg: Dictionary
 var t := 0.0
-var team_lives: Array[int] = [20, 20]    # Leben je Team (gemeinsam): [dein Team, Gegner-Team]
+var team_lives: Array = [20, 20]    # Leben je Team (gemeinsam): [dein Team, Gegner-Team]
 var income_t := 0.0
 var over := false
 var hero_key := "damage"
@@ -43,10 +44,18 @@ var timers: Array = []                # zeitverzögerte Skill-Effekte
 var elems: Array = []                 # Caster-Elementare
 var fx_list: Array = []               # Skill-Effekte (Ringe, Kegel, Linien), blenden aus
 var skillbar: Array = []              # Oberfläche: die 4 Skill-Plätze
+var paused := false
+var game_speed := 1
+var acc := 0.0                         # Zeit-Sammler für feste Spielschritte
+var end_shown := false
+var end_layer: CanvasLayer
+var pause_label: Label
+var send_btns: Array = []              # Knöpfe zum Monster-Senden
 var bot: BotLib                               # Bot-Steuerung der Computer-Spieler (bot.gd)
 var no_bots := false                   # Tests: keine Computer-Spieler
 var bot_diff: Dictionary = {}          # gewählte Schwierigkeit der Gegner
 var bot_style := "random"              # gewählter Spielstil der Gegner
+var diff_key := "normal"               # gewählte Schwierigkeit (leicht/normal/schwer/experte)
 var winner := -1                       # nach Spielende: 0 = dein Team, 1 = Gegner
 var shop_panel: PanelContainer
 var shop_btn: Button
@@ -74,6 +83,8 @@ var selftest_items := false
 var shopshot := false                 # Test: Shop offen, Gold und ein paar Items fürs Screenshot
 var golden := false                   # Szenario-Runner (Vergleich mit dem Prototyp)
 var golden_filter := ""
+var golden_eco := false
+var golden_eco_filter := ""
 var menu_shot := ""
 var mini: Control                    # Minimap
 var life_labels: Array[Label3D] = [] # Lebensanzeige über den Team-Kristallen
@@ -92,6 +103,12 @@ func _ready() -> void:
 	var sim_secs := 0.0
 	var shot_path := ""
 	var direct := false                  # Kommandozeile gibt Modus vor: Menü überspringen
+	team_size = Data.sel_team
+	hero_key = Data.sel_hero
+	diff_key = Data.sel_diff
+	bot_style = Data.sel_style
+	if Data.autostart:                   # Revanche: gleiche Auswahl, ohne Menü
+		direct = true
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--hero="):
 			hero_key = a.substr(7)
@@ -117,6 +134,15 @@ func _ready() -> void:
 			selftest_items = true
 			no_bots = true
 			direct = true
+		elif a == "--golden-eco":
+			golden_eco = true
+			no_bots = true
+			direct = true
+		elif a.begins_with("--golden-eco="):
+			golden_eco = true
+			golden_eco_filter = a.substr(13)
+			no_bots = true
+			direct = true
 		elif a == "--golden":
 			golden = true
 			no_bots = true
@@ -126,6 +152,10 @@ func _ready() -> void:
 			no_bots = true
 			golden_filter = a.substr(9)
 			direct = true
+		elif a.begins_with("--diff="):
+			diff_key = a.substr(7)
+		elif a.begins_with("--style="):
+			bot_style = a.substr(8)
 		elif a == "--no-bots":
 			no_bots = true
 		elif a == "--selftest":
@@ -145,6 +175,12 @@ func _ready() -> void:
 			for s in sides:
 				s["wave_t"] = 1e9
 			_selftest_items()
+			return
+		if golden_eco:
+			set_process(false)
+			var eco_runner := GoldenEconomyRunner.new(self)
+			eco_runner.run(golden_eco_filter)
+			get_tree().quit()
 			return
 		if golden:
 			set_process(false)
@@ -166,6 +202,11 @@ func _ready() -> void:
 
 ## Startet eine Partie mit dem gewählten Modus (team_size) und Helden (hero_key).
 func _start_game() -> void:
+	bot_diff = Data.raw["diff"][diff_key]
+	Data.sel_team = team_size
+	Data.sel_hero = hero_key
+	Data.sel_diff = diff_key
+	Data.sel_style = bot_style
 	team_lives = [int(cfg["startLives"]), int(cfg["startLives"])]
 	_setup_layout()
 	_setup_sides()
@@ -232,8 +273,16 @@ func _show_menu() -> void:
 	for k in ["tank", "damage", "caster"]:
 		hero_opts.append([str(Data.heroes[k]["name"]), k])
 	box.add_child(_menu_row("Held", hero_opts, hero_key, func(v): hero_key = v))
+	var diff_opts := []
+	for k in ["easy", "normal", "hard", "expert"]:
+		diff_opts.append([str(Data.raw["diff"][k]["name"]), k])
+	box.add_child(_menu_row("Schwierigkeit", diff_opts, diff_key, func(v): diff_key = v))
+	var style_opts := [["Zufall", "random"]]
+	for k in ["balanced", "rush", "eco"]:
+		style_opts.append([str(Data.raw["bot_style"][k]["name"]), k])
+	box.add_child(_menu_row("Gegner-Stil", style_opts, bot_style, func(v): bot_style = v))
 	var info := Label.new()
-	info.text = "1 gegen 1: je eine Lane pro Spieler   |   2 gegen 2: eine breite Lane pro Team\n4 gegen 4: Doppel-Lane pro Team (zwischen den Lanes könnt ihr wechseln und aushelfen)"
+	info.text = "1 gegen 1: je eine Lane pro Spieler   |   2 gegen 2: eine breite Lane pro Team\n4 gegen 4: Doppel-Lane pro Team (zur anderen Lane kommt ihr nur über die Basis: Backport!)"
 	info.modulate = Color("#9aa3b5")
 	info.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(info)
@@ -517,6 +566,15 @@ func _build_hud() -> void:
 	msg.add_theme_color_override("font_outline_color", Color.BLACK)
 	msg.add_theme_constant_override("outline_size", 8)
 	layer.add_child(msg)
+	pause_label = Label.new()
+	pause_label.text = "PAUSE  (P oder Esc: weiter)"
+	pause_label.set_anchors_preset(Control.PRESET_CENTER)
+	pause_label.position = Vector2(-150, -40)
+	pause_label.add_theme_font_size_override("font_size", 36)
+	pause_label.add_theme_color_override("font_outline_color", Color.BLACK)
+	pause_label.add_theme_constant_override("outline_size", 8)
+	pause_label.visible = false
+	layer.add_child(pause_label)
 	mini = Control.new()                 # Minimap unten links
 	mini.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
 	mini.offset_left = 14.0
@@ -525,11 +583,61 @@ func _build_hud() -> void:
 	mini.offset_top = -14.0 - MINI_H
 	_build_skillbar(layer)
 	_build_shop(layer)
+	_build_send_panel(layer)
 	mini.clip_contents = true
 	mini.mouse_filter = Control.MOUSE_FILTER_STOP
 	mini.draw.connect(_draw_minimap)
 	mini.gui_input.connect(_mini_input)
 	layer.add_child(mini)
+
+
+func send(p: Dictionary, type: String) -> bool:
+	var ud: Dictionary = Data.units[type]
+	if over or ud.get("noSend", false) or p["gold"] < float(ud["cost"]):
+		return false
+	p["gold"] -= float(ud["cost"])
+	p["income"] += float(ud["inc"]) * float(cfg["incMul"])              # Senden erhöht dein Einkommen
+	p["sent"][type] = p["sent"].get(type, 0) + 1
+	var es: int = 1 - int(p["side"]["idx"])
+	for lane in lanes_per_team:                                         # das Monster erscheint auf allen Lanes des Gegner-Teams
+		_spawn_unit(type, 0.0, 1.0, lane, es, int(p["side"]["idx"]))
+	return true
+
+
+func _update_send() -> void:
+	for e in send_btns:
+		var ud: Dictionary = Data.units[e["type"]]
+		e["btn"].disabled = hero["gold"] < float(ud["cost"]) or over
+
+
+## Monster-Senden-Leiste (links): Taste, Name, Kosten und Einkommen. Senden kostet Gold und erhöht dein Einkommen.
+func _build_send_panel(layer: CanvasLayer) -> void:
+	var box := VBoxContainer.new()
+	box.set_anchors_preset(Control.PRESET_CENTER_LEFT)
+	box.offset_left = 14.0
+	box.offset_right = 250.0
+	box.offset_top = -150.0
+	box.offset_bottom = 80.0
+	layer.add_child(box)
+	var head := Label.new()
+	head.text = "Monster senden"
+	head.add_theme_color_override("font_color", Color("#ffd166"))
+	head.add_theme_font_size_override("font_size", 14)
+	box.add_child(head)
+	send_btns.clear()
+	var keys := {"grunt": "Z", "tank": "X", "archer": "C", "fast": "V", "elite": "N"}
+	for type in ["grunt", "tank", "archer", "fast", "elite"]:
+		var ud: Dictionary = Data.units[type]
+		var b := Button.new()
+		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		b.focus_mode = Control.FOCUS_NONE
+		b.text = "%s  %s  %d g  (+%s)" % [keys[type], str(ud["name"]), int(ud["cost"]), str(ud["inc"])]
+		b.tooltip_text = "%s\nKosten %d Gold, Einkommen +%s pro %d s\nLeben %d, Schaden %d, Rüstung %d\nKommt auf allen Lanes des Gegner-Teams an.\nDer Gegner bekommt XP und Gold, wenn er es besiegt." % [
+			str(ud["name"]), int(ud["cost"]), str(ud["inc"]), int(cfg["incomeTick"]), int(ud["hp"]), int(ud["dmg"]), int(ud["armor"])]
+		var tp: String = type
+		b.pressed.connect(func(): send(hero, tp))
+		box.add_child(b)
+		send_btns.append({"type": type, "btn": b})
 
 
 ## Shop (Taste Tab oder Knopf) und Rucksack (immer sichtbar, unten rechts). Kaufen geht nur in der Basis.
@@ -1151,7 +1259,8 @@ func _spawn_unit(type: String, off_x: float, spd_mul: float, lane: int = 0, side
 		"spd": float(u["spd"]) * spd_mul * float(cfg["speedMul"]), "range": float(u["range"]),
 		"armor": float(u["armor"]), "r": float(u["r"]), "atk_t": 0.0, "node": node, "def": u,
 		"stun": 0.0, "slow": 0.0, "burn": 0.0, "burn_dps": 0.0, "burn_t": 0.0, "bleed": 0.0, "bleed_pct": 0.0, "bleed_t": 0.0,
-		"torm_t": 0.0, "torm_tick": 0.0, "torm_dmg": 0.0, "torm_cd": 0.0, "last_p": {}})
+		"torm_t": 0.0, "torm_tick": 0.0, "torm_dmg": 0.0, "torm_cd": 0.0, "last_p": {},
+		"boss": type == "boss", "phase": 1, "base": float(u["spd"]) * spd_mul * float(cfg["speedMul"]), "stomp_t": 5.0, "summon_t": 12.0})
 
 
 ## Zufallswert für Startpositionen (in Tests fest, damit Läufe vergleichbar sind)
@@ -1196,8 +1305,14 @@ func _kill_unit(u: Dictionary, p: Dictionary = {}) -> void:
 	if killer["side"]["idx"] == 0:
 		kills += 1
 	killer["kills"] += 1
+	if u["type"] == "boss":                                           # Boss besiegt: dauerhaft Gold pro Welle für den Töter
+		killer["boss_income"] += float(cfg["bossIncome"])
+		if killer["side"]["idx"] == 0:
+			_flash_msg("BOSS BESIEGT! +%d Gold pro Welle" % int(killer["boss_income"]))
 	var def: Dictionary = u["def"]
-	killer["gold"] += float(def["gold"]) if def.has("gold") else float(cfg["killGold"])
+	var kg: float = float(def["gold"]) if def.has("gold") else float(cfg["killGold"])
+	killer["gold"] += kg
+	killer["stat_gold"] += kg
 	_gain_xp(float(def["xp"]), killer)
 
 
@@ -1320,12 +1435,42 @@ func step(dt: float) -> void:
 				msg.text = "SIEG!" if winner == 0 else "NIEDERLAGE"
 
 
+## Boss: Phasen bei 66 % und 33 % Leben (schneller), Stampfen im Umkreis und Verstärkung rufen.
+func _boss_think(side: Dictionary, u: Dictionary, dt: float) -> void:
+	var f: float = u["hp"] / u["max"]
+	var ph := 1 if f > 0.66 else (2 if f > 0.33 else 3)
+	if ph != u["phase"]:
+		u["phase"] = ph
+		u["summon_t"] = minf(u["summon_t"], 2.0)
+		if side["idx"] == 0:
+			_flash_msg("Der Boss wird schneller!" if ph == 2 else "BOSS-RASEREI: noch schneller, ruft öfter Verstärkung!")
+	u["spd"] = u["base"] * float(cfg["bossSpeedMul"][ph - 1])
+	u["stomp_t"] -= dt
+	if u["stomp_t"] <= 0.0:                                              # Stampfen: Schaden an allem im Umkreis
+		u["stomp_t"] = float(cfg["bossStompEvery"][ph - 1])
+		fx_ring(u["x"], u["y"], float(cfg["bossStompR"]), 0.5, "#ff4d4d")
+		for q in side["players"]:
+			if q["dead"] <= 0.0 and Vector2(q["x"] - u["x"], q["y"] - u["y"]).length() <= float(cfg["bossStompR"]) + 14.0:
+				_damage_hero(q, u["dmg"] * float(cfg["bossStompMul"]), u)
+	u["summon_t"] -= dt
+	if u["summon_t"] <= 0.0:                                             # Verstärkung rufen
+		u["summon_t"] = float(cfg["bossSummonEvery"][ph - 1])
+		var n := 2 + ph
+		var ly: float = lane_half_g - 16.0
+		for i in n:
+			_spawn_unit("grunt", 0.0, 1.0, u["lane"], side["idx"])
+			var gu: Dictionary = side["units"][side["units"].size() - 1]
+			gu["x"] = u["x"] + 30.0 + i * 14.0
+			gu["y"] = lane_off_g[u["lane"]] + (rand_pos() * 2.0 - 1.0) * ly
+		fx_text(u["x"] - 30.0, u["y"] - 40.0, "Verstärkung!", "#ff9a9a", 1.2, 30)
+
+
 ## Aufholhilfe: Wer deutlich weniger Team-Leben hat als der Gegner, bekommt mehr Einkommen (wie im Prototyp).
 func comeback_bonus(p: Dictionary) -> float:
 	var si: int = p["side"]["idx"]
 	var mine: int = team_lives[si]
 	var theirs: int = team_lives[1 - si]
-	if mine >= theirs:
+	if theirs > 100000000 or mine >= theirs:                              # Gegner "unendlich" (Testmodus): keine Hilfe
 		return 0.0
 	var behind := theirs - mine
 	if behind < int(cfg["comebackDiff"]):
@@ -1599,6 +1744,8 @@ func _step_units(side: Dictionary, dt: float) -> void:
 		if u["stun"] > 0.0:
 			u["stun"] -= dt
 			continue
+		if u["boss"]:
+			_boss_think(side, u, dt)
 		u["atk_t"] -= dt
 		# Ziel: der nächste lebende Held in Reichweite, sonst ein Elementar
 		var engaged := false
@@ -1677,8 +1824,88 @@ func _step_units(side: Dictionary, dt: float) -> void:
 func _process(delta: float) -> void:
 	if not started:
 		return
-	step(delta)
+	if not paused:
+		acc = minf(acc + delta * float(game_speed), 0.5)                # feste Schritte von 0,05 s (bei Tempo x2/x3 mehrere pro Bild)
+		while acc >= 0.05:
+			step(0.05)
+			acc -= 0.05
 	_sync_visuals(delta)
+	if over and not end_shown:
+		end_shown = true
+		get_tree().create_timer(1.1).timeout.connect(_show_end)
+
+
+## Pause (P oder Esc). Shop und Skillpunkte bleiben bedienbar.
+func _toggle_pause() -> void:
+	if not started or over:
+		return
+	paused = not paused
+	pause_label.visible = paused
+
+
+func _show_end() -> void:
+	if end_layer != null:
+		return
+	end_layer = CanvasLayer.new()
+	end_layer.layer = 10
+	add_child(end_layer)
+	var bg := ColorRect.new()
+	bg.color = Color(0, 0, 0, 0.7)
+	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	end_layer.add_child(bg)
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	end_layer.add_child(center)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 10)
+	center.add_child(box)
+	var title := Label.new()
+	title.text = "SIEG!" if winner == 0 else "NIEDERLAGE"
+	title.add_theme_font_size_override("font_size", 48)
+	title.add_theme_color_override("font_color", Color("#7be07b") if winner == 0 else Color("#ff6b6b"))
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(title)
+	var info := Label.new()
+	info.text = "Dauer %d:%02d   Team-Leben: du %d, Gegner %d" % [int(t) / 60, int(t) % 60, maxi(0, team_lives[0]), maxi(0, team_lives[1])]
+	info.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(info)
+	var grid := GridContainer.new()
+	grid.columns = 7
+	grid.add_theme_constant_override("h_separation", 22)
+	box.add_child(grid)
+	for h in ["Team", "Held", "Level", "Kills", "Tode", "Monster gesendet", "Einkommen"]:
+		var l := Label.new()
+		l.text = h
+		l.add_theme_color_override("font_color", Color("#9aa3b5"))
+		grid.add_child(l)
+	for p in players:
+		var sent_total := 0
+		for k in p["sent"].keys():
+			sent_total += int(p["sent"][k])
+		var cells := ["Du" if p == hero else ("Team A" if p["side"]["idx"] == 0 else "Gegner"), str(p["d"]["name"]), str(p["lvl"]), str(p["kills"]),
+			str(p["deaths"]), str(sent_total), "%.1f" % float(p["income"])]
+		for c in cells:
+			var l := Label.new()
+			l.text = c
+			grid.add_child(l)
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 14)
+	box.add_child(row)
+	var again := Button.new()
+	again.text = "Revanche"
+	again.custom_minimum_size = Vector2(160, 46)
+	again.pressed.connect(func():
+		Data.autostart = true
+		get_tree().reload_current_scene())
+	row.add_child(again)
+	var menu := Button.new()
+	menu.text = "Zurück zum Menü"
+	menu.custom_minimum_size = Vector2(160, 46)
+	menu.pressed.connect(func():
+		Data.autostart = false
+		get_tree().reload_current_scene())
+	row.add_child(menu)
 
 
 func _sync_visuals(delta: float) -> void:
@@ -1725,6 +1952,7 @@ func _sync_visuals(delta: float) -> void:
 		mini.queue_redraw()
 	_update_skillbar()
 	_update_shop()
+	_update_send()
 
 
 func _ground_point(screen_pos: Vector2) -> Vector3:
@@ -1759,6 +1987,21 @@ func _unhandled_input(event: InputEvent) -> void:
 		var lslot := [KEY_Q, KEY_W, KEY_E, KEY_R].find(event.keycode)
 		if lslot >= 0:
 			skills.learn(hero, lslot)     # Skillpunkte lassen sich auch als toter Held vergeben
+			return
+	if event is InputEventKey and event.pressed and not event.echo:
+		if event.keycode == KEY_P or event.keycode == KEY_ESCAPE:
+			_toggle_pause()
+			return
+		var spd := [KEY_1, KEY_2, KEY_3].find(event.keycode)
+		if spd >= 0:
+			game_speed = spd + 1
+			return
+	if paused:
+		return                            # in der Pause nur noch Shop und Skillpunkte
+	if event is InputEventKey and event.pressed and not event.echo:
+		var stype: String = {KEY_Z: "grunt", KEY_X: "tank", KEY_C: "archer", KEY_V: "fast", KEY_N: "elite"}.get(event.keycode, "")
+		if stype != "":
+			send(hero, stype)             # Monster senden geht auch als toter Held
 			return
 	if hero["dead"] > 0.0:
 		return
@@ -2018,8 +2261,13 @@ func _run_simulation(secs: float, shot_path: String) -> void:
 			var tg: Variant = hero["target"]
 			print("t=%.0f Held x=%.0f y=%.0f | Ziel: %s | Einheiten %d" % [t, hero["x"], hero["y"],
 				"-" if tg == null else "x=%.0f y=%.0f lane=%d" % [tg["x"], tg["y"], tg["lane"]], units.size()])
-	print("SIM %.0f s | Welle %d | Leben %d | Gold %d | Level %d | Kills %d | Tode %d | Einheiten %d" % [
-		secs, sides[0]["wave"], team_lives[0], int(hero["gold"]), hero["lvl"], kills, hero["deaths"], units.size()])
+	print("SIM %.0f s | Welle %d | Team-Leben %d : %d | Gold %d | Level %d | Kills %d | Tode %d | Einheiten %d" % [
+		secs, sides[0]["wave"], team_lives[0], team_lives[1], int(hero["gold"]), hero["lvl"], kills, hero["deaths"], units.size()])
+	for p in players:                    # je Spieler: Seite, Held, Level, Kills, Tode, gesendet, Einkommen, Rucksack
+		var sent_n := 0
+		for k in p["sent"].keys():
+			sent_n += int(p["sent"][k])
+		print("   %s %s %-6s Lv%2d  Kills %3d  Tode %d  gesendet %3d  Einkommen %5.1f  Gold %5d  Rucksack %s%s" % ["A" if p["side"]["idx"] == 0 else "B", "(du)" if p == hero else "bot", p["key"], p["lvl"], p["kills"], p["deaths"], sent_n, p["income"], int(p["gold"]), str(p["bag"]), ("  Stil " + str(p["bot_state"]["style"])) if p.has("bot_state") else ""])
 	if shot_path != "":
 		_sync_visuals(1.0)
 		await get_tree().process_frame

@@ -21,3 +21,10 @@ func _ready() -> void:
 		heroes = raw["heroes"]
 	else:
 		push_error("data/daten.json ist kein gültiges JSON")
+
+## Auswahl aus dem Startmenü; bleibt beim Neuladen der Szene (Revanche) erhalten.
+var sel_team := 1
+var sel_hero := "damage"
+var sel_diff := "normal"
+var sel_style := "random"
+var autostart := false

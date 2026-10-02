@@ -24,7 +24,7 @@ Rolle: Projektmanager (Planung, Abnahme) – Claude setzt um und stellt nach jed
 > **Grundsatz:** Der Browser-Prototyp ist die Spielbasis. Die Godot-Version übernimmt Regeln, Zahlen und Abläufe 1:1 aus `index.html`; Abweichungen nur nach Absprache.
 - [x] Meilenstein 2: Skills (Q W E R) und Heiltrank, Backport – 1:1 zum Prototyp, geprüft mit 205 Vergleichsszenarien (205 von 205 identisch)
 - [x] Meilenstein 3: Shop und Items (49 Items, Rucksack, Rezepte, alle Effekte), geprüft mit Selbsttest und Vergleichsszenarien
-- [ ] Meilenstein 4: Gegner-Bot mit eigener Lane, Monster senden, Aufholhilfe, Schwierigkeiten
+- [x] Meilenstein 4: Gegner-Bot (1:1 Prototyp), Monster senden (alle Lanes des Gegner-Teams), Aufholhilfe, Schwierigkeiten und Stile, Boss, Menü, Pause/Tempo, Endbildschirm – geprüft mit 4339 Vergleichsfällen
 - [ ] Meilenstein 5: Boss, Elite, Sounds und Effekte
 - [ ] Meilenstein 6: echte 3D-Figuren, Animationen, Umgebung, Oberfläche
 

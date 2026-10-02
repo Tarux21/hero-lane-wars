@@ -45,3 +45,10 @@ Godot_console.exe --path godot --resolution 1280x720 -- --autoplay --sim=60 --sh
   - `-- --golden` : Szenario-Runner, vergleicht 205 Szenarien (`data/golden-skills.json`, erzeugt aus dem Prototyp) Zahl für Zahl. Stand: 205 von 205 identisch.
   - `-- --selftest-items` : Shop-Regeln (20 Prüfungen). `-- --selftest --team=4` : Lane-Wechsel, Backport, Minimap, Kristall.
   - Neue Vergleichswerte erzeugen: im Browser `regelwerk/golden-skills.js` ausführen, Datei nach `godot/data/` kopieren.
+
+## Senden, Bot, Wirtschaft (Stand Meilenstein 4)
+- **Zwei Seiten** (dein Team, Gegner-Team): je eigene Monster, Wellen, Team-Leben, Spieler. Jeder Spieler hat eigenes Gold, Einkommen, Rucksack, Skills.
+- **Monster senden** (Z X C V N oder Knöpfe links): kostet Gold, erhöht das Einkommen; das Monster erscheint auf **allen** Lanes des Gegner-Teams.
+- **Bots** (`scripts/bot.gd`): Gegner und Mitspieler, 1:1 aus dem Prototyp (Kaufplan, Skills, Backport-Einkaufsreisen, Senden nach Schwierigkeit und Stil).
+- **Menü:** Spielmodus, Held, Schwierigkeit (Leicht..Experte), Gegner-Stil. P/Esc = Pause, 1/2/3 = Tempo. Aufholhilfe, Boss (Phasen, Stampfen, Verstärkung, Boss-Einkommen) umgesetzt.
+- **Prüfung:** `-- --golden-eco` vergleicht 4339 Fälle aus `data/golden-economy.json` (Einkommen, Senden, Level, Respawn, Wellen, Items, Item-Effekte, Bot-Kaufpläne/Lernen/Senden/Modus). Stand: 4339 von 4339 identisch zum Prototyp.
