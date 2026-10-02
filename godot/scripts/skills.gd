@@ -507,3 +507,59 @@ func update_elem(e: Dictionary, dt: float) -> bool:
 	if e["ab_t"] <= 0.0:
 		e["ab_t"] = 6.0 + g.rand() * 4.0 if elem_ability(e) else 1.0
 	return true
+
+
+# ---------------------------------------------------------------- Beschreibungen (für die Hinweise an den Fähigkeiten)
+func _rd(x: float) -> String:
+	return str(int(round(x)))
+
+
+func _f1(x: float) -> String:
+	return ("%.1f" % x).replace(".", ",")
+
+
+## Wirkung einer Fähigkeit auf Rang r mit den echten Zahlen (wie TIP im Browser-Prototyp)
+func tip(p: Dictionary, i: int, r: int) -> String:
+	match [p["key"], i]:
+		["tank", 0]:
+			return "Schaden %s · Reichweite %d · Betäubung %s s%s%s" % [_rd(dmg_of(p, float(cfg["tankQBase"]), 8.0, r, 0.0, 0.5)), 200 + 15 * (r - 1), _f1(0.8 + 0.12 * (r - 1)),
+				" · Rückstoß" if r >= 3 else "", (" · 2. Welle " + _rd(dmg_of(p, float(cfg["tankQBase"]), 8.0, r, 0.0, 0.5) * 1.25)) if r >= 5 else ""]
+		["tank", 1]:
+			var x: Dictionary = IRON[r - 1]
+			return "Rüstung +%d · Dornen %d %% des erlittenen Schadens · Regeneration %s %%/s" % [int(x["armor"]), int(round(float(x["reflect"]) * 100.0)), _f1(float(x["regen"]) * 100.0)]
+		["tank", 2]:
+			return "Schaden %s · %d Ziele · danach Heilung %d %% Leben%s" % [_rd(dmg_of(p, 35.0, 14.0, r, 0.0, 0.8)), 5 if r >= 3 else 3, int(round(float(cfg["shieldHeal"]) * 100.0)),
+				" · Blutung 5 %/s (3 s)" if r >= 5 else ""]
+		["tank", 3]:
+			return "Schaden %s im Kegel nach vorn (Reichweite %d) · Betäubung 3 s · Rückstoß" % [_rd(dmg_of(p, 200.0, 0.0, 1, 0.0, 1.0)), int(cfg["tankRRange"])]
+		["damage", 0]:
+			var heal := float(cfg["whirlHeal"][r - 1])
+			return "Schaden %s · Radius %d%s" % [_rd(dmg_of(p, 30.0, 10.0, r, 0.0, 0.7)), 95 + 5 * (r - 1),
+				(" · Heilung %s %% Leben je Gegner (max. %d)" % [_f1(heal * 100.0), int(cfg["whirlHealCap"])]) if heal > 0.0 else ""]
+		["damage", 1]:
+			var s := "Angriffstempo +%d %% · Lauftempo +40 · %d s" % [int(round((0.4 + 0.12 * (r - 1)) * 100.0)), 10 if r >= 3 else 6]
+			if r >= 3:
+				s += " · Gift %s/s (%d s)" % [_rd(dmg_of(p, float(cfg["poisonBase"]), float(cfg["poisonPer"]), r, 0.0, float(cfg["poisonK"]))), int(cfg["poisonTime"])]
+			if r >= 5:
+				s += " · Angriffe treffen im Umkreis mit"
+			return s
+		["damage", 2]:
+			var s2 := "Sprung bis 420 · Aufprall %s (Radius %d)" % [_rd(dmg_of(p, 20.0, 8.0, r, 0.0, 0.4)), 80 + 4 * (r - 1)]
+			if r >= 3:
+				s2 += " · Giftpfütze %s/s (4 s)" % _rd(dmg_of(p, 10.0, 4.0, r, 0.0, 0.15))
+			if r >= 5:
+				s2 += " · Verlangsamung %s s" % _f1(float(cfg["leapSlow"]))
+			return s2
+		["damage", 3]:
+			return "5 Dolche: je %s Schaden · Giftfeld %s/s (8 s)" % [_rd(dmg_of(p, 60.0, 0.0, 1, 0.0, 0.8)), _rd(dmg_of(p, 18.0, 0.0, 1, 0.0, 0.3))]
+		["caster", 0]:
+			return "Feld %s/s (5 s) · Radius %d%s%s" % [_rd(dmg_of(p, 9.0, 5.0, r, 0.2, 0.08)), 90 + 6 * (r - 1), " · jagt Gegner" if r >= 3 else "",
+				(" · Meteor " + _rd(dmg_of(p, 120.0, 0.0, 1, 0.8, 0.3))) if r >= 5 else ""]
+		["caster", 1]:
+			return "Schaden %s · Reichweite %d · Verlangsamung %s s%s" % [_rd(dmg_of(p, 20.0, 10.0, r, 0.3, 0.0)), 200 + 15 * (r - 1), _f1(3.0 + 0.5 * (r - 1)),
+				" · Betäubung 1,6 s" if r >= 5 else (" · Betäubung 0,8 s" if r >= 3 else "")]
+		["caster", 2]:
+			return "Schaden %s je Ziel · %d Ziele · Krit %d %% (doppelter Schaden, 0,5 s Betäubung)" % [_rd(dmg_of(p, 40.0, 18.0, r, 0.6, 0.0)), 3 + r, int(round(float(CRIT_BY_RANK[r - 1]) * 100.0))]
+		["caster", 3]:
+			return "Beschwört einen Elementar (%d s, %d Leben) passend zum zuletzt genutzten Skill" % [int(cfg["elemTime"]), int(cfg["elemHp"])]
+	return ""

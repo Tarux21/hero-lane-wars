@@ -13,10 +13,11 @@ const ItemsLib := preload("res://scripts/items.gd")
 const BotLib := preload("res://scripts/bot.gd")
 const SfxLib := preload("res://scripts/sfx.gd")
 const FxLib := preload("res://scripts/fx.gd")
+const HudStein := preload("res://scripts/hud_stein.gd")
 const GoldenRunner := preload("res://scripts/golden_runner.gd")
 const GoldenEconomyRunner := preload("res://scripts/golden_economy_runner.gd")
 const GoldenBossRunner := preload("res://scripts/golden_boss_runner.gd")
-const MINI_W := 290.0                # Größe der Minimap (Pixel)
+const MINI_W := 250.0                # Größe der Minimap (Pixel)
 const MINI_H := 270.0
 const ENEMY_LANE_VIEW := 700.0       # Gegner-Lane auf der Minimap: nur dieser Abschnitt (Spielwerte) bei deren Basis
 var cam_pitch := 58.0             # Kamerawinkel in Grad (wie Warcraft 3: schräg von oben)
@@ -49,6 +50,8 @@ var fx_list: Array = []               # Skill-Effekte (Ringe, Kegel, Linien), bl
 var fx_nodes: Array = []              # Partikel-/Licht-Effekte (fx.gd): {node, t}
 var vfx: FxLib                        # Fähigkeiten-Effekte
 var skillbar: Array = []              # Oberfläche: die 4 Skill-Plätze
+var ui: HudStein                       # Oberfläche im Steinrahmen-Stil (hud_stein.gd)
+var shake_on := true                  # Bildschirmwackeln an/aus (Optionen)
 var alerts_box: VBoxContainer         # Meldungen oben in der Mitte
 var tips_seen: Dictionary = {}         # schon gezeigte Einsteiger-Tipps (gespeichert)
 var ui_t_base := 0.0
@@ -102,6 +105,8 @@ var selftest := false
 var selftest_items := false
 var shopshot := false                 # Test: Shop offen, Gold und ein paar Items fürs Screenshot
 var dbgshot := false                 # Test: Testfenster offen fürs Bild
+var uimenu := false                   # Test: Menü offen fürs Bild
+var uitip := false                    # Test: Hinweistexte der Fähigkeiten ausgeben
 var golden := false                   # Szenario-Runner (Vergleich mit dem Prototyp)
 var golden_filter := ""
 var golden_eco := false
@@ -122,6 +127,7 @@ var menu_layer: CanvasLayer
 
 
 func _ready() -> void:
+	get_window().theme = HudStein.make_theme()      # Steinrahmen-Stil für alle Felder, Knöpfe und Hinweise
 	cfg = Data.cfg
 	skills = SkillsLib.new(self)
 	items = ItemsLib.new(self)
@@ -159,6 +165,10 @@ func _ready() -> void:
 			shopshot = true
 		elif a == "--dbgshot":
 			dbgshot = true
+		elif a == "--uimenu":
+			uimenu = true
+		elif a == "--uitip":
+			uitip = true
 		elif a == "--selftest-items":
 			selftest_items = true
 			no_bots = true
@@ -703,7 +713,7 @@ func _build_test_panel(layer: CanvasLayer) -> void:
 	test_panel.offset_left = -352.0
 	test_panel.offset_right = -12.0
 	test_panel.custom_minimum_size = Vector2(340, 0)
-	test_panel.offset_top = 44.0
+	test_panel.offset_top = 10.0
 	test_panel.add_theme_stylebox_override("panel", _flat(Color(0.1, 0.12, 0.17, 0.92)))
 	test_panel.visible = false
 	var box := VBoxContainer.new()
@@ -856,7 +866,6 @@ func _build_volume_slider(layer: CanvasLayer) -> void:
 func _build_hud() -> void:
 	var layer := CanvasLayer.new()
 	add_child(layer)
-	_build_volume_slider(layer)
 	_build_test_panel(layer)
 	vignette = TextureRect.new()         # roter Rand: Lebensverlust, Tod, wenig Leben
 	var grad := Gradient.new()
@@ -877,11 +886,12 @@ func _build_hud() -> void:
 	vignette.modulate.a = 0.0
 	layer.add_child(vignette)
 	hud = Label.new()
-	hud.position = Vector2(14, 10)
-	hud.add_theme_font_size_override("font_size", 18)
-	hud.add_theme_color_override("font_outline_color", Color.BLACK)
-	hud.add_theme_constant_override("outline_size", 5)
-	layer.add_child(hud)
+	hud.add_theme_font_size_override("font_size", 15)
+	var hud_panel := PanelContainer.new()                # Schild oben links (Gold, Einkommen, Leben, Welle, Zeit)
+	hud_panel.position = Vector2(8, 8)
+	hud_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hud_panel.add_child(hud)
+	layer.add_child(hud_panel)
 	msg = Label.new()
 	msg.set_anchors_preset(Control.PRESET_CENTER_TOP)
 	msg.position = Vector2(-120, 80)
@@ -963,13 +973,15 @@ func _update_send() -> void:
 
 ## Monster-Senden-Leiste (links): Taste, Name, Kosten und Einkommen. Senden kostet Gold und erhöht dein Einkommen.
 func _build_send_panel(layer: CanvasLayer) -> void:
+	var frame := PanelContainer.new()                    # Steintafel links
+	frame.set_anchors_preset(Control.PRESET_CENTER_LEFT)
+	frame.offset_left = 8.0
+	frame.offset_right = 262.0
+	frame.offset_top = -170.0
+	frame.offset_bottom = 60.0
+	layer.add_child(frame)
 	var box := VBoxContainer.new()
-	box.set_anchors_preset(Control.PRESET_CENTER_LEFT)
-	box.offset_left = 14.0
-	box.offset_right = 250.0
-	box.offset_top = -150.0
-	box.offset_bottom = 80.0
-	layer.add_child(box)
+	frame.add_child(box)
 	var head := Label.new()
 	head.text = "Monster senden"
 	head.add_theme_color_override("font_color", Color("#ffd166"))
@@ -993,47 +1005,14 @@ func _build_send_panel(layer: CanvasLayer) -> void:
 
 ## Shop (Taste Tab oder Knopf) und Rucksack (immer sichtbar, unten rechts). Kaufen geht nur in der Basis.
 func _build_shop(layer: CanvasLayer) -> void:
-	# Rucksack: 6 Plätze + Heiltrank (unten rechts)
-	var inv := VBoxContainer.new()
-	inv.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	inv.offset_left = -330.0
-	inv.offset_right = -14.0
-	inv.offset_bottom = -14.0
-	inv.offset_top = -160.0
-	layer.add_child(inv)
-	var head := HBoxContainer.new()
-	inv.add_child(head)
-	shop_btn = Button.new()
-	shop_btn.text = "Shop (Tab)"
-	shop_btn.focus_mode = Control.FOCUS_NONE
-	shop_btn.pressed.connect(_toggle_shop)
-	head.add_child(shop_btn)
-	pot_btn = Button.new()
-	pot_btn.focus_mode = Control.FOCUS_NONE
-	pot_btn.pressed.connect(func(): items.drink_potion(hero))
-	head.add_child(pot_btn)
-	var grid := GridContainer.new()
-	grid.columns = 3
-	inv.add_child(grid)
-	bag_btns.clear()
-	for i in int(cfg["bagSize"]):
-		var b := Button.new()
-		b.custom_minimum_size = Vector2(104, 44)
-		b.clip_text = true
-		b.focus_mode = Control.FOCUS_NONE
-		b.pressed.connect(func():
-			if not items.sell(hero, i):
-				if i < hero["bag"].size():
-					_flash_msg("Verkaufen nur in der Basis (Backport: B)"))
-		grid.add_child(b)
-		bag_btns.append(b)
+	# Rucksack, Heiltrank und Knöpfe sitzen in der unteren Leiste (hud_stein.gd)
 	# Shop-Fenster (rechts, scrollbar)
 	shop_panel = PanelContainer.new()
 	shop_panel.set_anchors_preset(Control.PRESET_CENTER_RIGHT)
 	shop_panel.offset_left = -360.0
 	shop_panel.offset_right = -14.0
-	shop_panel.offset_top = -260.0
-	shop_panel.offset_bottom = 170.0
+	shop_panel.offset_top = -330.0
+	shop_panel.offset_bottom = 100.0
 	shop_panel.visible = false
 	layer.add_child(shop_panel)
 	var sc := ScrollContainer.new()
@@ -1093,7 +1072,7 @@ func _update_shop() -> void:
 	if shop_btn == null or hero.is_empty():
 		return
 	var in_base := _in_base()
-	pot_btn.text = "Heiltrank F: %d%s" % [hero["cons"]["potion"], (" (%ds)" % int(ceil(hero["pot_cd"]))) if hero["pot_cd"] > 0.0 else ""]
+	pot_btn.text = "Trank\n(F)  x%d%s" % [hero["cons"]["potion"], ("\n%ds" % int(ceil(hero["pot_cd"]))) if hero["pot_cd"] > 0.0 else ""]
 	for i in bag_btns.size():
 		var b: Button = bag_btns[i]
 		if i < hero["bag"].size():
@@ -1122,72 +1101,14 @@ func _update_shop() -> void:
 
 ## Skill-Leiste unten in der Mitte: 4 Plätze (Q W E R) mit Rang, Abklingzeit und "+" zum Lernen.
 func _build_skillbar(layer: CanvasLayer) -> void:
-	var bar := HBoxContainer.new()
-	bar.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
-	bar.offset_left = -300.0
-	bar.offset_right = 300.0
-	bar.offset_bottom = -14.0
-	bar.offset_top = -124.0
-	bar.add_theme_constant_override("separation", 8)
-	layer.add_child(bar)
-	skillbar.clear()
-	var keys := ["Q", "W", "E", "R"]
-	for i in 4:
-		var pc := PanelContainer.new()
-		pc.custom_minimum_size = Vector2(140, 110)
-		pc.mouse_filter = Control.MOUSE_FILTER_PASS
-		var vb := VBoxContainer.new()
-		pc.add_child(vb)
-		var title := Label.new()
-		title.add_theme_font_size_override("font_size", 15)
-		vb.add_child(title)
-		var pips := Label.new()
-		pips.add_theme_color_override("font_color", Color("#ffd166"))
-		vb.add_child(pips)
-		var state := Label.new()
-		state.add_theme_font_size_override("font_size", 13)
-		vb.add_child(state)
-		var plus := Button.new()
-		plus.text = "+"
-		plus.custom_minimum_size = Vector2(26, 22)
-		plus.pressed.connect(func(): skills.learn(hero, i))
-		plus.focus_mode = Control.FOCUS_NONE
-		vb.add_child(plus)
-		bar.add_child(pc)
-		var def: Dictionary = skills.skill_def(hero, i)
-		var tip := "%s [%s]\n" % [str(def["name"]), keys[i]]
-		if not def.get("passive", false):
-			tip += "Abklingzeit %.1f s\n" % float(def["cd"])
-		tip += "Freigeschaltet ab Level %d, max. Rang %d\n" % [int(cfg["unlock"][i]), int(def["max"])]
-		for line in def["info"]:
-			tip += "• " + str(line) + "\n"
-		pc.tooltip_text = tip
-		skillbar.append({"title": title, "pips": pips, "state": state, "plus": plus, "key": keys[i]})
+	ui = HudStein.new(self)
+	ui.build_bar(layer, MINI_W)
+	ui.build_menu(layer)
 
 
 func _update_skillbar() -> void:
-	if skillbar.is_empty() or hero.is_empty():
-		return
-	for i in 4:
-		var s: Dictionary = skillbar[i]
-		var def: Dictionary = skills.skill_def(hero, i)
-		var r: int = hero["ranks"][i]
-		var mx := int(def["max"])
-		s["title"].text = "%s  %s" % [s["key"], str(def["name"])]
-		s["pips"].text = "●".repeat(r) + "○".repeat(mx - r)
-		var txt := ""
-		if hero["lvl"] < int(cfg["unlock"][i]) and r == 0:
-			txt = "ab Level %d" % int(cfg["unlock"][i])
-		elif r == 0:
-			txt = "nicht gelernt"
-		elif def.get("passive", false):
-			txt = "passiv"
-		elif hero["cds"][i] > 0.0:
-			txt = "CD %.1fs" % hero["cds"][i]
-		else:
-			txt = "bereit"
-		s["state"].text = txt
-		s["plus"].visible = skills.can_learn(hero, i)
+	if ui != null:
+		ui.update()
 
 
 ## Minimap-Abbildung: Welt-Koordinaten (Meter) <-> Pixel der Minimap. Wird zum Zeichnen und für Klicks genutzt.
@@ -1288,7 +1209,7 @@ func _draw_minimap() -> void:
 			var g := _ground_point(c)
 			pts.append(_mini_pt(m, g.x, g.z))
 		mini.draw_polyline(pts, Color(1, 1, 1, 0.75), 1.5)
-	mini.draw_rect(Rect2(0, 0, MINI_W, MINI_H), Color("#8d7d55"), false, 2.0)
+	mini.draw_rect(Rect2(0, 0, MINI_W, MINI_H), Color("#b49a5c"), false, 4.0)
 
 
 func _flat(col: Color) -> StyleBoxFlat:
@@ -1512,7 +1433,7 @@ func cast_pose(p: Dictionary, tx: float, ty: float, anim: String = "", secs: flo
 
 ## Bildschirmwackeln (px) und roter Blitz (0..1); nur für deine Seite
 func shake(px: float) -> void:
-	if not test_mode:
+	if not test_mode and shake_on:
 		shake_amt = maxf(shake_amt, px)
 
 
@@ -1964,8 +1885,17 @@ func _load_tips() -> void:
 func _load_volume() -> float:
 	var cf := ConfigFile.new()
 	if cf.load("user://settings.cfg") == OK:
+		shake_on = bool(cf.get_value("sound", "shake", true))
 		return clampf(float(cf.get_value("sound", "volume", 0.4)), 0.0, 1.0)
 	return 0.4
+
+
+func set_shake_on(on: bool) -> void:
+	shake_on = on
+	var cf := ConfigFile.new()
+	cf.load("user://settings.cfg")
+	cf.set_value("sound", "shake", on)
+	cf.save("user://settings.cfg")
 
 
 func _save_volume(v: float) -> void:
@@ -2733,9 +2663,10 @@ func _sync_visuals(delta: float) -> void:
 	elif not _in_base():
 		bp_txt = "CD %ds" % int(ceil(hero["bp_cd"])) if hero["bp_cd"] > 0.0 else "bereit"
 	var min_t := int(t) / 60
-	hud.text = "Gold %d   Einkommen +%.0f / %ds   Team-Leben %d  (Gegner %d)   Welle %d   Zeit %d:%02d\nLevel %d   XP %d / %d   HP %d / %d   Kills %d   [B] Backport: %s" % [
+	hud.text = "Gold %d    Einkommen +%.0f / %ds    Team-Leben %d  (Gegner %d)    Welle %d    Zeit %d:%02d
+Kills %d    [B] Backport: %s" % [
 		int(hero["gold"]), hero["income"], int(cfg["incomeTick"]), team_lives[0], team_lives[1], sides[0]["wave"], min_t, int(t) % 60,
-		hero["lvl"], int(hero["xp"]), int(_xp_need(hero["lvl"])), int(hero["hp"]), int(_hero_max_hp()), kills, bp_txt]
+		kills, bp_txt]
 	if mini != null:
 		mini.queue_redraw()
 	_update_skillbar()
@@ -2781,8 +2712,13 @@ func _unhandled_input(event: InputEvent) -> void:
 			skills.learn(hero, lslot)     # Skillpunkte lassen sich auch als toter Held vergeben
 			return
 	if event is InputEventKey and event.pressed and not event.echo:
-		if event.keycode == KEY_P or event.keycode == KEY_ESCAPE:
-			_toggle_pause()
+		if event.keycode == KEY_ESCAPE:
+			if ui != null:
+				ui.toggle_menu()                       # Esc öffnet/schließt das Menü (pausiert das Spiel)
+			return
+		if event.keycode == KEY_P:
+			if ui == null or not ui.menu_open:
+				_toggle_pause()
 			return
 		var spd := [KEY_1, KEY_2, KEY_3].find(event.keycode)
 		if spd >= 0:
@@ -3160,6 +3096,16 @@ func _run_simulation(secs: float, shot_path: String) -> void:
 		for k in p["sent"].keys():
 			sent_n += int(p["sent"][k])
 		print("   %s %s %-6s Lv%2d  Kills %3d  Tode %d  gesendet %3d  Einkommen %5.1f  Gold %5d  Rucksack %s%s" % ["A" if p["side"]["idx"] == 0 else "B", "(du)" if p == hero else "bot", p["key"], p["lvl"], p["kills"], p["deaths"], sent_n, p["income"], int(p["gold"]), str(p["bag"]), ("  Stil " + str(p["bot_state"]["style"])) if p.has("bot_state") else ""])
+	if uitip:
+		ui.update()
+		for sl in ui.slots:
+			print("TIP ", (sl["slot"] as Control).tooltip_text)
+	if uitip and shot_path != "" and ui != null:                 # Test: Hinweis der Fähigkeit E als Bild zeigen
+		var tt: Control = ui.slots[2]["slot"]._make_custom_tooltip((ui.slots[2]["slot"] as Control).tooltip_text)
+		tt.position = Vector2(330, 250)
+		ui.menu_root.get_parent().add_child(tt)
+	if uimenu and ui != null:
+		ui.toggle_menu()
 	if shot_path != "":
 		_sync_visuals(1.0)
 		await get_tree().process_frame
