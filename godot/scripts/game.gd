@@ -435,6 +435,7 @@ func _build_world() -> void:
 	add_child(sun)
 
 	_build_map()
+	_build_fog()
 
 	cam = Camera3D.new()
 	cam.fov = 45
@@ -599,6 +600,68 @@ func _box(pos: Vector3, size: Vector3, col: Color) -> MeshInstance3D:
 	m.material_override = _mat(col)
 	add_child(m)
 	return m
+
+
+## Gegner-Seite ist in der 3D-Ansicht verdeckt (schwarze Wand hinter dem Fluss): Infos dazu gibt nur die Minimap.
+func _build_fog() -> void:
+	if test_mode:
+		return
+	var river_x: float = (lane_xs[lanes_per_team - 1] + lane_xs[lanes_per_team]) / 2.0 + 2.5
+	var lane_len: float = cfg["laneLen"] * S
+	var box := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = Vector3(200.0, 14.0, lane_len + 160.0)
+	box.mesh = bm
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.albedo_color = Color("#0b0c10")
+	box.material_override = mat
+	box.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	box.position = Vector3(river_x + 100.0, 7.0, -lane_len / 2.0)
+	add_child(box)
+
+
+## Lebensbalken (blickt immer zur Kamera). Gibt {node, fill, w} zurück; Füllung mit set_bar() ändern.
+func _make_bar(w: float, h: float, y: float) -> Dictionary:
+	var node := Node3D.new()
+	node.position.y = y
+	var back := MeshInstance3D.new()
+	var bq := QuadMesh.new()
+	bq.size = Vector2(w + 0.1, h + 0.1)
+	back.mesh = bq
+	back.material_override = _bar_mat(Color(0.05, 0.05, 0.05, 0.85), 0)
+	node.add_child(back)
+	var holder := Node3D.new()
+	holder.position.x = -w / 2.0
+	node.add_child(holder)
+	var fill := MeshInstance3D.new()
+	var fq := QuadMesh.new()
+	fq.size = Vector2(1.0, h)
+	fq.center_offset = Vector3(0.5, 0, 0)
+	fill.mesh = fq
+	fill.scale.x = w
+	fill.material_override = _bar_mat(Color("#4cd964"), 1)
+	holder.add_child(fill)
+	return {"node": node, "fill": fill, "w": w}
+
+
+func _bar_mat(col: Color, prio: int) -> StandardMaterial3D:
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	m.billboard_keep_scale = true
+	m.no_depth_test = true
+	m.render_priority = prio
+	m.albedo_color = col
+	return m
+
+
+func _set_bar(fill: MeshInstance3D, w: float, frac: float, ally: bool) -> void:
+	frac = clampf(frac, 0.0, 1.0)
+	fill.scale.x = maxf(0.001, w * frac)
+	var c: Color = Color("#4cd964").lerp(Color("#ff4d3d"), 1.0 - frac) if ally else Color("#e0453a")
+	(fill.material_override as StandardMaterial3D).albedo_color = c
 
 
 func _mat(col: Color) -> StandardMaterial3D:
@@ -976,7 +1039,8 @@ func _mini_input(event: InputEvent) -> void:
 	var m := _mini_map()
 	var wx: float = m["x_min"] + pos.x / m["sx"]
 	var wz: float = m["z_top"] + (pos.y - m["top"]) / m["sy"]
-	cam_focus = Vector3(wx, 0.0, clampf(wz, m["z_top"], m["z_bot"]))
+	var own_x_max: float = lane_xs[lanes_per_team - 1] + lane_half_g * S      # Gegner-Seite ist nicht einsehbar
+	cam_focus = Vector3(minf(wx, own_x_max), 0.0, clampf(wz, m["z_top"], m["z_bot"]))
 	cam_free = true
 	mini.accept_event()
 
@@ -1090,9 +1154,11 @@ func _make_player(key: String, side_idx: int, slot: int, bot: bool) -> Dictionar
 	var team_ring := _cyl(Vector3(0, 0.05, 0), 1.0, 0.04, team_col, team_col)
 	remove_child(team_ring)
 	node.add_child(team_ring)
-	var lab := _label3d("", 36, Color("#7be07b") if side_idx == 0 else Color("#ff9a8a"))
-	lab.position.y = 2.7
+	var lab := _label3d("", 30, Color("#e8e8e8"))
+	lab.position.y = 3.2
 	node.add_child(lab)
+	var hbar := _make_bar(2.2, 0.22, 2.65)
+	node.add_child(hbar["node"])
 	add_child(node)
 	var ring := _cyl(Vector3(0, 0.08, 0), 1.6, 0.04, Color("#7fd6ff"), Color("#7fd6ff"))   # Backport-Anzeige am Boden
 	ring.visible = false
@@ -1100,7 +1166,7 @@ func _make_player(key: String, side_idx: int, slot: int, bot: bool) -> Dictionar
 	node.add_child(ring)
 	return {"key": key, "d": d, "side": sides[side_idx], "bot": bot, "slot": slot, "home_y": home_y, "lane": lane_k,
 		"x": 120.0, "y": home_y, "lvl": 1, "xp": 0.0, "hp": float(d["hp"]), "dead": 0.0, "mul": 1.0,
-		"atk_t": 0.0, "target": null, "move_to": null, "deaths": 0, "node": node, "label": lab,
+		"atk_t": 0.0, "target": null, "move_to": null, "deaths": 0, "node": node, "label": lab, "bar": hbar["fill"], "bar_w": hbar["w"],
 		"bp": 0.0, "bp_cd": 0.0, "ring": ring,
 		"gold": float(cfg["startGold"]), "income": float(cfg["baseIncome"]),     # jeder Spieler hat eigenes Gold und Einkommen
 		"ranks": [0, 0, 0, 0], "cds": [0.0, 0.0, 0.0, 0.0], "sp": 1, "buffs": {}, "leap": null,
@@ -1368,6 +1434,7 @@ func _spawn_unit(type: String, off_x: float, spd_mul: float, lane: int = 0, side
 	var u: Dictionary = Data.units[type]
 	var m := _hp_mult()
 	var node: Node3D = null
+	var bar: Dictionary = {}
 	if not test_mode:
 		node = Node3D.new()
 		var body := MeshInstance3D.new()
@@ -1378,6 +1445,9 @@ func _spawn_unit(type: String, off_x: float, spd_mul: float, lane: int = 0, side
 		body.position.y = sph.radius
 		body.material_override = _mat(Color.html(u["col"]))
 		node.add_child(body)
+		var bw := maxf(0.9, float(u["r"]) * S * 2.4)
+		bar = _make_bar(bw, 0.14 if type != "boss" else 0.28, float(u["r"]) * S * 2.0 + 0.45)
+		node.add_child(bar["node"])
 		add_child(node)
 	var ly: float = lane_half_g - 16.0
 	sides[side_idx]["units"].append({"type": type, "lane": lane, "side_idx": side_idx, "from_side": from_side,
@@ -1385,7 +1455,7 @@ func _spawn_unit(type: String, off_x: float, spd_mul: float, lane: int = 0, side
 		"hp": float(u["hp"]) * m, "max": float(u["hp"]) * m,
 		"dmg": float(u["dmg"]) * (1.0 + float(cfg["unitDmgScale"]) * (m - 1.0)),
 		"spd": float(u["spd"]) * spd_mul * float(cfg["speedMul"]), "range": float(u["range"]),
-		"armor": float(u["armor"]), "r": float(u["r"]), "atk_t": 0.0, "node": node, "def": u,
+		"armor": float(u["armor"]), "r": float(u["r"]), "atk_t": 0.0, "node": node, "def": u, "bar": bar.get("fill"), "bar_w": bar.get("w", 1.0),
 		"stun": 0.0, "slow": 0.0, "burn": 0.0, "burn_dps": 0.0, "burn_t": 0.0, "bleed": 0.0, "bleed_pct": 0.0, "bleed_t": 0.0,
 		"torm_t": 0.0, "torm_tick": 0.0, "torm_dmg": 0.0, "torm_cd": 0.0, "last_p": {},
 		"boss": type == "boss", "phase": 1, "base": float(u["spd"]) * spd_mul * float(cfg["speedMul"]), "stomp_t": 5.0, "summon_t": 12.0})
@@ -2183,14 +2253,22 @@ func _sync_visuals(delta: float) -> void:
 	var hn: Node3D = hero["node"]
 	for p in players:                    # alle Helden: Position, Sichtbarkeit, Lebensanzeige
 		var pn: Node3D = p["node"]
-		pn.visible = p["dead"] <= 0.0
+		pn.visible = p["dead"] <= 0.0 and p["side"]["idx"] == hero["side"]["idx"]      # Gegner-Seite bleibt verdeckt
 		pn.position = _wp(p["x"], p["y"], p["side"]["idx"])
-		p["label"].text = "%d / %d" % [int(p["hp"]), int(skills.h_max_hp(p))]
+		p["label"].text = "Lv %d" % p["lvl"]
+		_set_bar(p["bar"], p["bar_w"], p["hp"] / skills.h_max_hp(p), p["side"]["idx"] == hero["side"]["idx"])
 	for s in sides:                      # alle Monster beider Seiten
 		for u in s["units"]:
 			var n: Node3D = u["node"]
 			n.position = _wp(u["x"], u["y"], s["idx"])
+			n.visible = s["idx"] == hero["side"]["idx"]
+			_set_bar(u["bar"], u["bar_w"], u["hp"] / u["max"], true)
+	var fog_x: float = lane_xs[lanes_per_team - 1] + lane_half_g * S + WALL
+	for fx in fx_list:                   # Effekte und Zahlen auf der Gegner-Seite ausblenden
+		var fnode: Node3D = fx["node"]
+		fnode.visible = fnode.position.x < fog_x
 	for f in texts.duplicate():
+		f["node"].visible = f["node"].position.x < fog_x
 		f["t"] -= delta
 		f["node"].position.y += 1.5 * delta
 		if f["t"] <= 0.0:
