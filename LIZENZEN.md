@@ -22,7 +22,7 @@ Alles, was wir nicht selbst gemacht haben, steht hier mit Quelle, Lizenz und Än
 | `caster_shot.wav`, `elem_shot_fire.wav` (Autoangriff Magier und Feuer-Elementar) | „Fireball" von **qubodup**, https://freesound.org/people/qubodup/sounds/442827/ | **CC BY** (laut Seite 3.0, bitte vor Veröffentlichung nochmal prüfen) | auf 0,65 s gekürzt, Stereo zu Mono, ausgeblendet |
 
 ### Namensnennung (Text für Abspann)
-„Frostnova-Sound: f_Synth_Wind_Whoosh_6 von cyclonek; Kettenblitz-Sound: electricspark von knova; Feuer-Elementar-Sound: Fire Spell 01 von DiscoverSound; Blitz-Elementar-Sound: custom_electrical_lance_impact_02152026 von Artninja (alle freesound.org, CC BY 4.0, bearbeitet).“
+„Frostnova-Sound: f_Synth_Wind_Whoosh_6 von cyclonek; Kettenblitz-Sound: electricspark von knova; Feuer-Elementar-Sound: Fire Spell 01 von DiscoverSound; Blitz-Elementar-Sound: custom_electrical_lance_impact_02152026 von Artninja ; Blitz-Elementar-Angriff: Sähköisiä räsähdyksiä von YleArkisto; Feuerball-Angriff: Fireball von qubodup (alle freesound.org, CC BY, bearbeitet).“
 
 ## Hinweise
 - Neue Dateien: Quelle, Lizenz und Änderungen hier eintragen, **bevor** sie ins Repository kommen. Sounds von Pixabay (Pixabay-Lizenz) nicht unverändert ins öffentliche Repository legen.
