@@ -140,7 +140,7 @@ func chain_lightning(p: Dictionary, from: Vector2, first: Dictionary, count: int
 		var is_crit: bool = g.rand() < crit
 		hit.append(cur)
 		g.vfx.bolt_later(link * 0.08, from.x, from.y, cur["x"], cur["y"], side_i, is_crit, hand and link == 0)
-		g.sfx_after(p, "zap_crit" if is_crit else "zap", link * 0.08, 0.8, 1.0 + 0.04 * link)
+		g.sfx_after(p, "zap_crit" if is_crit else "zap", link * 0.08, 0.8, 0.85 if is_crit else 1.0 + 0.04 * link)
 		link += 1
 		from = Vector2(cur["x"], cur["y"])
 		if is_crit:

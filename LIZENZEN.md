@@ -12,9 +12,15 @@ Alles, was wir nicht selbst gemacht haben, steht hier mit Quelle, Lizenz und Än
 | Datei | Quelle | Lizenz | Änderungen |
 |---|---|---|---|
 | `godot/assets/sounds/frost_cast.wav` (Frostnova) | „f_Synth_Wind_Whoosh_6.wav" von **cyclonek**, https://freesound.org/people/cyclonek/sounds/529411/ | **CC BY 4.0** (Namensnennung nötig) https://creativecommons.org/licenses/by/4.0/ | erste von zwei Windstößen ausgeschnitten und auf 1,6 s gekürzt, Stille am Anfang/Ende entfernt, ein- und ausgeblendet, auf 16 Bit umgewandelt, Lautstärke angepasst |
+| `zap.wav`, `zap_crit.wav` (Kettenblitz) | „electricspark.wav" von **knova**, https://freesound.org/people/knova/sounds/169666/ | **CC BY 4.0** | unverändert bis auf Ein-/Ausblenden und Lautstärke (Krit: etwas tiefer abgespielt) |
+| `fire_ignite.wav` (Feuerfeld) | „Fire Burning Loop" von **midimagician**, https://freesound.org/people/midimagician/sounds/249418/ | **CC0** | 5,5 s aus der Mitte ausgeschnitten, ein-/ausgeblendet, auf 16 Bit umgewandelt |
+| `summon_fire.wav` (Feuer-Elementar) | „Fire Spell 01" von **DiscoverSound**, https://freesound.org/people/discoversound/sounds/275608/ | **CC BY 4.0** | auf die ersten 2 s gekürzt, Stereo zu Mono, Vorlauf (Stille) davor, ausgeblendet |
+| `summon_frost.wav` (Frost-Elementar) | „Ice Magic Arrow_type 01" von **lotteria001**, https://freesound.org/people/lotteria001/sounds/709888/ | **CC0** | gekürzt, Stereo zu Mono, leise Teile angehoben (Begrenzer), Vorlauf davor |
+| `meteor_hit.wav` (Meteor, Rang 5) | „Beefy Explosions" von **SamsterBirdies**, https://freesound.org/people/samsterbirdies/sounds/745549/ | **CC0** | erste Explosion (2,3 s) aus 18 s ausgeschnitten, Stereo zu Mono |
+| `summon_lightning.wav` (Blitz-Elementar) | „custom_electrical_lance_impact_02152026" von **Artninja**, https://freesound.org/people/artninja/sounds/845385/ | **CC BY 4.0** | 2 s aus 6,4 s ausgeschnitten, Stereo zu Mono, Vorlauf davor, ausgeblendet |
 
 ### Namensnennung (Text für Abspann)
-„Frostnova-Sound: f_Synth_Wind_Whoosh_6 von cyclonek (freesound.org), CC BY 4.0, bearbeitet."
+„Frostnova-Sound: f_Synth_Wind_Whoosh_6 von cyclonek; Kettenblitz-Sound: electricspark von knova; Feuer-Elementar-Sound: Fire Spell 01 von DiscoverSound; Blitz-Elementar-Sound: custom_electrical_lance_impact_02152026 von Artninja (alle freesound.org, CC BY 4.0, bearbeitet).“
 
 ## Hinweise
 - Neue Dateien: Quelle, Lizenz und Änderungen hier eintragen, **bevor** sie ins Repository kommen. Sounds von Pixabay (Pixabay-Lizenz) nicht unverändert ins öffentliche Repository legen.

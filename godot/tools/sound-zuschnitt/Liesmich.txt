@@ -1,0 +1,4 @@
+Schneidet die Roh-Downloads aus dem Ordner Sounds/ zu Spiel-Sounds in godot/assets/sounds/ (Perl).
+make.pl = Liste der Zuschnitte (Datei, Ausgabe, von, bis, Einblenden, Ausblenden, Spitze, Stille kuerzen, Vorlauf, Verstaerkung).
+wav.pl = Lesen (16/24/32 Bit, Float, IMA-ADPCM; Stereo wird zu Mono) und Schreiben (16 Bit Mono).
+Aufruf: perl make.pl   (Pfade oben in make.pl anpassen)
