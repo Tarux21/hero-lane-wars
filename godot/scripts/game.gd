@@ -602,7 +602,7 @@ func _box(pos: Vector3, size: Vector3, col: Color) -> MeshInstance3D:
 	return m
 
 
-## Gegner-Seite ist in der 3D-Ansicht verdeckt (schwarze Wand hinter dem Fluss): Infos dazu gibt nur die Minimap.
+## Gegner-Seite ist in der 3D-Ansicht verdeckt (Nebelwand hinter dem Fluss): Infos dazu gibt nur die Minimap.
 func _build_fog() -> void:
 	if test_mode:
 		return
@@ -614,7 +614,8 @@ func _build_fog() -> void:
 	box.mesh = bm
 	var mat := StandardMaterial3D.new()
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.albedo_color = Color("#0b0c10")
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.albedo_color = Color(0.62, 0.68, 0.78, 0.72)      # Nebel: Gelände schimmert durch, Gegner bleiben unsichtbar
 	box.material_override = mat
 	box.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	box.position = Vector3(river_x + 100.0, 7.0, -lane_len / 2.0)
