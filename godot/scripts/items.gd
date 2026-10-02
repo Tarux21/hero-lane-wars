@@ -100,6 +100,8 @@ func buy(p: Dictionary, id: String) -> bool:
 	nb.append(id)
 	p["bag"] = nb
 	recalc(p)
+	if it.get("group", "") == "fertig":
+		g.on_item_built(p, it)               # Meldung bei großen Gegner-Items
 	return true
 
 
@@ -152,4 +154,6 @@ func drink_potion(p: Dictionary) -> bool:
 	var heal: float = float(cfg["potionHeal"]) * g.skills.h_max_hp(p)
 	p["hp"] = minf(g.skills.h_max_hp(p), p["hp"] + heal)
 	g.fx_text(p["x"] - 10.0, p["y"] - 34.0, "+%d" % int(round(heal)), "#7be07b", 0.8, 28)
+	if p == g.hero:
+		g.sfx("heal")
 	return true

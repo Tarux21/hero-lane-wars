@@ -15,6 +15,14 @@ while ($l.IsListening) {
     [IO.File]::WriteAllText((Join-Path $dir 'golden-economy.json'), $body, (New-Object Text.UTF8Encoding($false)))
     $c.Response.StatusCode = 200; $c.Response.Close(); continue
   }
+  # Golden Values Boss/Elite: POST /save-golden-boss schreibt genau regelwerk\golden-boss.json
+  if ($c.Request.HttpMethod -eq 'POST' -and $p -eq 'save-golden-boss') {
+    $sr = New-Object IO.StreamReader($c.Request.InputStream, [Text.Encoding]::UTF8)
+    $body = $sr.ReadToEnd(); $sr.Close()
+    $dir = Join-Path $root 'regelwerk'; if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir | Out-Null }
+    [IO.File]::WriteAllText((Join-Path $dir 'golden-boss.json'), $body, (New-Object Text.UTF8Encoding($false)))
+    $c.Response.StatusCode = 200; $c.Response.Close(); continue
+  }
   if ($c.Request.HttpMethod -eq 'POST' -and $p -eq 'save-golden') {
     $sr = New-Object IO.StreamReader($c.Request.InputStream, [Text.Encoding]::UTF8)
     $body = $sr.ReadToEnd(); $sr.Close()

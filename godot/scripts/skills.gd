@@ -198,7 +198,7 @@ func cast_slot(p: Dictionary, i: int, m: Dictionary) -> bool:
 	p["amp_now"] = false
 	if not res:
 		return false                                                          # nicht gewirkt: kein Cooldown
-	g.sfx_cast(i)
+	g.sfx_cast(p, i)
 	if p["key"] == "caster" and i < 3:
 		p["last_elem"] = ELEM_KEYS[i]
 	p["cds"][i] = float(s["cd"]) * (1.0 - p["cdr"])                           # Abklingzeitverkürzung durch Items

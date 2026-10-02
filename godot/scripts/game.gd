@@ -11,6 +11,7 @@ const WALL_OPEN_BASE := 300.0        # bis hierhin (Spielwerte) ist die Basis of
 const SkillsLib := preload("res://scripts/skills.gd")
 const ItemsLib := preload("res://scripts/items.gd")
 const BotLib := preload("res://scripts/bot.gd")
+const SfxLib := preload("res://scripts/sfx.gd")
 const GoldenRunner := preload("res://scripts/golden_runner.gd")
 const GoldenEconomyRunner := preload("res://scripts/golden_economy_runner.gd")
 const MINI_W := 290.0                # Größe der Minimap (Pixel)
@@ -44,6 +45,15 @@ var timers: Array = []                # zeitverzögerte Skill-Effekte
 var elems: Array = []                 # Caster-Elementare
 var fx_list: Array = []               # Skill-Effekte (Ringe, Kegel, Linien), blenden aus
 var skillbar: Array = []              # Oberfläche: die 4 Skill-Plätze
+var alerts_box: VBoxContainer         # Meldungen oben in der Mitte
+var tips_seen: Dictionary = {}         # schon gezeigte Einsteiger-Tipps (gespeichert)
+var ui_t_base := 0.0
+var ui_t_sp := 0.0
+var ui_t_coach := 0.0
+var ui_lives := -1
+var ui_warn_wave := 0
+var boss_bar: ProgressBar
+var boss_label: Label
 var paused := false
 var game_speed := 1
 var acc := 0.0                         # Zeit-Sammler für feste Spielschritte
@@ -52,6 +62,10 @@ var end_layer: CanvasLayer
 var pause_label: Label
 var send_btns: Array = []              # Knöpfe zum Monster-Senden
 var bot: BotLib                               # Bot-Steuerung der Computer-Spieler (bot.gd)
+var snd: SfxLib                        # Sounds (sfx.gd)
+var shake_amt := 0.0                   # Bildschirmwackeln (Pixelwert, klingt ab)
+var flash_a := 0.0                     # roter Blitz über dem Bild (Lebensverlust, Tod)
+var vignette: TextureRect
 var no_bots := false                   # Tests: keine Computer-Spieler
 var bot_diff: Dictionary = {}          # gewählte Schwierigkeit der Gegner
 var bot_style := "random"              # gewählter Spielstil der Gegner
@@ -215,6 +229,9 @@ func _start_game() -> void:
 	_setup_sides()
 	_build_world()
 	_spawn_hero()
+	if not no_bots and snd == null:
+		snd = SfxLib.new(self)               # Sounds nur im echten Spiel (nicht in Tests)
+		_load_tips()
 	if not no_bots:
 		_spawn_others()
 	if botplay:                          # Test: dein Held spielt auch als Bot (gleiche Schwierigkeit wie der Gegner)
@@ -561,6 +578,24 @@ func _mat(col: Color) -> StandardMaterial3D:
 func _build_hud() -> void:
 	var layer := CanvasLayer.new()
 	add_child(layer)
+	vignette = TextureRect.new()         # roter Rand: Lebensverlust, Tod, wenig Leben
+	var grad := Gradient.new()
+	grad.offsets = PackedFloat32Array([0.55, 1.0])
+	grad.colors = PackedColorArray([Color(1, 0.1, 0.1, 0.0), Color(1, 0.1, 0.1, 0.9)])
+	var gtex := GradientTexture2D.new()
+	gtex.gradient = grad
+	gtex.fill = GradientTexture2D.FILL_RADIAL
+	gtex.fill_from = Vector2(0.5, 0.5)
+	gtex.fill_to = Vector2(1.0, 0.5)
+	gtex.width = 256
+	gtex.height = 256
+	vignette.texture = gtex
+	vignette.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	vignette.stretch_mode = TextureRect.STRETCH_SCALE
+	vignette.set_anchors_preset(Control.PRESET_FULL_RECT)
+	vignette.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vignette.modulate.a = 0.0
+	layer.add_child(vignette)
 	hud = Label.new()
 	hud.position = Vector2(14, 10)
 	hud.add_theme_font_size_override("font_size", 18)
@@ -583,6 +618,32 @@ func _build_hud() -> void:
 	pause_label.add_theme_constant_override("outline_size", 8)
 	pause_label.visible = false
 	layer.add_child(pause_label)
+	alerts_box = VBoxContainer.new()     # Meldungen oben in der Mitte
+	alerts_box.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	alerts_box.offset_left = -320.0
+	alerts_box.offset_right = 320.0
+	alerts_box.offset_top = 150.0
+	alerts_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layer.add_child(alerts_box)
+	boss_bar = ProgressBar.new()         # Boss-Lebensleiste
+	boss_bar.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	boss_bar.offset_left = -190.0
+	boss_bar.offset_right = 190.0
+	boss_bar.offset_top = 46.0
+	boss_bar.offset_bottom = 70.0
+	boss_bar.show_percentage = false
+	boss_bar.visible = false
+	boss_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	boss_bar.add_theme_stylebox_override("fill", _flat(Color("#ff4d4d")))
+	boss_bar.add_theme_stylebox_override("background", _flat(Color(0, 0, 0, 0.6)))
+	layer.add_child(boss_bar)
+	boss_label = Label.new()
+	boss_label.set_anchors_preset(Control.PRESET_FULL_RECT)
+	boss_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	boss_label.add_theme_font_size_override("font_size", 14)
+	boss_label.add_theme_color_override("font_outline_color", Color.BLACK)
+	boss_label.add_theme_constant_override("outline_size", 4)
+	boss_bar.add_child(boss_label)
 	mini = Control.new()                 # Minimap unten links
 	mini.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
 	mini.offset_left = 14.0
@@ -606,6 +667,8 @@ func send(p: Dictionary, type: String) -> bool:
 	p["gold"] -= float(ud["cost"])
 	p["income"] += float(ud["inc"]) * float(cfg["incMul"])              # Senden erhöht dein Einkommen
 	p["sent"][type] = p["sent"].get(type, 0) + 1
+	if p == hero:
+		sfx("send")
 	var es: int = 1 - int(p["side"]["idx"])
 	for lane in lanes_per_team:                                         # das Monster erscheint auf allen Lanes des Gegner-Teams
 		_spawn_unit(type, 0.0, 1.0, lane, es, int(p["side"]["idx"]))
@@ -947,6 +1010,12 @@ func _draw_minimap() -> void:
 	mini.draw_rect(Rect2(0, 0, MINI_W, MINI_H), Color("#8d7d55"), false, 2.0)
 
 
+func _flat(col: Color) -> StyleBoxFlat:
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = col
+	return sb
+
+
 func _label3d(text: String, size: int, col: Color) -> Label3D:
 	var l := Label3D.new()
 	l.text = text
@@ -1085,8 +1154,26 @@ func apply_torment(p: Dictionary, u: Dictionary) -> void:
 	u["torm_cd"] = float(cfg["tormentCd"])
 
 
-func sfx_cast(_i: int) -> void:
-	pass                                  # Sounds kommen später
+## Sound abspielen (nur im echten Spiel; nur für Ereignisse deines Helden/Teams, damit es nicht zu laut wird)
+func sfx(name: String) -> void:
+	if snd != null and not test_mode:
+		snd.play(name)
+
+
+func sfx_cast(p: Dictionary, i: int) -> void:
+	if p == hero:
+		sfx("cast%d" % i)
+
+
+## Bildschirmwackeln (px) und roter Blitz (0..1); nur für deine Seite
+func shake(px: float) -> void:
+	if not test_mode:
+		shake_amt = maxf(shake_amt, px)
+
+
+func flash(a: float) -> void:
+	if not test_mode:
+		flash_a = maxf(flash_a, a)
 
 
 func _free(n: Variant) -> void:
@@ -1293,13 +1380,16 @@ func _spawn_wave(side: Dictionary) -> void:
 			side["boss_spawned"] = true
 			_spawn_unit("boss", base_off + count * 4.0 + 160.0, float(cfg["waveSpeedMul"]), lane, si)
 	if si == 0:
-		_flash_msg("Welle %d" % n)
+		var wk := _wave_kind_after(n, side)
+		_flash_msg(("BOSSWELLE %d" if wk == "boss" else ("ELITE-WELLE %d" if wk == "elite" else "Welle %d")) % n, Color("#ff7a7a") if wk == "boss" else (Color("#d9b3ff") if wk == "elite" else Color("#ffd166")))
+		sfx("boss" if n == int(cfg["bossWave"]) else "wave")
 
 
-func _flash_msg(text: String) -> void:
+func _flash_msg(text: String, col: Color = Color.WHITE) -> void:
 	if msg == null:
 		return
 	msg.text = text
+	msg.add_theme_color_override("font_color", col)
 	get_tree().create_timer(1.5).timeout.connect(func(): if msg.text == text: msg.text = "")
 
 
@@ -1310,6 +1400,8 @@ func _kill_unit(u: Dictionary, p: Dictionary = {}) -> void:
 	var killer: Dictionary = p
 	if killer.is_empty():
 		killer = side["players"][0] if not side["players"].is_empty() else hero
+	if killer == hero:
+		sfx("kill")
 	if killer["side"]["idx"] == 0:
 		kills += 1
 	killer["kills"] += 1
@@ -1331,6 +1423,9 @@ func _gain_xp(n: float, p: Dictionary = {}) -> void:
 		pl["xp"] -= _xp_need(pl["lvl"])
 		pl["lvl"] += 1
 		pl["sp"] += 1                                                     # 1 Skillpunkt pro Level, frei verteilbar
+		if pl == hero:
+			sfx("level")
+			ui_alert("LEVEL %d! Skillpunkte frei: %d" % [pl["lvl"], pl["sp"]], "good")
 		pl["hp"] += float(pl["d"]["hpl"])
 		_float_text("LEVEL %d" % pl["lvl"], _wp(pl["x"], pl["y"], pl["side"]["idx"]) + Vector3(0, 3.2, 0), Color("#ffd166"), 48, 1.2)
 
@@ -1345,14 +1440,16 @@ func _float_text(text: String, pos: Vector3, col: Color, size: int, life: float)
 
 
 ## Schaden an einem Monster (Rüstung wird abgezogen). Gibt den tatsächlichen Schaden zurück.
-func hit_unit(u: Dictionary, dmg: float, p: Dictionary = {}) -> float:
+func hit_unit(u: Dictionary, dmg: float, p: Dictionary = {}, crit: bool = false) -> float:
 	if not sides[u["side_idx"]]["units"].has(u):
 		return 0.0
 	var d := _reduce(dmg, u["armor"])
 	u["hp"] -= d
 	if not p.is_empty():
 		u["last_p"] = p                  # wem Kills durch Brennen/Blutung/Qual gutgeschrieben werden
-	_float_text(str(int(round(d))), _wp(u["x"], u["y"], u["side_idx"]) + Vector3(0, 1.8, 0), Color.WHITE, 30, 0.5)
+	_float_text(str(int(round(d))), _wp(u["x"], u["y"], u["side_idx"]) + Vector3(0, 1.8, 0), Color("#ffe066") if crit else Color.WHITE, 38 if crit else 30, 0.8 if crit else 0.5)
+	if p == hero:
+		sfx("crit" if crit else "hit")
 	if u["hp"] <= 0.0:
 		_kill_unit(u, p)
 	return d
@@ -1373,6 +1470,10 @@ func _damage_hero(p: Dictionary, dmg: float, src: Variant = null) -> void:
 	p["hp"] -= eff
 	p["dmg_t"] = 0.0                     # Lebensquell-Harnisch: Zeit seit dem letzten Schaden
 	_float_text("-" + str(int(round(eff))), _wp(p["x"], p["y"], p["side"]["idx"]) + Vector3(0, 3.0, 0), Color("#ff6b6b"), 30, 0.6)
+	if p == hero:
+		sfx("hurt")
+		if eff > 0.08 * skills.h_max_hp(p):
+			shake(minf(8.0, 2.0 + eff / skills.h_max_hp(p) * 20.0))
 	var ir := skills.iron_passive(p)     # Tank: Dornen geben einen Anteil des Schadens an den Angreifer zurück
 	if ir["reflect"] > 0.0 and src != null and my_units.has(src):
 		hit_unit(src, raw * float(ir["reflect"]) * float(cfg["reflectMul"]), p)
@@ -1381,11 +1482,129 @@ func _damage_hero(p: Dictionary, dmg: float, src: Variant = null) -> void:
 	if p["hp"] <= 0.0:
 		p["hp"] = 0.0
 		p["deaths"] += 1
+		if p == hero:
+			sfx("die")
+			shake(10.0)
+			flash(0.5)
 		p["dead"] = float(cfg["respawnBase"]) + float(cfg["respawnPerLevel"]) * p["lvl"]
 		p["target"] = null
 		p["move_to"] = null
 		p["buffs"] = {}
 		p["leap"] = null
+
+
+# ---------------------------------------------------------------- Hinweise im Spiel (Meldungen, Tipps, Boss-Leiste)
+const TIPS := [
+	{"id": "move", "text": "Ziel: Halte die Monsterwellen auf. Rechtsklick = Held läuft und greift an."},
+	{"id": "mini", "text": "Minimap: Klick = Kamera dorthin, Leertaste = zurück zum Helden. Über den Lanes steht, wie viele Monster dort sind."},
+	{"id": "skill", "text": "Skills: Q W E R wirken auf den Mauszeiger. Skillpunkte vergibst du mit Shift+Taste oder „+“."},
+	{"id": "shop", "text": "Gold ausgeben: Im Shop (Tab) kaufst du Items. Kaufen geht nur in der Basis (unten, B = Backport)."},
+	{"id": "send", "text": "Monster senden (Z X C V N): kostet Gold, erhöht dein Einkommen. Der Gegner bekommt dafür XP."},
+	{"id": "lives", "text": "Jedes Monster, das durchkommt, kostet Team-Leben. Wer zuerst 0 Leben hat, verliert."},
+	{"id": "lanes", "text": "Doppel-Lane: Zur anderen Lane kommst du nur über die Basis. Backport (B) nutzen und im Team absprechen!"},
+]
+
+
+## Meldung oben in der Mitte (max. 4 gleichzeitig). kind: info, good, danger, enemy
+func ui_alert(text: String, kind: String = "info", secs: float = 3.2) -> void:
+	if alerts_box == null or test_mode:
+		return
+	var l := Label.new()
+	l.text = text
+	l.add_theme_font_size_override("font_size", 16)
+	l.add_theme_color_override("font_outline_color", Color.BLACK)
+	l.add_theme_constant_override("outline_size", 5)
+	l.add_theme_color_override("font_color", {"info": Color("#e6e6e6"), "good": Color("#9af0a8"), "danger": Color("#ff9a9a"), "enemy": Color("#d9b3ff")}.get(kind, Color.WHITE))
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	alerts_box.add_child(l)
+	while alerts_box.get_child_count() > 4:
+		alerts_box.get_child(0).queue_free()
+		alerts_box.remove_child(alerts_box.get_child(0))
+	get_tree().create_timer(secs).timeout.connect(func(): if is_instance_valid(l): l.queue_free())
+
+
+func _load_tips() -> void:
+	var cf := ConfigFile.new()
+	if cf.load("user://settings.cfg") == OK:
+		var seen: Variant = cf.get_value("tips", "seen", {})
+		if seen is Dictionary:
+			tips_seen = seen
+
+
+func _save_tips() -> void:
+	var cf := ConfigFile.new()
+	cf.load("user://settings.cfg")
+	cf.set_value("tips", "seen", tips_seen)
+	cf.save("user://settings.cfg")
+
+
+## Wird pro Spielschritt aufgerufen (nur im echten Spiel)
+func _ui_tick(dt: float) -> void:
+	if test_mode:
+		return
+	ui_t_base -= dt
+	ui_t_sp -= dt
+	ui_t_coach -= dt
+	var side: Dictionary = sides[0]
+	if ui_lives < 0:
+		ui_lives = team_lives[0]
+	if team_lives[0] < ui_lives:
+		ui_alert("−%d Leben! Noch %d" % [ui_lives - team_lives[0], maxi(0, team_lives[0])], "danger")
+	ui_lives = team_lives[0]
+	if ui_t_base <= 0.0:
+		var near := 0
+		for u in units:
+			if u["x"] < float(cfg["baseX"]) + 320.0:
+				near += 1
+		if near > 0:
+			ui_alert("⚠ %d Monster nahe eurer Basis!" % near, "danger", 2.6)
+			ui_t_base = 6.0
+	var nxt: int = side["wave"] + 1                                      # Vorschau: besondere Welle in 10 Sekunden
+	var kind := _wave_kind(side, nxt)
+	if kind != "normal" and side["wave_t"] <= 10.0 and side["wave_t"] > 0.0 and ui_warn_wave != nxt:
+		ui_warn_wave = nxt
+		ui_alert("In %d s: %s!" % [int(ceil(side["wave_t"])), "BOSSWELLE" if kind == "boss" else "ELITE-WELLE"], "danger", 4.5)
+	if ui_t_sp <= 0.0:
+		for i in 4:
+			if skills.can_learn(hero, i):
+				ui_alert("Skillpunkt frei – Shift+Taste oder „+“ in der Skill-Leiste", "info", 3.0)
+				break
+		ui_t_sp = 30.0
+	if ui_t_coach <= 0.0:                                                # Einsteiger-Tipps: je einmal zum passenden Zeitpunkt
+		ui_t_coach = 2.0
+		var sent_n := 0
+		for k in hero["sent"].keys():
+			sent_n += int(hero["sent"][k])
+		var conds := {"move": t > 2.0, "mini": t > 20.0, "skill": t > 12.0, "shop": t > 30.0 and hero["gold"] >= 80.0 and hero["bag"].is_empty(),
+			"send": t > 50.0 and hero["gold"] >= 90.0 and sent_n == 0, "lives": team_lives[0] < int(cfg["startLives"]), "lanes": lanes_per_team == 2 and t > 60.0}
+		for tp in TIPS:
+			if not tips_seen.get(tp["id"], false) and conds.get(tp["id"], false):
+				tips_seen[tp["id"]] = true
+				_save_tips()
+				ui_alert("💡 " + tp["text"], "good", 8.0)
+				break
+	# Boss-Leiste: solange ein Boss auf deinen Lanes lebt
+	var boss: Variant = null
+	for u in units:
+		if u["boss"]:
+			boss = u
+			break
+	boss_bar.visible = boss != null
+	if boss != null:
+		boss_bar.value = 100.0 * boss["hp"] / boss["max"]
+		boss_label.text = "BOSS · Phase %d · %d %%" % [boss["phase"], int(ceil(100.0 * boss["hp"] / boss["max"]))]
+
+
+func _wave_kind(side: Dictionary, n: int) -> String:
+	if n == int(cfg["bossWave"]) and not side["boss_spawned"]:
+		return "boss"
+	return "elite" if n % int(cfg["eliteEvery"]) == 0 else "normal"
+
+
+## Meldung, wenn der Gegner ein großes Item baut
+func on_item_built(p: Dictionary, it: Dictionary) -> void:
+	if p["side"]["idx"] != 0 and p["bot"]:
+		ui_alert("Gegner hat %s gebaut" % str(it["name"]), "enemy", 4.0)
 
 
 # ---------------------------------------------------------------- Spielschritt
@@ -1457,6 +1676,9 @@ func _boss_think(side: Dictionary, u: Dictionary, dt: float) -> void:
 	if u["stomp_t"] <= 0.0:                                              # Stampfen: Schaden an allem im Umkreis
 		u["stomp_t"] = float(cfg["bossStompEvery"][ph - 1])
 		fx_ring(u["x"], u["y"], float(cfg["bossStompR"]), 0.5, "#ff4d4d")
+		if side["idx"] == 0:
+			sfx("boss")
+			shake(4.0)
 		for q in side["players"]:
 			if q["dead"] <= 0.0 and Vector2(q["x"] - u["x"], q["y"] - u["y"]).length() <= float(cfg["bossStompR"]) + 14.0:
 				_damage_hero(q, u["dmg"] * float(cfg["bossStompMul"]), u)
@@ -1614,7 +1836,7 @@ func _step_hero(p: Dictionary, dt: float) -> void:
 			fx_text(tx, ty - 28.0, "KRIT!", "#ffe066", 0.6, 34)
 			if p["uniq"].has("stormCrit"):                                # Sturmbrecher: kurz mehr Angriffstempo
 				p["buffs"]["critAs"] = {"t": float(cfg["stormCritTime"]), "as": float(cfg["stormCritAs"])}
-		var dealt := hit_unit(tgt, dmg, p)
+		var dealt := hit_unit(tgt, dmg, p, is_crit)
 		if p["lifesteal"] > 0.0:                                          # Lebensraub (inkl. Rachsucht)
 			var vf := 2.0 if p["uniq"].has("vengeance") and p["hp"] < 0.4 * skills.h_max_hp(p) else 1.0
 			p["hp"] = minf(skills.h_max_hp(p), p["hp"] + dealt * p["lifesteal"] * vf)
@@ -1824,6 +2046,10 @@ func _step_units(side: Dictionary, dt: float) -> void:
 			var l := int(u["def"]["lives"])
 			team_lives[side["idx"]] -= l
 			side["leak"][u["type"]] = side["leak"].get(u["type"], 0) + l
+			if side["idx"] == 0:
+				sfx("leak")
+				shake(5.0)
+				flash(0.35)
 			sunits.erase(u)
 			_free(u["node"])
 
@@ -1836,6 +2062,7 @@ func _process(delta: float) -> void:
 		acc = minf(acc + delta * float(game_speed), 0.5)                # feste Schritte von 0,05 s (bei Tempo x2/x3 mehrere pro Bild)
 		while acc >= 0.05:
 			step(0.05)
+			_ui_tick(0.05)
 			acc -= 0.05
 	_sync_visuals(delta)
 	if over and not end_shown:
@@ -1854,6 +2081,7 @@ func _toggle_pause() -> void:
 func _show_end() -> void:
 	if end_layer != null:
 		return
+	sfx("win" if winner == 0 else "lose")
 	end_layer = CanvasLayer.new()
 	end_layer.layer = 10
 	add_child(end_layer)
@@ -1940,6 +2168,12 @@ func _sync_visuals(delta: float) -> void:
 	for i in life_labels.size():
 		life_labels[i].text = "Leben %d" % maxi(0, team_lives[i])
 	cam_init = true
+	flash_a = maxf(0.0, flash_a - 1.2 * delta)                          # Bildschirmeffekte klingen ab
+	shake_amt = 0.0 if shake_amt < 0.2 else shake_amt * exp(-10.0 * delta)
+	cam.h_offset = randf_range(-1.0, 1.0) * shake_amt * 0.02
+	cam.v_offset = randf_range(-1.0, 1.0) * shake_amt * 0.02
+	var low_hp: bool = hero["dead"] <= 0.0 and hero["hp"] / skills.h_max_hp(hero) < 0.3
+	vignette.modulate.a = clampf(maxf(flash_a, (0.25 + 0.15 * sin(t * 6.0)) if low_hp else 0.0), 0.0, 1.0)
 	cam.look_at(cam.position - off)
 	var ring: MeshInstance3D = hero["ring"]
 	ring.visible = hero["bp"] > 0.0
@@ -2265,6 +2499,8 @@ func _run_simulation(secs: float, shot_path: String) -> void:
 	var steps := int(secs / 0.05)
 	for i in steps:
 		step(0.05)
+		if shot_path != "":
+			_ui_tick(0.05)               # fürs Bild: Meldungen und Tipps mitlaufen lassen
 		if trace and i % 100 == 0:   # alle 5 Sekunden: Position des Helden und Ziel (für Fehlersuche)
 			var tg: Variant = hero["target"]
 			print("t=%.0f Held x=%.0f y=%.0f | Ziel: %s | Einheiten %d" % [t, hero["x"], hero["y"],
@@ -2284,3 +2520,10 @@ func _run_simulation(secs: float, shot_path: String) -> void:
 		img.save_png(shot_path)
 		print("Screenshot: ", shot_path)
 	get_tree().quit()
+
+
+## Art der gerade gespawnten Welle (für die Anzeige)
+func _wave_kind_after(n: int, side: Dictionary) -> String:
+	if n == int(cfg["bossWave"]):
+		return "boss"
+	return "elite" if n % int(cfg["eliteEvery"]) == 0 else "normal"
