@@ -220,9 +220,7 @@ func _cast(p: Dictionary, i: int, r: int, m: Dictionary) -> bool:
 			match i:
 				0: return _tank_q(p, r, m)
 				2: return _tank_e(p, r, m)
-				3:
-					circle_hit(p, p["x"], p["y"], 190.0, dmg_of(p, 200.0, 0.0, 1, 0.0, 1.0), {"stun": 3.0, "knock": 120.0})
-					return true
+				3: return _tank_r(p)
 		"damage":
 			match i:
 				0: return _dmg_q(p, r)
@@ -249,10 +247,24 @@ func _tank_q(p: Dictionary, r: int, m: Dictionary) -> bool:
 	var stun := 0.8 + 0.12 * (r - 1)
 	var o := {"stun": stun, "knock": 80.0 if r >= 3 else 0.0}
 	var ang: float = m["ang"]
-	cone_hit(p, p["x"], p["y"], ang, range_, half, dmg, o)
+	cone_hit(p, p["x"], p["y"], ang, range_, half, dmg, o, "#e8d9b0", 0.15)
+	g.cast_pose(p, p["x"] + cos(ang) * 100.0, p["y"] + sin(ang) * 100.0, "Sword_Attack", 0.6)
+	g.vfx.tank_shockwave(p, ang, range_, half, r)
+	g.sfx_p(p, "tank_q")
 	if r >= 5:                                                               # zweite, stärkere Welle
 		var o2 := {"stun": stun + 0.4, "knock": o["knock"]}
-		g.later(0.6, func(): cone_hit(p, p["x"], p["y"], ang, range_ + 40.0, half, dmg * 1.25, o2))
+		g.later(0.6, func():
+			cone_hit(p, p["x"], p["y"], ang, range_ + 40.0, half, dmg * 1.25, o2, "#e8d9b0", 0.15)
+			g.vfx.tank_shockwave(p, ang, range_ + 40.0, half, r)
+			g.sfx_p(p, "tank_q", 0.8))
+	return true
+
+
+func _tank_r(p: Dictionary) -> bool:
+	circle_hit(p, p["x"], p["y"], 190.0, dmg_of(p, 200.0, 0.0, 1, 0.0, 1.0), {"stun": 3.0, "knock": 120.0}, "", false)
+	g.cast_pose(p, p["x"] + 100.0, p["y"], "Sword_Attack2", 0.7)
+	g.vfx.titan_slam(p, 190.0)
+	g.sfx_p(p, "tank_r")
 	return true
 
 
@@ -264,6 +276,8 @@ func _tank_e(p: Dictionary, r: int, m: Dictionary) -> bool:
 		g.fx_text(p["x"] - 30.0, p["y"] - 40.0, "Keine Ziele!", "#ff9a8a", 1.2, 30)
 		return false
 	cands.sort_custom(func(a, b): return _dist(a, m["wx"], m["wy"]) < _dist(b, m["wx"], m["wy"]))
+	g.cast_pose(p, cands[0]["x"], cands[0]["y"], "Punch", 0.45)
+	g.sfx_p(p, "tank_e")
 	_hop(p, Vector2(p["x"], p["y"]), cands[0], targets, dmg, r >= 5, [])
 	return true
 
@@ -276,7 +290,8 @@ func _hop(p: Dictionary, from: Vector2, u_in: Variant, left: int, dmg: float, bl
 		_come_back(p, from)
 		return
 	hit.append(u)
-	g.fx_line(from.x, from.y, u["x"], u["y"], 0.2, "#cfd8e8", 6.0)
+	g.vfx.shield_to(p, u["x"], u["y"], 0.15 / float(g.game_speed))
+	g.sfx_p(p, "tank_e_hit", 0.8, 1.0, Vector2(u["x"], u["y"]))
 	var pos := Vector2(u["x"], u["y"])
 	affect(p, u, dmg, {"bleed": 3.0 if bleed else 0.0, "bleed_pct": 0.05})
 	var nxt: Variant = _nearest_not_hit(p, pos, hit, 220.0)
@@ -302,8 +317,9 @@ func _nearest_not_hit(p: Dictionary, from: Vector2, hit: Array, max_d: float) ->
 
 func _come_back(p: Dictionary, from: Vector2) -> void:
 	var d := Vector2(from.x - p["x"], from.y - p["y"]).length()
+	g.vfx.shield_back(p, minf(0.6, 0.1 + d / 900.0) / float(g.game_speed))
 	g.later(minf(0.6, 0.1 + d / 900.0), func():
-		g.fx_line(from.x, from.y, p["x"], p["y"], 0.2, "#7be07b", 5.0)
+		g.sfx_p(p, "tank_e_back", 0.8)
 		if p["dead"] <= 0.0:
 			var heal: float = float(cfg["shieldHeal"]) * h_max_hp(p)
 			p["hp"] = minf(h_max_hp(p), p["hp"] + heal)

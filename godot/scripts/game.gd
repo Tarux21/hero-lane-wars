@@ -19,7 +19,7 @@ const GoldenBossRunner := preload("res://scripts/golden_boss_runner.gd")
 const MINI_W := 290.0                # Größe der Minimap (Pixel)
 const MINI_H := 270.0
 const ENEMY_LANE_VIEW := 700.0       # Gegner-Lane auf der Minimap: nur dieser Abschnitt (Spielwerte) bei deren Basis
-const CAM_PITCH := 58.0             # Kamerawinkel in Grad (wie Warcraft 3: schräg von oben)
+var cam_pitch := 58.0             # Kamerawinkel in Grad (wie Warcraft 3: schräg von oben)
 var cam_dist := 28.0                 # Kamera-Abstand zum Helden (Mausrad)
 
 var cfg: Dictionary
@@ -279,8 +279,8 @@ func _start_game() -> void:
 	_setup_layout()
 	_setup_sides()
 	_build_world()
-	_spawn_hero()
 	vfx = FxLib.new(self)
+	_spawn_hero()
 	if not no_bots and snd == null:
 		snd = SfxLib.new(self)               # Sounds nur im echten Spiel (nicht in Tests)
 		snd.volume = _load_volume()
@@ -433,7 +433,7 @@ func _setup_layout() -> void:
 
 
 func _cam_offset() -> Vector3:
-	var p := deg_to_rad(CAM_PITCH)
+	var p := deg_to_rad(cam_pitch)
 	return Vector3(0.0, sin(p) * cam_dist, cos(p) * cam_dist)
 
 
@@ -1328,7 +1328,10 @@ func _make_player(key: String, side_idx: int, slot: int, bot: bool) -> Dictionar
 	var node := Node3D.new()
 	var fig: Dictionary = {}
 	if not test_mode and HERO_MODEL.has(key):
-		fig = _make_figure(HERO_MODEL[key][0], 2.8)
+		fig = _make_figure(HERO_MODEL[key][0], float(HERO_MODEL[key][4]))
+		if not fig.is_empty() and key == "tank":          # Tank: breiter und mit Schild am linken Arm
+			(fig["inner"] as Node3D).scale *= Vector3(1.12, 1.0, 1.12)
+			vfx.attach_shield(fig)
 	if fig.is_empty():
 		var body := MeshInstance3D.new()
 		var cap := CapsuleMesh.new()
@@ -1450,7 +1453,7 @@ func sfx(name: String) -> void:
 
 
 func sfx_cast(p: Dictionary, i: int) -> void:
-	if p == hero and p["key"] != "caster":      # der Caster hat eigene Klänge je Fähigkeit (sfx_p)
+	if p == hero and p["key"] != "caster" and not (p["key"] == "tank" and snd != null and snd.streams.has("tank_" + "qwer"[i])):      # Caster und Tank haben eigene Klänge je Fähigkeit (sfx_p)
 		sfx("cast%d" % i)
 
 
@@ -1494,11 +1497,12 @@ func shake_near(pos: Vector3, px: float) -> void:
 
 
 ## Zauberpose: Figur dreht sich zum Ziel und spielt die Angriffsanimation neu ab
-func cast_pose(p: Dictionary, tx: float, ty: float) -> void:
+func cast_pose(p: Dictionary, tx: float, ty: float, anim: String = "", secs: float = 0.55) -> void:
 	var fig: Dictionary = p.get("fig", {})
 	if fig.is_empty():
 		return
-	fig["force"] = 0.55
+	fig["force"] = secs
+	fig["force_anim"] = anim
 	fig["face"] = Vector2(tx, ty)
 	fig["cur"] = ""
 
@@ -1684,9 +1688,10 @@ func _update_fx(delta: float) -> void:
 ## Erzeugt ein Monster auf einer Lane der Seite `side_idx`. from_side: Seite, die es geschickt hat (-1 = Welle).
 ## Figuren (Quaternius, CC0, als Platzhalter): werden zur Laufzeit aus den glTF-Dateien geladen und gemerkt.
 const MODEL_DIR := "res://assets/quaternius/"
-const HERO_MODEL := {"tank": ["rpg/Warrior.gltf", "Sword_Attack"], "damage": ["rpg/Rogue.gltf", "Dagger_Attack"], "caster": ["rpg/Wizard.gltf", "Staff_Attack"]}
+## Held-Modelle: [Datei, Angriffsanimation, Laufanimation, Ruheanimation, Höhe in m]
+const HERO_MODEL := {"tank": ["rpg/Warrior.gltf", "Sword_Attack", "Run_Weapon", "Idle_Weapon", 3.0], "damage": ["rpg/Rogue.gltf", "Dagger_Attack", "Run", "Idle", 2.8], "caster": ["rpg/Wizard.gltf", "Staff_Attack", "Run", "Idle", 2.8]}
 const UNIT_MODEL := {"grunt": "GreenDemon", "tank": "Cyclops", "archer": "Skull", "fast": "Bat", "elite": "Demon", "boss": "YellowDragon"}
-const LOOP_ANIMS := ["Idle", "Walk", "Run", "Flying", "Attacking_Idle"]
+const LOOP_ANIMS := ["Idle", "Walk", "Run", "Flying", "Attacking_Idle", "Run_Weapon", "Idle_Weapon"]
 var model_cache: Dictionary = {}
 
 
@@ -1894,6 +1899,8 @@ func _damage_hero(p: Dictionary, dmg: float, src: Variant = null) -> void:
 		if eff > 0.08 * skills.h_max_hp(p):
 			shake(minf(8.0, 2.0 + eff / skills.h_max_hp(p) * 20.0))
 	var ir := skills.iron_passive(p)     # Tank: Dornen geben einen Anteil des Schadens an den Angreifer zurück
+	if p["key"] == "tank" and p["ranks"][1] > 0 and not test_mode:
+		vfx.iron_spark(p)
 	if ir["reflect"] > 0.0 and src != null and my_units.has(src):
 		hit_unit(src, raw * float(ir["reflect"]) * float(cfg["reflectMul"]), p)
 	if src != null and my_units.has(src) and p["uniq"].has("thorns"):   # Dornen-Items: fester Schaden + Anteil der Item-Rüstung
@@ -2622,7 +2629,7 @@ func _animate(e: Dictionary, node: Node3D, side_idx: int, delta: float, attack_a
 	(fig["inner"] as Node3D).rotation.y = fig["yaw"]
 	var anim := move_anim if moving else (attack_anim if (tg != null or e.get("type") != null) else idle_anim)
 	if force > 0.0:
-		anim = attack_anim
+		anim = str(fig.get("force_anim", "")) if str(fig.get("force_anim", "")) != "" else attack_anim
 	_play_anim(fig, anim)
 	var ap: AnimationPlayer = fig["anim"]
 	if ap != null:
@@ -2634,7 +2641,8 @@ func _sync_visuals(delta: float) -> void:
 	for p in players:                    # alle Helden: Position, Sichtbarkeit, Lebensanzeige
 		var pn: Node3D = p["node"]
 		pn.visible = p["dead"] <= 0.0 and p["side"]["idx"] == hero["side"]["idx"]      # Gegner-Seite bleibt verdeckt
-		_animate(p, pn, p["side"]["idx"], delta, HERO_MODEL[p["key"]][1] if HERO_MODEL.has(p["key"]) else "", "Run", "Idle", 5.0)
+		var hm: Array = HERO_MODEL.get(p["key"], ["", "", "Run", "Idle", 2.8])
+		_animate(p, pn, p["side"]["idx"], delta, str(hm[1]), str(hm[2]), str(hm[3]), 5.0)
 		p["label"].text = "Lv %d" % p["lvl"]
 		_set_bar(p["bar"], p["bar_w"], p["hp"] / skills.h_max_hp(p), p["side"]["idx"] == hero["side"]["idx"])
 	for s in sides:                      # alle Monster beider Seiten
@@ -3035,6 +3043,10 @@ func _fxtest(which: String, prefix: String) -> void:
 	cam_dist = 26.0
 	cam_free = true
 	cam_focus = _wp(1130.0, 0.0, 0)
+	if which.begins_with("look"):                       # Figur aus der Nähe: Kamera folgt dem Helden, der losläuft
+		cam_free = false
+		cam_dist = 9.0
+		cam_pitch = 18.0
 	for i in 40:
 		await get_tree().process_frame
 	var m := {"dx": 300.0, "dy": 0.0, "dist": 300.0, "ang": 0.0, "wx": 1250.0, "wy": 0.0}
@@ -3044,13 +3056,15 @@ func _fxtest(which: String, prefix: String) -> void:
 	var slot: int = {"q": 0, "w": 1, "e": 2}.get(which, 3)
 	if which == "q" and fx_rank >= 5:
 		m["wx"] = 1280.0
+	if which == "lookside" and not hero["fig"].is_empty():
+		hero["fig"]["yaw"] = -PI / 2.0
 	if which == "auto":                               # Normalangriff zeigen
 		units[0]["x"] = 1220.0
 		units[0]["y"] = 0.0
 		hero["target"] = units[0]
 		units[0]["hp"] = 1e9
 		units[0]["max"] = 1e9
-	else:
+	elif not which.begins_with("look"):
 		skills.cast_slot(hero, slot, m)
 	var t0 := Time.get_ticks_msec()
 	var k := 0

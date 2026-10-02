@@ -62,3 +62,9 @@ Helden (Krieger, Schurke, Magier) und Monster (GreenDemon, Cyclops, Skull, Bat, 
 - `scripts/sfx_caster.gd`: selbst berechnete Klänge (Feuer, Frost, Blitz, Elementare). Zum Anhören: Ordner `Caster-Sounds/` (WAV-Dateien, mit `godot --headless --path godot --script res://tools/sfxtest.gd -- --wav` neu erzeugbar).
 - Bildertest: `-- --hero=caster --team=1 --fxtest=q|w|e|rfire|rfrost|rlightning --rank=1..5 --shot=Prefix` (Skript `tools/fxrun.sh`), speichert Bilder in Zeitabständen.
 - Tank und Damage haben noch die alten einfachen Effekte.
+
+## Tank (Stand Meilenstein 6)
+- Modell: Quaternius-Krieger, etwas breiter, mit Rundschild am linken Unterarm (im Code gebaut, `fx.gd` `make_shield`/`attach_shield`). Läuft mit `Run_Weapon`, steht mit `Idle_Weapon`.
+- Effekte: Schockwelle (Q, Bodenschlag, Staub, Risse, Druckbogen), Schildwurf (E, das Schild verlässt die Hand, springt von Ziel zu Ziel und kehrt zurück), Eiserne Haut (W, Funken bei Treffern), Titanenstoß (R, großer Bodenschlag mit Felsen).
+- Eigene Sounds ablegen als `godot/assets/sounds/<Name>.wav`: `tank_q`, `tank_e` (Wurf), `tank_e_hit` (je Treffer), `tank_e_back` (Rückkehr), `tank_r`. Ohne diese Dateien spielen noch die einfachen alten Klänge.
+- Bildertest: `godot/tools/fxrun.sh q|e|r|look|lookside 3 tank`.

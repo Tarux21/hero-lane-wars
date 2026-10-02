@@ -999,3 +999,381 @@ func auto_fireball(p: Dictionary, tx: float, ty: float) -> void:
 			"dir": Vector3.UP, "spread": 60.0, "vmin": 0.5, "vmax": 1.5, "smin": 0.7, "smax": 1.1, "grav": Vector3(0, 1.0, 0), "curve": _curve([0.6, 1.0, 0.0]),
 			"ramp": _ramp([[0.0, Color(1.0, 0.8, 0.4, 0.8)], [1.0, Color(0.5, 0.1, 0.0, 0.0)]])})
 		_put(puff, to, 0.8))
+
+
+# ================================================================ Tank
+## Schild: Stahlscheibe mit goldenem Rand, Buckel und Kreuz. Vorderseite zeigt nach +Z.
+func make_shield() -> Node3D:
+	var root := Node3D.new()
+	var steel := StandardMaterial3D.new()
+	steel.albedo_color = Color(0.52, 0.58, 0.68)
+	steel.metallic = 0.75
+	steel.roughness = 0.38
+	var gold := StandardMaterial3D.new()
+	gold.albedo_color = Color(0.92, 0.72, 0.25)
+	gold.metallic = 0.9
+	gold.roughness = 0.3
+	gold.emission_enabled = true
+	gold.emission = Color(0.5, 0.35, 0.05)
+	var disc := MeshInstance3D.new()
+	var cm := CylinderMesh.new()
+	cm.top_radius = 0.42
+	cm.bottom_radius = 0.42
+	cm.height = 0.07
+	cm.radial_segments = 28
+	disc.mesh = cm
+	disc.material_override = steel
+	disc.rotation.x = PI / 2.0
+	root.add_child(disc)
+	var rim := MeshInstance3D.new()
+	var tm := TorusMesh.new()
+	tm.inner_radius = 0.40
+	tm.outer_radius = 0.49
+	tm.rings = 28
+	tm.ring_segments = 8
+	rim.mesh = tm
+	rim.material_override = gold
+	rim.rotation.x = PI / 2.0
+	rim.scale = Vector3(1.0, 1.0, 0.8)
+	root.add_child(rim)
+	var boss := MeshInstance3D.new()
+	var sm := SphereMesh.new()
+	sm.radius = 0.13
+	sm.height = 0.26
+	boss.mesh = sm
+	boss.material_override = gold
+	boss.position.z = 0.05
+	boss.scale = Vector3(1.0, 1.0, 0.55)
+	root.add_child(boss)
+	for k in 2:
+		var bar := MeshInstance3D.new()
+		var bx := BoxMesh.new()
+		bx.size = Vector3(0.06, 0.66, 0.025) if k == 0 else Vector3(0.66, 0.06, 0.025)
+		bar.mesh = bx
+		bar.material_override = gold
+		bar.position.z = 0.04
+		root.add_child(bar)
+	return root
+
+
+## Schild am linken Unterarm des Modells befestigen (Knochen "LowerArm.L"). Rückgabe in fig["shield"].
+func attach_shield(fig: Dictionary) -> void:
+	if g.test_mode:
+		return
+	var skel := (fig["inner"] as Node).find_child("Skeleton3D", true, false) as Skeleton3D
+	if skel == null:
+		return
+	var ba := BoneAttachment3D.new()
+	ba.bone_name = "LowerArm.L"
+	skel.add_child(ba)
+	var holder := Node3D.new()
+	holder.name = "ShieldHolder"
+	var sh := make_shield()
+	holder.add_child(sh)
+	holder.position = Vector3(0.0, 0.2, 0.2)             # Knochen: Y entlang des Unterarms (zur Hand), Z nach außen
+	holder.scale = Vector3.ONE * 0.9
+	holder.rotation_degrees = Vector3(0, 40, 0)           # Vorderseite schräg nach vorn-außen
+	ba.add_child(holder)
+	fig["shield"] = holder
+	fig["shield_attach"] = ba
+
+
+func _shield_hand_pos(p: Dictionary) -> Vector3:
+	var fig: Dictionary = p.get("fig", {})
+	if not fig.is_empty() and fig.has("shield"):
+		var h: Node3D = fig["shield"]
+		if h.is_inside_tree():
+			return h.global_position
+	return _hand(p) - Vector3(0, 0.3, 0)
+
+
+func _shield_visible(p: Dictionary, v: bool) -> void:
+	var fig: Dictionary = p.get("fig", {})
+	if not fig.is_empty() and fig.has("shield"):
+		(fig["shield"] as Node3D).visible = v
+
+
+## Schildwurf: Schild verlässt die Hand, springt von Ziel zu Ziel (shield_to je Sprung) und kehrt zurück (shield_back)
+func shield_to(p: Dictionary, tx: float, ty: float, dur: float) -> void:
+	if g.test_mode:
+		return
+	var side: int = p["side"]["idx"]
+	var to := _w(tx, ty, side) + Vector3(0, 1.1, 0)
+	var fly: Node3D = p.get("shield_fly", null)
+	if fly == null or not is_instance_valid(fly):
+		fly = _make_fly_shield()
+		p["shield_fly"] = fly
+		fly.position = _shield_hand_pos(p)
+		_shield_visible(p, false)
+	var from := fly.position
+	var old_tw: Tween = p.get("shield_tw", null)
+	if old_tw != null:
+		old_tw.kill()
+	var tw := fly.create_tween()
+	p["shield_tw"] = tw
+	tw.tween_method(func(f: float):
+		var pos := from.lerp(to, f)
+		pos.y += sin(f * PI) * 0.7
+		fly.position = pos, 0.0, 1.0, maxf(0.05, dur))
+	tw.tween_callback(func(): metal_hit(to, 1.0))
+
+
+func shield_back(p: Dictionary, dur: float) -> void:
+	if g.test_mode:
+		return
+	var fly: Node3D = p.get("shield_fly", null)
+	if fly == null or not is_instance_valid(fly):
+		return
+	var from := fly.position
+	var old_tw: Tween = p.get("shield_tw", null)
+	if old_tw != null:
+		old_tw.kill()
+	var tw := fly.create_tween()
+	p["shield_tw"] = tw
+	tw.tween_method(func(f: float):
+		var to := _shield_hand_pos(p)
+		var pos := from.lerp(to, f)
+		pos.y += sin(f * PI) * 0.5
+		fly.position = pos, 0.0, 1.0, maxf(0.05, dur))
+	tw.tween_callback(func():
+		_shield_visible(p, true)
+		p["shield_fly"] = null
+		fly.queue_free()
+		_glow_sprite(Color(0.7, 0.9, 1.0, 0.9), 1.5, 0.2, _shield_hand_pos(p), 1.4))
+
+
+func _make_fly_shield() -> Node3D:
+	var node := Node3D.new()
+	g.add_child(node)
+	var spin := Node3D.new()
+	var sh := make_shield()
+	sh.rotation.x = -PI / 2.0                    # flach, Vorderseite nach oben
+	sh.scale = Vector3.ONE * 1.5
+	spin.add_child(sh)
+	node.add_child(spin)
+	var tw := spin.create_tween()
+	tw.set_loops()
+	tw.tween_property(spin, "rotation:y", TAU, 0.28).from(0.0)
+	var trail := _ps({"amount": 30, "life": 0.35, "local": false, "shape": "sphere", "radius": 0.15, "vmin": 0.0, "vmax": 0.3, "spread": 180.0,
+		"smin": 0.3, "smax": 0.6, "curve": _curve([1.0, 0.0]),
+		"ramp": _ramp([[0.0, Color(0.9, 0.97, 1.0, 0.7)], [0.5, Color(0.6, 0.8, 1.0, 0.4)], [1.0, Color(0.5, 0.7, 1.0, 0.0)]])})
+	node.add_child(trail)
+	g.fx_nodes.append({"node": node, "t": 6.0})
+	return node
+
+
+## Metall trifft Ziel: Funken, Lichtblitz, kleiner Ring
+func metal_hit(pos: Vector3, size: float) -> void:
+	var sp := _ps({"amount": int(18 * size), "life": 0.45, "once": true, "explo": 1.0, "shape": "sphere", "radius": 0.1, "dir": Vector3.UP, "spread": 130.0,
+		"vmin": 3.0, "vmax": 8.0, "smin": 0.07, "smax": 0.16, "grav": Vector3(0, -12.0, 0),
+		"ramp": _ramp([[0.0, Color(1, 1, 0.9, 1.0)], [0.4, Color(1.0, 0.85, 0.5, 0.9)], [1.0, Color(1.0, 0.6, 0.2, 0.0)]])})
+	_put(sp, pos, 0.8)
+	_glow_sprite(Color(1.0, 0.95, 0.8, 0.9), 1.6 * size, 0.14, pos, 1.5)
+	_light(Color(1.0, 0.9, 0.7), 1.6, 5.0, 0.18, pos)
+
+
+## Eiserne Haut: kleine Funken, wenn der Tank getroffen wird
+func iron_spark(p: Dictionary) -> void:
+	if g.test_mode:
+		return
+	var now := Time.get_ticks_msec() / 1000.0
+	if now - float(p.get("iron_t", 0.0)) < 0.3:
+		return
+	p["iron_t"] = now
+	var pos := _w(p["x"], p["y"], p["side"]["idx"]) + Vector3(0, 1.4, 0)
+	var sp := _ps({"amount": 8, "life": 0.35, "once": true, "explo": 1.0, "shape": "sphere", "radius": 0.3, "dir": Vector3.UP, "spread": 150.0,
+		"vmin": 1.5, "vmax": 4.0, "smin": 0.05, "smax": 0.11, "grav": Vector3(0, -8.0, 0),
+		"ramp": _ramp([[0.0, Color(0.9, 0.95, 1.0, 1.0)], [0.5, Color(0.7, 0.8, 1.0, 0.8)], [1.0, Color(0.6, 0.7, 1.0, 0.0)]])})
+	_put(sp, pos, 0.6)
+
+
+## flaches Band auf dem Boden entlang der Punkte (für Risse im Boden)
+func _ground_ribbon(pts: Array, width: float, col: Color, additive: bool) -> MeshInstance3D:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLE_STRIP)
+	for i in pts.size():
+		var p0: Vector3 = pts[maxi(0, i - 1)]
+		var p1: Vector3 = pts[mini(pts.size() - 1, i + 1)]
+		var d := (p1 - p0)
+		d.y = 0.0
+		d = d.normalized()
+		var side_v := d.cross(Vector3.UP).normalized()
+		var w := width * (1.0 - 0.75 * float(i) / maxf(1.0, pts.size() - 1.0))       # läuft spitz aus
+		st.set_color(col)
+		st.add_vertex(pts[i] + side_v * w * 0.5)
+		st.set_color(col)
+		st.add_vertex(pts[i] - side_v * w * 0.5)
+	var mi := MeshInstance3D.new()
+	mi.mesh = st.commit()
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.blend_mode = BaseMaterial3D.BLEND_MODE_ADD if additive else BaseMaterial3D.BLEND_MODE_MIX
+	m.cull_mode = BaseMaterial3D.CULL_DISABLED
+	m.vertex_color_use_as_albedo = true
+	m.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+	mi.material_override = m
+	return mi
+
+
+## Risse im Boden: strahlenförmig, dunkel mit goldenem Glühen, blenden nach `life` aus
+func _cracks(center: Vector3, ang: float, half: float, len_m: float, count: int, life: float) -> void:
+	for k in count:
+		var a := ang + (rng.randf_range(-half, half) if half < PI else rng.randf() * TAU)
+		var dir := Vector3(sin(a), 0.0, -cos(a))
+		var dist := len_m * rng.randf_range(0.55, 1.0)
+		var pts: Array = []
+		var steps := 7
+		var side_v := dir.cross(Vector3.UP)
+		for i in steps + 1:
+			var f := float(i) / steps
+			pts.append(dir * dist * f + side_v * rng.randf_range(-0.25, 0.25) * dist * 0.15 * sin(f * PI) + Vector3(0, 0.06, 0))
+		var holder := Node3D.new()
+		var dark := _ground_ribbon(pts, 0.55, Color(0.07, 0.05, 0.04, 0.9), false)
+		holder.add_child(dark)
+		var glow_pts: Array = []
+		for pt in pts:
+			glow_pts.append(pt + Vector3(0, 0.02, 0))
+		var glow := _ground_ribbon(glow_pts, 0.24, Color(1.0, 0.75, 0.3, 0.8), true)
+		holder.add_child(glow)
+		_put(holder, center, life + 0.1)
+		var gm := glow.material_override as StandardMaterial3D
+		var dm := dark.material_override as StandardMaterial3D
+		var tw := holder.create_tween()
+		tw.tween_property(gm, "albedo_color:a", 0.0, life * 0.6)
+		tw.tween_property(dm, "albedo_color:a", 0.0, life * 0.4)
+
+
+## Flacher Bogen (Kegelstück) am Boden, wächst nach außen und blendet aus (Druckwelle)
+func _arc_wave(origin: Vector3, ang: float, half: float, r_end: float, life: float, col: Color) -> void:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var segs := 20
+	for i in segs:
+		var a0 := ang - half + 2.0 * half * i / segs
+		var a1 := ang - half + 2.0 * half * (i + 1) / segs
+		var i0 := Vector3(sin(a0), 0.0, -cos(a0)) * 0.78
+		var o0 := Vector3(sin(a0), 0.0, -cos(a0))
+		var i1 := Vector3(sin(a1), 0.0, -cos(a1)) * 0.78
+		var o1 := Vector3(sin(a1), 0.0, -cos(a1))
+		st.set_color(Color(col.r, col.g, col.b, 0.0))
+		st.add_vertex(i0)
+		st.set_color(col)
+		st.add_vertex(o0)
+		st.set_color(col)
+		st.add_vertex(o1)
+		st.set_color(Color(col.r, col.g, col.b, 0.0))
+		st.add_vertex(i0)
+		st.set_color(col)
+		st.add_vertex(o1)
+		st.set_color(Color(col.r, col.g, col.b, 0.0))
+		st.add_vertex(i1)
+	var mi := MeshInstance3D.new()
+	mi.mesh = st.commit()
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	m.cull_mode = BaseMaterial3D.CULL_DISABLED
+	m.vertex_color_use_as_albedo = true
+	m.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+	mi.material_override = m
+	mi.scale = Vector3.ONE * 0.2
+	_put(mi, origin + Vector3(0, 0.14, 0), life + 0.1)
+	var tw := mi.create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(mi, "scale", Vector3.ONE * r_end, life).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
+	tw.tween_property(m, "albedo_color:a", 0.0, life).set_ease(Tween.EASE_IN)
+
+
+func _dust(pos: Vector3, dir: Vector3, spread: float, speed: float, amount: int, size: float, life: float = 0.9) -> void:
+	var d := _ps({"amount": amount, "life": life, "once": true, "explo": 0.9, "add": false, "shape": "sphere", "radius": 0.3, "dir": dir, "spread": spread,
+		"vmin": speed * 0.3, "vmax": speed, "dmin": 1.5, "dmax": 3.0, "smin": size * 0.6, "smax": size, "grav": Vector3(0, 0.3, 0), "curve": _curve([0.4, 1.0]),
+		"ramp": _ramp([[0.0, Color(0.62, 0.55, 0.44, 0.0)], [0.12, Color(0.66, 0.58, 0.46, 0.55)], [1.0, Color(0.5, 0.46, 0.4, 0.0)]])})
+	_put(d, pos, life + 0.3)
+
+
+func _debris(pos: Vector3, dir: Vector3, spread: float, speed: float, amount: int, life: float = 1.1) -> void:
+	var d := _ps({"amount": amount, "life": life, "once": true, "explo": 1.0, "add": false, "shape": "sphere", "radius": 0.3, "dir": dir, "spread": spread,
+		"vmin": speed * 0.4, "vmax": speed, "smin": 0.12, "smax": 0.3, "grav": Vector3(0, -16.0, 0),
+		"ramp": _ramp([[0.0, Color(0.32, 0.26, 0.2, 1.0)], [0.85, Color(0.24, 0.2, 0.16, 0.95)], [1.0, Color(0.2, 0.17, 0.14, 0.0)]])})
+	_put(d, pos, life + 0.3)
+
+
+## Schockwelle (Q): Bodenschlag, Staubwelle im Kegel, Risse, Steinbrocken, goldener Druckbogen
+func tank_shockwave(p: Dictionary, ang: float, range_: float, half: float, rank: int) -> void:
+	if g.test_mode:
+		return
+	var side: int = p["side"]["idx"]
+	var origin := _w(p["x"], p["y"], side)
+	var dir3 := Vector3(sin(ang), 0.0, -cos(ang))
+	var r_m := range_ * S
+	var tip := origin + dir3 * 1.2
+	var v := r_m / 0.45
+	_glow_sprite(Color(1.0, 0.9, 0.6, 0.9), 3.4, 0.2, tip + Vector3(0, 0.8, 0), 1.5)
+	_light(Color(1.0, 0.85, 0.5), 2.5, 9.0, 0.35, tip + Vector3(0, 1.2, 0))
+	_dust(tip + Vector3(0, 0.3, 0), dir3 + Vector3(0, 0.15, 0), rad_to_deg(half) * 0.9, v, 130, 3.0)
+	_dust(tip + Vector3(0, 0.2, 0), dir3, rad_to_deg(half), v * 0.6, 40, 2.8, 1.2)
+	_debris(tip + Vector3(0, 0.3, 0), (dir3 + Vector3(0, 0.9, 0)).normalized(), 35.0, 9.0 + rank, 18 + rank * 3)
+	_arc_wave(origin, ang, half, r_m * 1.05, 0.45, Color(1.0, 0.85, 0.5, 0.85))
+	_cracks(origin + dir3 * 0.8, ang, half * 0.9, r_m, 4 + rank, 1.4)
+	if rank >= 3:
+		_ring_wave(tip, Color(1.0, 0.9, 0.7, 0.6), 3.5, 0.4)
+	g.shake_near(origin, 4.0 + rank)
+
+
+## Titanenstoß (R): großer Bodenschlag im Kreis: Druckwellen, Staubring, Risse in alle Richtungen, fliegende Felsen
+func titan_slam(p: Dictionary, radius_units: float) -> void:
+	if g.test_mode:
+		return
+	var side: int = p["side"]["idx"]
+	var origin := _w(p["x"], p["y"], side)
+	var r_m := radius_units * S
+	_glow_sprite(Color(1.0, 0.92, 0.65, 1.0), 9.0, 0.25, origin + Vector3(0, 1.0, 0), 1.8)
+	_light(Color(1.0, 0.85, 0.5), 5.0, 22.0, 0.6, origin + Vector3(0, 2.0, 0))
+	_ring_wave(origin, Color(1.0, 0.9, 0.6, 0.95), r_m, 0.55)
+	var tw0 := g.create_tween()
+	tw0.tween_interval(0.12)
+	tw0.tween_callback(func(): _ring_wave(origin, Color(1.0, 0.7, 0.3, 0.7), r_m * 0.8, 0.7, 0.12))
+	var dust_ring := _ps({"amount": 160, "life": 1.2, "once": true, "explo": 0.8, "add": false, "shape": "ring", "radius": 1.2, "inner": 0.4, "height": 0.2,
+		"dir": Vector3.UP, "spread": 25.0, "vmin": 0.5, "vmax": 1.5, "smin": 2.0, "smax": 3.4, "curve": _curve([0.4, 1.0]),
+		"ramp": _ramp([[0.0, Color(0.62, 0.55, 0.44, 0.0)], [0.1, Color(0.66, 0.58, 0.46, 0.6)], [1.0, Color(0.5, 0.46, 0.4, 0.0)]])})
+	dust_ring.radial_accel_min = r_m * 1.4
+	dust_ring.radial_accel_max = r_m * 2.2
+	_put(dust_ring, origin + Vector3(0, 0.3, 0), 1.6)
+	_debris(origin + Vector3(0, 0.4, 0), Vector3.UP, 50.0, 12.0, 40, 1.4)
+	_cracks(origin, 0.0, PI, r_m, 11, 1.8)
+	var sparks := _ps({"amount": 40, "life": 0.9, "once": true, "explo": 1.0, "shape": "sphere", "radius": 0.4, "dir": Vector3.UP, "spread": 60.0,
+		"vmin": 5.0, "vmax": 13.0, "smin": 0.1, "smax": 0.22, "grav": Vector3(0, -12.0, 0),
+		"ramp": _ramp([[0.0, Color(1, 1, 0.9, 1.0)], [0.4, Color(1.0, 0.8, 0.35, 0.9)], [1.0, Color(1.0, 0.6, 0.2, 0.0)]])})
+	_put(sparks, origin + Vector3(0, 0.4, 0), 1.3)
+	for k in 9:                                          # Felsbrocken fliegen hoch und fallen zurück
+		var a := rng.randf() * TAU
+		var d := rng.randf_range(0.25, 0.9) * r_m
+		var rock := MeshInstance3D.new()
+		var bm := BoxMesh.new()
+		var sz := rng.randf_range(0.35, 0.8)
+		bm.size = Vector3(sz, sz * rng.randf_range(0.6, 1.1), sz * rng.randf_range(0.7, 1.2))
+		rock.mesh = bm
+		rock.material_override = _mat_rock()
+		var start := origin + Vector3(cos(a), 0, sin(a)) * d * 0.3
+		var land := origin + Vector3(cos(a), 0, sin(a)) * d
+		_put(rock, start, 1.6)
+		rock.rotation = Vector3(rng.randf() * TAU, rng.randf() * TAU, rng.randf() * TAU)
+		var h := rng.randf_range(3.5, 7.0)
+		var spin := Vector3(rng.randf_range(-4, 4), rng.randf_range(-4, 4), rng.randf_range(-4, 4))
+		var tw := rock.create_tween()
+		tw.tween_method(func(f: float):
+			var pos := start.lerp(land, f)
+			pos.y = 0.2 + h * 4.0 * f * (1.0 - f)
+			rock.position = pos
+			rock.rotation += spin * 0.016, 0.0, 1.0, 0.9)
+		tw.tween_property(rock, "scale", Vector3.ONE * 0.01, 0.5)
+	g.shake_near(origin, 14.0)
+
+
+func _mat_rock() -> StandardMaterial3D:
+	var m := StandardMaterial3D.new()
+	m.albedo_color = Color(0.4, 0.34, 0.28)
+	m.roughness = 0.95
+	return m
