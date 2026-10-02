@@ -1423,7 +1423,7 @@ func titan_slam(p: Dictionary, range_units: float, half: float, ang: float) -> v
 		var f := float(i) / (rows - 1)
 		var d := 1.6 + (r_m - 1.6) * f
 		var wmax := minf(d * tan_h * 0.85, lane_cap)
-		var cnt := maxi(1, int(wmax * 2.0 / 2.7) + 1)
+		var cnt := clampi(int(wmax * 2.0 / 2.7) + 1, 1, 3)                 # höchstens 3 Platten je Reihe
 		var delay := 0.05 + 0.5 * f
 		for j in cnt:
 			var lat := 0.0 if cnt == 1 else (float(j) / (cnt - 1) * 2.0 - 1.0) * wmax
