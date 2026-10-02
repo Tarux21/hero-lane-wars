@@ -278,6 +278,7 @@ func _start_game() -> void:
 	vfx = FxLib.new(self)
 	if not no_bots and snd == null:
 		snd = SfxLib.new(self)               # Sounds nur im echten Spiel (nicht in Tests)
+		snd.volume = _load_volume()
 		_load_tips()
 	if not no_bots:
 		_spawn_others()
@@ -687,9 +688,42 @@ func _mat(col: Color) -> StandardMaterial3D:
 	return mat
 
 
+## Lautstärkeregler oben rechts (wird gespeichert). 0 = stumm.
+func _build_volume_slider(layer: CanvasLayer) -> void:
+	if snd == null:
+		return
+	var box := HBoxContainer.new()
+	box.anchor_left = 1.0
+	box.anchor_right = 1.0
+	box.offset_left = -230.0
+	box.offset_right = -12.0
+	box.offset_top = 8.0
+	box.offset_bottom = 34.0
+	box.add_theme_constant_override("separation", 8)
+	var lab := Label.new()
+	lab.text = "Ton"
+	lab.add_theme_color_override("font_outline_color", Color.BLACK)
+	lab.add_theme_constant_override("outline_size", 6)
+	box.add_child(lab)
+	var sl := HSlider.new()
+	sl.min_value = 0.0
+	sl.max_value = 100.0
+	sl.step = 1.0
+	sl.value = snd.volume * 100.0
+	sl.custom_minimum_size = Vector2(150, 24)
+	sl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	sl.focus_mode = Control.FOCUS_NONE
+	sl.value_changed.connect(func(v: float):
+		snd.volume = v / 100.0
+		_save_volume(v / 100.0))
+	box.add_child(sl)
+	layer.add_child(box)
+
+
 func _build_hud() -> void:
 	var layer := CanvasLayer.new()
 	add_child(layer)
+	_build_volume_slider(layer)
 	vignette = TextureRect.new()         # roter Rand: Lebensverlust, Tod, wenig Leben
 	var grad := Gradient.new()
 	grad.offsets = PackedFloat32Array([0.55, 1.0])
@@ -1762,6 +1796,21 @@ func _load_tips() -> void:
 			tips_seen = seen
 
 
+## Lautstärke (0..1) aus den Einstellungen, Standard 0,4
+func _load_volume() -> float:
+	var cf := ConfigFile.new()
+	if cf.load("user://settings.cfg") == OK:
+		return clampf(float(cf.get_value("sound", "volume", 0.4)), 0.0, 1.0)
+	return 0.4
+
+
+func _save_volume(v: float) -> void:
+	var cf := ConfigFile.new()
+	cf.load("user://settings.cfg")
+	cf.set_value("sound", "volume", v)
+	cf.save("user://settings.cfg")
+
+
 func _save_tips() -> void:
 	var cf := ConfigFile.new()
 	cf.load("user://settings.cfg")
@@ -2092,7 +2141,11 @@ func _step_hero(p: Dictionary, dt: float) -> void:
 				if u != tgt and my_units.has(u) and Vector2(u["x"] - tx, u["y"] - ty).length() <= 75.0:
 					hit_unit(u, dmg * 0.5, p)
 		if range_ > 100.0:
-			fx_line(p["x"], p["y"], tx, ty, 0.12, str(p["d"]["col"]), 2.0)
+			if p["key"] == "caster":
+				vfx.auto_fireball(p, tx, ty)
+				sfx_p(p, "caster_shot", 0.55)
+			else:
+				fx_line(p["x"], p["y"], tx, ty, 0.12, str(p["d"]["col"]), 2.0)
 
 
 
@@ -2811,7 +2864,14 @@ func _fxtest(which: String, prefix: String) -> void:
 	var slot: int = {"q": 0, "w": 1, "e": 2}.get(which, 3)
 	if which == "q" and fx_rank >= 5:
 		m["wx"] = 1280.0
-	skills.cast_slot(hero, slot, m)
+	if which == "auto":                               # Normalangriff zeigen
+		units[0]["x"] = 1220.0
+		units[0]["y"] = 0.0
+		hero["target"] = units[0]
+		units[0]["hp"] = 1e9
+		units[0]["max"] = 1e9
+	else:
+		skills.cast_slot(hero, slot, m)
 	var t0 := Time.get_ticks_msec()
 	var k := 0
 	var marks := [0.12, 0.3, 0.55, 0.9, 1.4, 2.2, 3.2]

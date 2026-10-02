@@ -960,3 +960,42 @@ func elem_shot(type: String, x1: float, y1: float, x2: float, y2: float, side: i
 		return
 	var size := 0.7 if type == "fire" else 0.5
 	projectile(_w(x1, y1, side) + Vector3(0, 1.3, 0), _w(x2, y2, side) + Vector3(0, 1.0, 0), _elem_col(type), 0.16, size)
+
+
+## Normalangriff des Casters: kleiner Feuerball mit Flammenschweif, kleiner Einschlag
+func auto_fireball(p: Dictionary, tx: float, ty: float) -> void:
+	if g.test_mode:
+		return
+	var side: int = p["side"]["idx"]
+	var from := _hand(p)
+	var to := _w(tx, ty, side) + Vector3(0, 0.9, 0)
+	var life := clampf(from.distance_to(to) / 28.0, 0.1, 0.4)
+	var node := Node3D.new()
+	_put(node, from, life + 0.8)
+	_glow_on(node, Color(1.0, 0.6, 0.2, 1.0), 0.9)
+	var trail := _ps({"amount": 36, "life": 0.28, "tex": tex_flame, "qsize": Vector2(1.0, 1.4), "ang": 20.0, "local": false, "shape": "sphere", "radius": 0.06,
+		"vmin": 0.0, "vmax": 0.4, "spread": 180.0, "smin": 0.45, "smax": 0.75, "curve": _curve([1.0, 0.0]),
+		"ramp": _ramp([[0.0, Color(1.0, 0.9, 0.5, 0.9)], [0.4, Color(1.0, 0.45, 0.1, 0.7)], [1.0, Color(0.3, 0.05, 0.0, 0.0)]])})
+	node.add_child(trail)
+	var lt := OmniLight3D.new()
+	lt.light_color = Color("#ff8a3a")
+	lt.light_energy = 0.9
+	lt.omni_range = 4.0
+	node.add_child(lt)
+	var tw := node.create_tween()
+	tw.tween_method(func(f: float): node.position = from.lerp(to, f), 0.0, 1.0, life)
+	tw.tween_callback(func():
+		trail.emitting = false
+		lt.light_energy = 0.0
+		for c in node.get_children():
+			if c is MeshInstance3D:
+				c.visible = false
+		_glow_sprite(Color(1.0, 0.8, 0.45, 0.9), 1.6, 0.14, to, 1.4)
+		var hit := _ps({"amount": 12, "life": 0.4, "once": true, "explo": 1.0, "shape": "sphere", "radius": 0.1, "dir": Vector3.UP, "spread": 140.0,
+			"vmin": 2.0, "vmax": 5.0, "smin": 0.1, "smax": 0.22, "grav": Vector3(0, -6.0, 0),
+			"ramp": _ramp([[0.0, Color(1.0, 0.95, 0.6, 1.0)], [0.5, Color(1.0, 0.5, 0.1, 0.8)], [1.0, Color(0.6, 0.1, 0.0, 0.0)]])})
+		_put(hit, to, 0.7)
+		var puff := _ps({"amount": 5, "life": 0.5, "once": true, "explo": 1.0, "tex": tex_flame, "qsize": Vector2(1.0, 1.4), "ang": 25.0, "shape": "sphere", "radius": 0.15,
+			"dir": Vector3.UP, "spread": 60.0, "vmin": 0.5, "vmax": 1.5, "smin": 0.7, "smax": 1.1, "grav": Vector3(0, 1.0, 0), "curve": _curve([0.6, 1.0, 0.0]),
+			"ramp": _ramp([[0.0, Color(1.0, 0.8, 0.4, 0.8)], [1.0, Color(0.5, 0.1, 0.0, 0.0)]])})
+		_put(puff, to, 0.8))

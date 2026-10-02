@@ -6,8 +6,8 @@ extends RefCounted
 const RATE := 22050
 
 const NAMES := ["fire_cast", "fire_ignite", "meteor_fall", "meteor_hit", "frost_cast", "frost_zone", "zap", "zap_crit",
-	"summon_fire", "summon_frost", "summon_lightning", "flame_jet", "elem_vanish", "elem_shot_fire", "elem_shot_frost", "elem_shot_lightning"]
-const GAPS := {"zap": 0.03, "zap_crit": 0.03, "elem_shot_fire": 0.15, "elem_shot_frost": 0.15, "elem_shot_lightning": 0.15, "fire_ignite": 0.2}
+	"summon_fire", "summon_frost", "summon_lightning", "flame_jet", "elem_vanish", "elem_shot_fire", "elem_shot_frost", "elem_shot_lightning", "caster_shot"]
+const GAPS := {"caster_shot": 0.12, "zap": 0.03, "zap_crit": 0.03, "elem_shot_fire": 0.15, "elem_shot_frost": 0.15, "elem_shot_lightning": 0.15, "fire_ignite": 0.2}
 
 
 static func build(name: String) -> PackedFloat32Array:
@@ -32,21 +32,16 @@ static func build(name: String) -> PackedFloat32Array:
 			dur = 1.9
 			parts = [[_boom(1.4, 70, 22, 3.0), 0.0, 1.0], [_noise(rng, 1.0, 2200, 90, 0.7, 0.003, 3.5), 0.0, 0.8],
 				[_rumble(rng, 1.7, 180, 0.05, 2.0), 0.0, 0.6], [_crackle(rng, 1.5, 70, 12, 2.0), 0.1, 0.4]]
-		"frost_cast":
-			dur = 1.1
-			parts = [[_noise(rng, 0.55, 7500, 2200, 0.35, 0.12, 3.0), 0.0, 0.55], [_noise(rng, 0.05, 6000, 5000, 0.5, 0.001, 8.0), 0.0, 0.5],
-				[_noise(rng, 0.05, 6000, 5000, 0.5, 0.001, 8.0), 0.28, 0.4]]
-			var f: Array = [2093.0, 2637.0, 3136.0, 3951.0, 4699.0]
-			for i in f.size():
-				parts.append([_tone(0.7, f[i], f[i], "sine", 0.003, 5.0, 0.0, 0.0, 14.0, 0.4), i * 0.06, 0.35])
-				parts.append([_tone(0.5, f[i] * 2.01, f[i] * 2.01, "sine", 0.003, 6.0), i * 0.06, 0.12])
+		"frost_cast":                                   # Kältekegel (wie WoW): eisiger Luftstoß, knackendes Eis, dumpfer Schlag
+			dur = 1.05
+			parts = [[_noise(rng, 0.75, 3600, 1300, 0.6, 0.03, 2.4), 0.0, 0.85], [_noise(rng, 0.5, 4400, 2400, 0.5, 0.02, 4.0), 0.02, 0.35],
+				[_ice_crackle(rng, 0.9, 180, 25, 2.2), 0.05, 0.55], [_tone(0.3, 130, 55, "sine", 0.004, 4.5), 0.0, 0.5],
+				[_noise(rng, 0.35, 3000, 1500, 0.5, 0.02, 4.0), 0.22, 0.3],
+				[_tone(0.25, 1850, 1700, "sine", 0.002, 7.0, 0.0, 0.0, 22.0, 0.5), 0.12, 0.08], [_tone(0.2, 2650, 2400, "sine", 0.002, 8.0), 0.2, 0.06]]
 		"frost_zone":
-			dur = 0.95
-			parts = [[_noise(rng, 0.7, 5000, 3000, 0.3, 0.2, 3.0), 0.0, 0.2]]
-			var f2: Array = [1568.0, 1976.0, 2349.0]
-			for i in f2.size():
-				parts.append([_tone(0.6, f2[i], f2[i] * 1.33, "sine", 0.004, 4.0, 0.0, 0.0, 10.0, 0.3), i * 0.1, 0.3])
-				parts.append([_noise(rng, 0.04, 5500, 4000, 0.5, 0.001, 8.0), 0.05 + i * 0.11, 0.5])
+			dur = 0.9
+			parts = [[_noise(rng, 0.6, 3800, 1800, 0.55, 0.05, 3.0), 0.0, 0.4], [_ice_crackle(rng, 0.8, 120, 20, 2.0), 0.0, 0.6], [_tone(0.25, 110, 60, "sine", 0.004, 5.0), 0.0, 0.4],
+				[_tone(0.2, 2100, 1950, "sine", 0.002, 8.0), 0.1, 0.07]]
 		"zap":
 			dur = 0.4
 			parts = [[_noise(rng, 0.12, 6500, 700, 0.5, 0.002, 5.0), 0.0, 0.8], [_tone(0.3, 140, 90, "sawtooth", 0.002, 6.0, 0.0, 0.0, 90.0, 0.8), 0.0, 0.35],
@@ -66,9 +61,8 @@ static func build(name: String) -> PackedFloat32Array:
 			parts = [[_noise(rng, 1.2, 4000, 8000, 0.4, 0.8, 1.0), 0.0, 0.2], [_noise(rng, 0.05, 6000, 5000, 0.5, 0.001, 8.0), 0.85, 0.5]]
 			for fr in [392.0, 587.0, 784.0, 1175.0]:
 				parts.append([_tone(1.4, fr, fr, "sine", 0.7, 1.2, 0.0, 0.0, 6.0, 0.3), 0.0, 0.22])
-			var ch: Array = [2637.0, 3136.0, 3951.0, 4699.0]
-			for i in ch.size():
-				parts.append([_tone(0.7, ch[i], ch[i], "sine", 0.003, 4.0, 0.0, 0.0, 12.0, 0.3), 0.85 + i * 0.07, 0.35])
+			parts.append([_ice_crackle(rng, 0.8, 160, 30, 2.0), 0.85, 0.5])
+			parts.append([_tone(0.3, 130, 55, "sine", 0.004, 4.5), 0.85, 0.5])
 		"summon_lightning":
 			dur = 1.7
 			parts = [[_noise(rng, 1.2, 300, 5000, 0.5, 0.85, 1.0), 0.0, 0.3], [_boom(0.5, 110, 45, 6.0), 0.85, 0.6]]
@@ -83,6 +77,9 @@ static func build(name: String) -> PackedFloat32Array:
 		"elem_vanish":
 			dur = 0.6
 			parts = [[_tone(0.5, 500, 120, "sine", 0.01, 4.0), 0.0, 0.3], [_noise(rng, 0.4, 3000, 400, 0.6, 0.01, 4.0), 0.0, 0.4]]
+		"caster_shot":
+			dur = 0.22
+			parts = [[_noise(rng, 0.18, 700, 1900, 0.6, 0.04, 3.5), 0.0, 0.7], [_tone(0.14, 260, 140, "triangle", 0.01, 5.0), 0.0, 0.25], [_crackle(rng, 0.15, 80, 40, 2.0), 0.03, 0.2]]
 		"elem_shot_fire":
 			dur = 0.25
 			parts = [[_noise(rng, 0.2, 1000, 350, 0.6, 0.005, 4.0), 0.0, 0.6], [_tone(0.15, 300, 120, "sawtooth", 0.005, 5.0), 0.0, 0.25]]
@@ -186,6 +183,26 @@ static func _crackle(rng: RandomNumberGenerator, dur: float, rate0: float, rate1
 			if i + j >= count:
 				break
 			b[i + j] += sgn * amp * exp(-5.0 * float(j) / len) * (rng.randf() * 1.2 - 0.2)
+		i += int(maxf(1.0, -log(maxf(0.001, rng.randf())) / maxf(1.0, rate) * RATE))
+	return _norm(b)
+
+
+## Eisknistern: sehr kurze, helle Knacker (Dichte wandert von rate0 nach rate1)
+static func _ice_crackle(rng: RandomNumberGenerator, dur: float, rate0: float, rate1: float, tail: float) -> PackedFloat32Array:
+	var count := int(dur * RATE)
+	var b := PackedFloat32Array()
+	b.resize(count)
+	var i := 0
+	while i < count:
+		var f := float(i) / float(count)
+		var rate := lerpf(rate0, rate1, f)
+		var amp := rng.randf_range(0.25, 1.0) * exp(-tail * f)
+		var len := rng.randi_range(3, 12)
+		var sgn := 1.0 if rng.randf() < 0.5 else -1.0
+		for j in len:
+			if i + j >= count:
+				break
+			b[i + j] += sgn * amp * exp(-3.0 * float(j) / len) * (1.0 if j % 2 == 0 else -0.7)
 		i += int(maxf(1.0, -log(maxf(0.001, rng.randf())) / maxf(1.0, rate) * RATE))
 	return _norm(b)
 
