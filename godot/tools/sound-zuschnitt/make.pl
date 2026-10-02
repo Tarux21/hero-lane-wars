@@ -17,6 +17,7 @@ my @jobs = (
  ["442827*", "elem_shot_fire.wav", 0.0, 0.65, 0.003, 0.25, 0.85, 0, 0],           # Autoangriff Feuer-Elementar
  ["240640*", "tank_shot.wav", 0.0, 0.35, 0.002, 0.08, 0.85, 0, 0],                  # Tank Autoangriff
  ["841804*", "tank_e_hit.wav", 0.0, 0.42, 0.001, 0.22, 0.8, 0, 0, 1, 4500],             # Tank Schildwurf: jeder Treffer (weicher gemacht)
+ ["346373*", "tank_e.wav", 0.0, 0.33, 0.002, 0.06, 0.8, 1, 0, 1, 7000],                       # Tank Schildwurf: Wurf (Losschleudern)
 );
 sub resolve { my $p = shift; $p =~ s/\*$//; opendir(my $d, $in) or die "Ordner $in fehlt"; my ($m) = grep { index($_, $p) == 0 } readdir $d; die "keine Datei $p*" unless $m; return $m; }
 my %cache;
