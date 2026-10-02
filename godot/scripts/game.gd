@@ -2979,6 +2979,18 @@ func _selftest() -> void:
 	var g_mid := hear_gain(hero["x"] + 800.0, hero["y"], 0)
 	var g_far := hear_gain(hero["x"] + 1600.0, hero["y"], 0)
 	check.call("Ton nach Entfernung: nah %.2f > mittel %.2f > weit %.2f (Basis hört Lane-Ende nicht)" % [g_near, g_mid, g_far], g_near == 1.0 and g_mid < g_near and g_mid > 0.0 and g_far == 0.0)
+	# 9. Oberfläche (Steinrahmen): Menü pausiert, Plus-Knopf, Hinweis
+	hero["sp"] = 1
+	hero["lvl"] = 5
+	hero["ranks"] = [0, 0, 0, 0]
+	ui.update()
+	check.call("Oberfläche: Plus-Knopf bei Q sichtbar", ui.slots[0]["plus"].modulate.a > 0.5)
+	ui.toggle_menu()
+	check.call("Oberfläche: Menü öffnet und pausiert", ui.menu_open and paused)
+	ui.toggle_menu()
+	check.call("Oberfläche: Menü schließt und setzt fort", not ui.menu_open and not paused)
+	var tip_txt: String = ui._skill_tip(0, skills.skill_def(hero, 0), 0, 5, 1)
+	check.call("Oberfläche: Hinweis enthält Name und Rang-1-Zahlen", tip_txt.contains(str(skills.skill_def(hero, 0)["name"])) and tip_txt.contains("Schaden"))
 	_dbg("god", 0)
 	var hp0: float = hero["hp"]
 	_damage_hero(hero, 50.0)

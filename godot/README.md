@@ -77,3 +77,11 @@ Helden (Krieger, Schurke, Magier) und Monster (GreenDemon, Cyclops, Skull, Bat, 
 - **R Dolchhagel (früher Schwertregen):** violette Warnkreise, Dolche fallen in engen Kreis und bleiben kurz stecken, danach Giftnebel (grün) statt gelbem Feld. Wirkung unverändert (5 Ziele, Kreis 60, Feld 8 s).
 - Eigene Sounds ablegen als `godot/assets/sounds/<Name>.wav`: `damage_shot` (Auto-Angriff), `damage_q`, `damage_w`, `damage_e` (Absprung), `damage_e_land` (Landung), `damage_r` (Wurf), `damage_r_hit` (je Dolchsalve). Ohne diese Dateien spielen noch die alten einfachen Klänge.
 - Bildertest: `godot/tools/fxrun.sh q|w|wauto|e|r|look|lookside 3 damage`.
+
+## Oberfläche im Steinrahmen-Stil (Stand Meilenstein 6)
+- `scripts/hud_stein.gd`: Thema (Knöpfe, Felder, Hinweise in Stein und Gold), untere Leiste, Menü. `scripts/skill_icon.gd`: die Fähigkeiten-Bildchen (im Code gezeichnet). `scripts/skill_slot.gd`: ausführlicher Hinweis beim Darüberfahren.
+- **Untere Leiste:** Heldenbild mit Level, Lebensbalken und Erfahrungsbalken; vier Fähigkeitsfelder mit Bildchen, Hotkey, Rang-Punkten, Abkling-Anzeige und **Plus-Knopf** zum Skillen; Rucksack (6 Plätze) und Trank; Knöpfe **Shop (Tab)**, **Pause (P)**, **Menü (Esc)**. Der Lebensbalken steht zusätzlich über dem Helden.
+- **Hinweis an der Fähigkeit:** Name, Taste, Abklingzeit, Rang, Beschreibung, Zahlen für den aktuellen und den nächsten Rang.
+- **Menü (Esc, pausiert):** Weiter spielen, Optionen (Lautstärke, Bildschirmwackeln, Tipps erneut zeigen), Speichern (noch gesperrt, kommt später), Zurück zum Hauptmenü (mit Rückfrage).
+- Links oben das Schild mit Gold, Einkommen, Leben, Welle und Zeit; links die Steintafel „Monster senden“; Minimap links unten.
+- Bilder zum Prüfen: `-- --hero=damage --uitip --sim=60 --shot=bild.png` (Hinweis der Fähigkeit E), `-- --uimenu --sim=10 --shot=bild.png` (Menü offen).
