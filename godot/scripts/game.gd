@@ -100,6 +100,7 @@ var lane_off_g: Array[float] = []    # Quer-Mitte jeder Lane deines Teams in Spi
 
 var cam: Camera3D
 var hud: Label
+var merchant: Dictionary = {}          # Goblin-Händler an der Basis (map_nachtwald.gd): Positionen und Beschriftungen
 var map_theme := "nachtwald"            # Karte: nachtwald (giftiger Nachtwald) oder gras (alte Wiese), Test: --map=gras
 var decor                              # Dekoration der Karte (map_nachtwald.gd)
 var mc: Dictionary = {}                # Farben der Karte
@@ -127,6 +128,7 @@ var golden_eco_filter := ""
 var menu_shot := ""
 var menu_click := ""                  # Test: Menü per echten Mausklicks bedienen, z. B. --menuclick=options oder single,class_tank
 var cam_test_x := -1.0                 # Test: Kamera frei auf Lane-Position x (Spielwert), --camx=1500
+var merchant_test := false              # Test: Klick auf den Händler per Skript
 var menu_obj
 var fxtest := ""                     # Test: Effekt einer Fähigkeit zeigen (q, w, e, rfire, rfrost, rlightning) und Bilder speichern
 var fx_rank := 3
@@ -224,6 +226,8 @@ func _ready() -> void:
 			diff_key = a.substr(7)
 		elif a.begins_with("--map="):
 			map_theme = a.substr(6)
+		elif a == "--merchanttest":
+			merchant_test = true
 		elif a.begins_with("--camx="):
 			cam_test_x = float(a.substr(7))
 		elif a.begins_with("--uiscale="):
@@ -1908,7 +1912,7 @@ func _load_volume() -> float:
 ## Beim Start: gespeicherte Anzeige anwenden, aber nicht in Tests und Bild-Läufen (feste Auflösung)
 func _apply_saved_display() -> void:
 	for a in OS.get_cmdline_user_args():
-		for t in ["--sim", "--shot", "--selftest", "--golden", "--fxtest", "--menushot", "--menuclick", "--menu-test", "--shopshot", "--camx", "--map", "--uiscale", "--colorblind", "--gfxlow", "--itemcatalog", "--dbgshot", "--uimenu", "--uitip", "--botplay", "--autoplay"]:
+		for t in ["--sim", "--shot", "--selftest", "--golden", "--fxtest", "--menushot", "--menuclick", "--menu-test", "--shopshot", "--merchanttest", "--camx", "--map", "--uiscale", "--colorblind", "--gfxlow", "--itemcatalog", "--dbgshot", "--uimenu", "--uitip", "--botplay", "--autoplay"]:
 			if a.begins_with(t):
 				return
 	var cf := ConfigFile.new()
@@ -2705,6 +2709,7 @@ func _sync_visuals(delta: float) -> void:
 			f["node"].queue_free()
 			texts.erase(f)
 	_update_fx(delta)
+	_update_merchant(delta)
 	_cam_input(delta)
 	var off := _cam_offset()
 	var want := (cam_focus if cam_free else hn.position) + off
@@ -2742,6 +2747,47 @@ func _ground_point(screen_pos: Vector2) -> Vector3:
 	if absf(d.y) < 0.0001:
 		return Vector3.ZERO
 	return o + d * (-o.y / d.y)
+
+
+## Zeigt die Maus auf den Händler (Goblin oder Wagen)?
+func _over_merchant(screen_pos: Vector2) -> bool:
+	var p := _ground_point(screen_pos)
+	var gp: Vector3 = merchant["goblin"]
+	var wp: Vector3 = merchant["wagon"]
+	return Vector2(p.x - gp.x, p.z - gp.z).length() < 2.4 or Vector2(p.x - wp.x, p.z - wp.z).length() < 3.2
+
+
+## Händler: Hinweis beim Darüberfahren, Mauszeiger, und ein kleines "Pst!", wenn der Held herankommt
+func _update_merchant(delta: float) -> void:
+	if merchant.is_empty() or hero.is_empty():
+		return
+	var mp := get_viewport().get_mouse_position()
+	var ui_hit := get_viewport().gui_get_hovered_control() != null
+	var hover := not ui_hit and not paused and _over_merchant(mp)
+	merchant["hover"] = hover
+	var tag: Label3D = merchant["tag"]
+	var pst: Label3D = merchant["pst"]
+	tag.text = "Händler – Klick: Shop (%s)" % Data.user.key_name("shop") if hover else "Händler"
+	var want_a: float = 1.0 if hover else 0.0
+	tag.modulate.a = lerpf(tag.modulate.a, want_a, minf(1.0, delta * 8.0))
+	tag.outline_modulate.a = tag.modulate.a
+	Input.set_default_cursor_shape(Input.CURSOR_POINTING_HAND if hover else Input.CURSOR_ARROW)
+	var gp: Vector3 = merchant["goblin"]
+	var hp: Vector3 = (hero["node"] as Node3D).position
+	var dist := Vector2(hp.x - gp.x, hp.z - gp.z).length()
+	var near: bool = dist < 9.0 and hero["dead"] <= 0.0
+	if near and not merchant["near"]:
+		merchant["pst_t"] = 0.0                                             # neu herangekommen: "Pst!" von vorn
+	merchant["near"] = near
+	var t: float = merchant["pst_t"] + delta
+	merchant["pst_t"] = t
+	var a := 0.0
+	if near and t < 4.0 and not (shop != null and shop.visible()):
+		a = clampf(minf(t * 4.0, (4.0 - t) * 2.0), 0.0, 1.0)
+	pst.modulate.a = a
+	pst.outline_modulate.a = a
+	pst.position.y = gp.y + 3.1 + sin(t * 6.0) * 0.08 * a
+	pst.scale = Vector3.ONE * (1.0 + 0.1 * sin(t * 9.0) * a)
 
 
 ## Maus relativ zum Helden in Spielkoordinaten (Richtung und Zielpunkt für Skills).
@@ -2812,6 +2858,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
 			cam_dist = clampf(cam_dist + 2.0, 14.0, 50.0)
 	if not started or over:
+		return
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT and not merchant.is_empty() and _over_merchant(event.position):
+		_toggle_shop()                    # Klick auf den Händler öffnet den Shop
 		return
 	if event is InputEventKey and event.pressed and not event.echo and event.shift_pressed:
 		var lslot := _slot_for_key(event.keycode)
@@ -3267,6 +3316,23 @@ func _run_simulation(secs: float, shot_path: String) -> void:
 		ui.toggle_menu()
 		if uioptions:
 			ui._show_page(ui.menu_options)
+	if merchant_test and not merchant.is_empty():
+		_sync_visuals(1.0)
+		cam.position = cam.position
+		var sp: Vector2 = cam.unproject_position(merchant["goblin"] + Vector3(0, 1.0, 0))
+		var ev := InputEventMouseButton.new()
+		ev.button_index = MOUSE_BUTTON_LEFT
+		ev.pressed = true
+		ev.position = sp
+		print("MERCHANT Klick auf den Goblin bei ", sp, ": Maus darueber=", _over_merchant(sp))
+		_unhandled_input(ev)
+		print("MERCHANT Shop offen: ", shop.visible())
+		_unhandled_input(ev)
+		print("MERCHANT zweiter Klick, Shop offen: ", shop.visible())
+		hero["x"] = 30.0                         # Held nah an den Goblin: "Pst!" erscheint
+		hero["y"] = -100.0
+		_sync_visuals(0.4)
+		_sync_visuals(0.2)
 	if cam_test_x >= 0.0:
 		cam_free = true
 		cam_focus = _wp(cam_test_x, 0.0, 0) + Vector3(-9.0, 0.0, 0.0)

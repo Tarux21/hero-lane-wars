@@ -104,7 +104,7 @@ func _t(x: float, z: float, s: float = 1.0, yaw: float = -1.0, y: float = 0.0) -
 	return Transform3D(Basis(Vector3.UP, a).scaled(Vector3.ONE * s), Vector3(x, y, z))
 
 
-func _light(pos: Vector3, col: Color, energy: float, rng_m: float) -> void:
+func _light(pos: Vector3, col: Color, energy: float, rng_m: float) -> OmniLight3D:
 	var l := OmniLight3D.new()
 	l.light_color = col
 	l.light_energy = energy * Data.user.light_factor()
@@ -112,6 +112,7 @@ func _light(pos: Vector3, col: Color, energy: float, rng_m: float) -> void:
 	l.shadow_enabled = false
 	l.position = pos
 	g.add_child(l)
+	return l
 
 
 func _glow_texture() -> Texture2D:
@@ -166,6 +167,54 @@ func _motes(center: Vector3, extents: Vector3, amount: int, col: Color, size: fl
 
 
 ## Alles Dekorative setzen. Aufruf aus game.gd nach dem Bau der Spielfläche.
+## Einzelnes Modell setzen (nicht als Gruppe), z. B. für das Händler-Camp
+func _put(name: String, pos: Vector3, yaw: float, s: float = 1.0) -> MeshInstance3D:
+	var mesh := _mesh(name)
+	if mesh == null:
+		return null
+	var mi := MeshInstance3D.new()
+	mi.mesh = mesh
+	mi.transform = Transform3D(Basis(Vector3.UP, yaw).scaled(Vector3.ONE * s), pos)
+	g.add_child(mi)
+	return mi
+
+
+## Goblin-Händler-Camp an der Basis (links neben dem Platz): Marktwagen, Wildschwein mit Sattel, Lagerfeuer mit Kessel, Sack mit Knochen.
+## Klick auf den Goblin oder den Wagen öffnet den Shop (game.gd, _over_merchant). Der Goblin ruft "Pst!", wenn der Held näher kommt.
+func build_camp(cx: float, cz: float) -> void:
+	var wagon_p := Vector3(cx, 0.0, cz)
+	var goblin_p := Vector3(cx + 2.4, 0.0, cz + 2.6)
+	var boar_p := Vector3(cx - 4.6, 0.0, cz + 1.2)
+	var fire_p := Vector3(cx - 1.2, 0.0, cz + 4.8)
+	var sack_p := Vector3(cx + 2.6, 0.0, cz + 5.2)
+	_put("market_wagon", wagon_p, PI, 1.0)
+	_put("boar", boar_p, PI + 0.35, 1.0)
+	_put("goblin_merchant", goblin_p, PI - 0.15, 1.15)
+	_put("cauldron_fire", fire_p, 0.0, 1.0)
+	_put("loot_sack", sack_p, PI + 0.3, 1.0)
+	for e in [[wagon_p, 3.2], [boar_p, 2.6], [goblin_p, 1.3], [fire_p, 2.0], [sack_p, 1.1], [Vector3(cx - 0.5, 0.0, cz + 2.5), 5.5]]:
+		_reserve(e[0].x, e[0].z, e[1])
+	var fl := _light(fire_p + Vector3(0, 1.2, 0), Color("#ff8a3a"), 2.4, 13.0)       # Lagerfeuer flackert
+	var tw := fl.create_tween().set_loops()
+	tw.tween_property(fl, "light_energy", 1.7 * Data.user.light_factor(), 0.35).set_trans(Tween.TRANS_SINE)
+	tw.tween_property(fl, "light_energy", 2.8 * Data.user.light_factor(), 0.45).set_trans(Tween.TRANS_SINE)
+	_light(wagon_p + Vector3(0, 2.1, 0.9), Color("#ffc060"), 1.3, 8.0)                 # Laterne am Wagen
+	_light(boar_p + Vector3(0, 2.0, 0.5), Color("#ffb070"), 0.6, 5.0)
+	_motes(fire_p + Vector3(0, 1.6, 0), Vector3(0.4, 0.1, 0.4), 28, Color("#ffaa40"), 0.2, 1.6, 2.4)
+	_motes(fire_p + Vector3(0, 2.2, 0), Vector3(0.3, 0.1, 0.3), 12, Color("#9aff7a"), 0.16, 0.9, 3.0)         # Dampf aus dem Kessel
+	var pst: Label3D = g._label3d("Pst!", 46, Color("#ffe066"))
+	pst.position = goblin_p + Vector3(0.0, 3.1, 0.0)
+	pst.modulate.a = 0.0
+	pst.outline_modulate.a = 0.0
+	g.add_child(pst)
+	var tag: Label3D = g._label3d("Händler", 30, Color("#e8e0cc"))
+	tag.position = goblin_p + Vector3(0.0, 2.55, 0.0)
+	tag.modulate.a = 0.0
+	tag.outline_modulate.a = 0.0
+	g.add_child(tag)
+	g.merchant = {"goblin": goblin_p, "wagon": wagon_p, "pst": pst, "tag": tag, "near": false, "pst_t": 0.0, "hover": false}
+
+
 ## Szenen am Wegrand: Name -> [Radius (Platzbedarf), Größe von, Größe bis]
 const SCENES := {
 	"skel_sit": [0.95, 0.9, 1.1], "skel_impaled": [0.8, 0.9, 1.1], "skel_hang": [1.5, 0.85, 1.0], "cage_skel": [1.0, 0.9, 1.1],
@@ -213,6 +262,11 @@ func decorate(wall_xs: Array, river_x: float, lane_xs: Array, half: float, x_min
 	var skulls: Array = []
 	var braziers: Array = []
 	var eyes: Array = []
+	if not g.test_mode:
+		build_camp(x_min - 3.5, -4.0)
+
+	_reserve(lane_xs[lane_xs.size() - 1] + half + float(g.WALL) + 0.0, 4.0, 3.0)                  # Platz für den Knochenbogen an der Basis
+	_reserve(lane_xs[lane_xs.size() - 1] + half + float(g.WALL) - 2.0, 10.0, 1.5)
 
 	# 1) Am Lane-Rand (außerhalb der Lane, in der Baumwand): Knochensäulen, Feuerschalen, Pilze, Schädelhaufen. Die Lane selbst bleibt frei.
 	for cx in lane_xs:
@@ -273,6 +327,10 @@ func decorate(wall_xs: Array, river_x: float, lane_xs: Array, half: float, x_min
 			var lo: float = float(st["x0"]) + float(info[0])
 			var hi: float = float(st["x1"]) - float(info[0])
 			var xx: float = (float(st["x0"]) + float(st["x1"])) / 2.0 if lo >= hi else rng.randf_range(lo, hi)
+			for retry in 6:
+				if _free(xx, zz, float(info[0])):
+					break
+				zz -= 2.5
 			if not scenes.has(nm):
 				scenes[nm] = []
 			scenes[nm].append(_t(xx, zz, rng.randf_range(float(info[1]), float(info[2])), float(st["face"]) + rng.randf_range(-0.5, 0.5)))
@@ -363,15 +421,10 @@ func decorate(wall_xs: Array, river_x: float, lane_xs: Array, half: float, x_min
 	_scatter("torch", torches, false)
 	_scatter("eyes", eyes, false)
 
-	# 5) Basis: Knochenbögen links und rechts des Platzes, Schädelhaufen
+	# 5) Basis: Knochenbogen und Schädelhaufen rechts des Platzes (links steht das Händler-Camp)
 	var mid_x: float = (lane_xs[0] + lane_xs[lane_xs.size() - 1]) / 2.0
-	var arches: Array = []
-	var base_skulls: Array = []
-	for sd in [-1.0, 1.0]:
-		arches.append(_t(mid_x + sd * ((x_max - x_min) / 2.0 + 3.0), 4.0, 1.6, PI / 2.0))
-		base_skulls.append(_t(mid_x + sd * ((x_max - x_min) / 2.0 + 1.0), 10.0, 1.2))
-	_scatter("bone_arch", arches)
-	_scatter("skull_pile", base_skulls, false)
+	_scatter("bone_arch", [_t(mid_x + ((x_max - x_min) / 2.0 + 3.0), 4.0, 1.6, PI / 2.0)])
+	_scatter("skull_pile", [_t(mid_x + ((x_max - x_min) / 2.0 + 1.0), 10.0, 1.2)], false)
 
 	# 6) Lava: Licht entlang des Flusses, aufsteigende Glut; Sporen im Wald
 	var zc: float = (z_near + z_far) / 2.0
