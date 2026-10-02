@@ -165,7 +165,7 @@ func _bar_label(pb: ProgressBar) -> Label:
 
 func _skills_block() -> Control:
 	var hb := HBoxContainer.new()
-	hb.add_theme_constant_override("separation", 10)
+	hb.add_theme_constant_override("separation", 24)
 	hb.alignment = BoxContainer.ALIGNMENT_CENTER
 	slots.clear()
 	var keys := ["Q", "W", "E", "R"]
@@ -191,6 +191,7 @@ func _skills_block() -> Control:
 		slot.add_theme_stylebox_override("panel", box(pal["inset"], pal["border"], 3, 3, 3))
 		var holder := Control.new()
 		holder.custom_minimum_size = Vector2(52, 52)
+		holder.mouse_filter = Control.MOUSE_FILTER_IGNORE            # sonst schluckt das Feld den Hinweis
 		slot.add_child(holder)
 		var ic := SkillIcon.new()
 		ic.kind = str(icon_kinds[str(g.hero["key"])][i])
