@@ -1455,16 +1455,34 @@ func sfx_cast(p: Dictionary, i: int) -> void:
 
 
 ## Klang einer Fähigkeit: nur für deine Seite hörbar (Mitspieler leiser). vol 0..1, pitch 1 = normal.
-func sfx_p(p: Dictionary, name: String, vol: float = 1.0, pitch: float = 1.0) -> void:
-	if snd != null and not test_mode and p["side"]["idx"] == hero["side"]["idx"]:
-		snd.play(name, vol * (1.0 if p == hero else 0.45), pitch)
+const HEAR_NEAR := 20.0              # m: bis zu dieser Entfernung vom Zuhörer (Held bzw. Kamera) volle Lautstärke
+const HEAR_FAR := 60.0               # m: ab hier unhörbar
+
+
+## Lautstärke (0..1) eines Geräuschs an Spielposition (x, y) auf Seite side_idx, abhängig vom Abstand zum Zuhörer
+func hear_gain(x: float, y: float, side_idx: int) -> float:
+	var lp: Vector3 = cam_focus if cam_free else (hero["node"] as Node3D).position
+	var sp := _wp(x, y, side_idx)
+	var d := Vector2(lp.x - sp.x, lp.z - sp.z).length()
+	var f := clampf(1.0 - (d - HEAR_NEAR) / (HEAR_FAR - HEAR_NEAR), 0.0, 1.0)
+	return f * f
+
+
+func sfx_p(p: Dictionary, name: String, vol: float = 1.0, pitch: float = 1.0, at: Variant = null) -> void:
+	if snd == null or test_mode or hero.is_empty() or p["side"]["idx"] != hero["side"]["idx"]:
+		return
+	var pos := Vector2(p["x"], p["y"]) if at == null else (at as Vector2)
+	var gain := hear_gain(pos.x, pos.y, p["side"]["idx"])      # weit weg = leiser, sehr weit = gar nicht
+	if gain < 0.03:
+		return
+	snd.play(name, vol * (1.0 if p == hero else 0.45) * gain, pitch, p == hero)
 
 
 ## Wie sfx_p, aber nach `delay` Sekunden (Echtzeit, nur Optik/Ton)
-func sfx_after(p: Dictionary, name: String, delay: float, vol: float = 1.0, pitch: float = 1.0) -> void:
+func sfx_after(p: Dictionary, name: String, delay: float, vol: float = 1.0, pitch: float = 1.0, at: Variant = null) -> void:
 	if test_mode or snd == null:
 		return
-	get_tree().create_timer(delay).timeout.connect(func(): sfx_p(p, name, vol, pitch))
+	get_tree().create_timer(delay).timeout.connect(func(): sfx_p(p, name, vol, pitch, at))
 
 
 ## Bildschirmwackeln, wenn ein Einschlag nahe beim Helden liegt
@@ -2966,6 +2984,14 @@ func _selftest() -> void:
 	var n_before := units.size()
 	_dbg("clear", 0)
 	check.call("Testfenster: Puppen und Löschen (%d -> %d)" % [n_before, units.size()], n_before >= 9 and units.size() == 0)
+	# 8. Lautstärke nach Entfernung
+	var hnode: Node3D = hero["node"]
+	hnode.position = _wp(hero["x"], hero["y"], 0)
+	cam_free = false
+	var g_near := hear_gain(hero["x"] + 100.0, hero["y"], 0)
+	var g_mid := hear_gain(hero["x"] + 800.0, hero["y"], 0)
+	var g_far := hear_gain(hero["x"] + 1600.0, hero["y"], 0)
+	check.call("Ton nach Entfernung: nah %.2f > mittel %.2f > weit %.2f (Basis hört Lane-Ende nicht)" % [g_near, g_mid, g_far], g_near == 1.0 and g_mid < g_near and g_mid > 0.0 and g_far == 0.0)
 	_dbg("god", 0)
 	var hp0: float = hero["hp"]
 	_damage_hero(hero, 50.0)

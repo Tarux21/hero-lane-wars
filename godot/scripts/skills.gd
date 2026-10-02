@@ -140,7 +140,7 @@ func chain_lightning(p: Dictionary, from: Vector2, first: Dictionary, count: int
 		var is_crit: bool = g.rand() < crit
 		hit.append(cur)
 		g.vfx.bolt_later(link * 0.08, from.x, from.y, cur["x"], cur["y"], side_i, is_crit, hand and link == 0)
-		g.sfx_after(p, "zap_crit" if is_crit else "zap", link * 0.08, 0.8, 0.85 if is_crit else 1.0 + 0.04 * link)
+		g.sfx_after(p, "zap_crit" if is_crit else "zap", link * 0.08, 0.8, 0.85 if is_crit else 1.0 + 0.04 * link, Vector2(cur["x"], cur["y"]))
 		link += 1
 		from = Vector2(cur["x"], cur["y"])
 		if is_crit:
@@ -387,14 +387,14 @@ func _cas_q(p: Dictionary, r: int, m: Dictionary) -> bool:
 	g.vfx.fireball(p, pt.x, pt.y, r >= 5)
 	g.sfx_p(p, "fire_cast")
 	if r >= 5:                                                               # nur ein Feld: es entsteht erst nach dem Meteoreinschlag
-		g.sfx_p(p, "meteor_fall")
-		g.sfx_after(p, "meteor_hit", 0.9)
-		g.sfx_after(p, "fire_ignite", 1.2)                       # danach knistert das Feuerfeld am Boden
+		g.sfx_p(p, "meteor_fall", 1.0, 1.0, Vector2(pt.x, pt.y))
+		g.sfx_after(p, "meteor_hit", 0.9, 1.0, 1.0, Vector2(pt.x, pt.y))
+		g.sfx_after(p, "fire_ignite", 1.2, 1.0, 1.0, Vector2(pt.x, pt.y))                       # danach knistert das Feuerfeld am Boden
 		g.later(0.9, func():
 			circle_hit(p, pt.x, pt.y, 100.0, dmg_of(p, 120.0, 0.0, 1, 0.8, 0.3), {}, "#ff5a2a", false)
 			g.add_zone({"x": pt.x, "y": pt.y, "r": radius, "t": 6.0, "tick": 0.0, "every": 1.0, "dmg": tick, "c": "#ff7a2a", "follow": follow, "p": p, "kind": "fire"}))
 	else:
-		g.sfx_after(p, "fire_ignite", 0.28)
+		g.sfx_after(p, "fire_ignite", 0.28, 1.0, 1.0, Vector2(pt.x, pt.y))
 		g.add_zone({"x": pt.x, "y": pt.y, "r": radius, "t": 5.0, "tick": 0.0, "every": 1.0, "dmg": tick, "c": "#ff7a2a", "follow": follow, "p": p, "kind": "fire", "fx_delay": 0.28})
 	return true
 
@@ -418,7 +418,7 @@ func _cas_r(p: Dictionary) -> bool:
 		"atk_t": 1.0, "ab_t": 2.0, "e_rank": maxi(1, p["ranks"][2]), "sp": h_sp(p), "p": p})     # nur ein Elementar gleichzeitig
 	g.vfx.cast_burst(p, Color.html(ELEM_COL[t]), p["x"] + 35.0, p["y"])
 	g.vfx.summon(p["x"] + 35.0, p["y"], p["side"]["idx"], t)
-	g.sfx_p(p, "summon_" + t)
+	g.sfx_p(p, "summon_" + t, 1.0, 1.0, Vector2(p["x"] + 35.0, p["y"]))
 	return true
 
 
@@ -433,11 +433,11 @@ func elem_ability(e: Dictionary) -> bool:
 		var ang := atan2(tgt["y"] - e["y"], tgt["x"] - e["x"])
 		cone_hit(p, e["x"], e["y"], ang, 260.0, 0.6, 45.0 + 0.5 * sp, {"burn": 6.0, "burn_dps": 16.0 + 0.3 * sp}, "#ff6a2a")
 		g.vfx.flame_jet(e["x"], e["y"], p["side"]["idx"], ang, 260.0, 0.6)
-		g.sfx_p(p, "flame_jet", 0.7)
+		g.sfx_p(p, "flame_jet", 0.7, 1.0, Vector2(e["x"], e["y"]))
 	elif e["type"] == "frost":
 		var pool: Array = g.pick_random(g.units_of(p).filter(func(u): return _dist(u, e["x"], e["y"]) <= float(cfg["elemRange"])), 3)
 		if not pool.is_empty():
-			g.sfx_p(p, "frost_zone", 0.8)
+			g.sfx_p(p, "frost_zone", 0.8, 1.0, Vector2(e["x"], e["y"]))
 		for u in pool:
 			g.add_zone({"x": u["x"], "y": u["y"], "r": 75.0, "t": 5.0, "tick": 0.0, "every": 1.0, "dmg": 7.0 + 0.2 * sp, "c": "#8fd8ff", "o": {"slow": 1.5}, "p": p, "kind": "frost"})
 	else:
@@ -452,7 +452,7 @@ func update_elem(e: Dictionary, dt: float) -> bool:
 	if e["hp"] <= 0.0 or e["t"] <= 0.0:
 		g.fx_ring(e["x"], e["y"], 35.0, 0.5, str(ELEM_COL[e["type"]]))
 		g.vfx.elem_vanish(e["x"], e["y"], e["p"]["side"]["idx"], str(e["type"]))
-		g.sfx_p(e["p"], "elem_vanish", 0.7)
+		g.sfx_p(e["p"], "elem_vanish", 0.7, 1.0, Vector2(e["x"], e["y"]))
 		return false
 	e["atk_t"] -= dt
 	if e["atk_t"] <= 0.0:
@@ -460,7 +460,7 @@ func update_elem(e: Dictionary, dt: float) -> bool:
 		if t != null:
 			e["atk_t"] = 1.2
 			g.vfx.elem_shot(str(e["type"]), e["x"], e["y"], t["x"], t["y"], e["p"]["side"]["idx"])
-			g.sfx_p(e["p"], "elem_shot_" + str(e["type"]), 0.5)
+			g.sfx_p(e["p"], "elem_shot_" + str(e["type"]), 0.5, 1.0, Vector2(e["x"], e["y"]))
 			g.hit_unit(t, 8.0 + 0.15 * e["sp"], e["p"])
 		else:
 			e["atk_t"] = 0.3

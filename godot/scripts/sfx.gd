@@ -163,17 +163,29 @@ func _noise(buf: PackedFloat32Array, dur: float, f0: float, f1: float, vol: floa
 		buf[start + i] += bp * _env(i, count, vol) * 1.2
 
 
-func play(name: String, vol: float = 1.0, pitch: float = 1.0) -> void:
+func play(name: String, vol: float = 1.0, pitch: float = 1.0, own: bool = true) -> void:
 	if volume <= 0.0 or not streams.has(name):
 		return
 	var min_gap: float = DEFS[name][0] if DEFS.has(name) else float(SfxCaster.GAPS.get(name, 0.08))
 	var now := Time.get_ticks_msec() / 1000.0
 	if now - float(last.get(name, 0.0)) < min_gap:
 		return
+	# Gedränge vermeiden: eigene Klänge höchstens 4x gleichzeitig, fremde (Mitspieler, Elementare) je Klang 1x und insgesamt 4
+	var same := 0
+	var others := 0
+	for q in players:
+		if (q as AudioStreamPlayer).playing:
+			if q.stream == streams[name]:
+				same += 1
+			if not q.get_meta("own", true):
+				others += 1
+	if (own and same >= 6) or (not own and (same >= 1 or others >= 4)):
+		return
 	last[name] = now
 	var pl: AudioStreamPlayer = players[next_player]
 	next_player = (next_player + 1) % players.size()
 	pl.stream = streams[name]
+	pl.set_meta("own", own)
 	pl.volume_db = linear_to_db(clampf(volume * vol, 0.01, 1.0))
 	pl.pitch_scale = pitch
 	pl.play()
