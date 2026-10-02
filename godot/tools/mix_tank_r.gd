@@ -47,8 +47,29 @@ func _init() -> void:
 	_add(buf, debris, t0 + 0.2, 0.3)
 	_finish(buf, 0.7)
 	_save(dir.path_join("Vorschlag-Titanenstoss-CC0-Mix.wav"), buf)
-	_save(ProjectSettings.globalize_path("res://assets/sounds/tank_r.wav"), buf)
-	print("geschrieben: tank_r.wav (CC0-Mix, %.2f s)" % (buf.size() / float(OUT)))
+	# Variante "wie gestreckt": gleiche Verarbeitung wie die Vergleichsvorschau (langsamer, tiefer, Hall), aber nur aus CC0-Zutaten
+	var seg: PackedFloat32Array = raw.slice(int(3.95 * OUT), int(5.0 * OUT))
+	var slow2 := _lowpass(_resample(seg, 0.7), 3800.0)
+	var start_punch := PackedFloat32Array()
+	start_punch.resize(int(0.12 * OUT))
+	for i in start_punch.size():
+		start_punch[i] = seg[i] * (1.0 - float(i) / start_punch.size())
+	var w2 := _lowpass(_up(SfxCaster._noise(rng, 0.7, 700.0, 3800.0, 0.5, 0.18, 1.8)), 4200.0)
+	var v := PackedFloat32Array()
+	v.resize(int(3.2 * OUT))
+	_add(v, w2, 0.0, 0.5)
+	_add(v, slow2, 0.1, 0.9)
+	_add(v, start_punch, 0.1, 0.5)
+	_add(v, _up(SfxCaster._boom(1.0, 80.0, 34.0, 3.0)), 0.1, 0.6)
+	for d in [[0.043, 0.5], [0.071, 0.42], [0.097, 0.36], [0.133, 0.3]]:
+		var delay := int(float(d[0]) * OUT)
+		var fb := float(d[1])
+		for i in range(delay, v.size()):
+			v[i] += v[i - delay] * fb * 0.6
+	_finish(v, 0.7)
+	_save(dir.path_join("Vorschlag-Titanenstoss-CC0-wie-gestreckt.wav"), v)
+	_save(ProjectSettings.globalize_path("res://assets/sounds/tank_r.wav"), v)
+	print("geschrieben: tank_r.wav (CC0, wie gestreckt, %.2f s)" % (v.size() / float(OUT)))
 	# --- Vergleichsvorschau Artninja (nur lokal)
 	if artninja != "":
 		var a := _read_mono(artninja).slice(int(0.05 * OUT), int(1.0 * OUT))
