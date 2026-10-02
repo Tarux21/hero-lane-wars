@@ -21,3 +21,6 @@ scratch-shots/
 
 # Referenzbilder (fremde Streams, nur lokal)
 referenz/
+
+# Roh-Downloads fremder Sounds (nur lokal; fertige Dateien liegen in godot/assets/sounds)
+Sounds/

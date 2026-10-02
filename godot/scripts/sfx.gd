@@ -38,6 +38,7 @@ func _init(host: Node) -> void:
 		streams["cast%d" % i] = _make([["n", 0.22, 300 + i * 250, maxf(60.0, 1800 - i * 200), 0.30, 0.0], ["t", 240 + i * 90, 500 + i * 160, 0.2, "sine", 0.15, 0.0]])
 	for nm in SfxCaster.NAMES:
 		streams[nm] = _wav(SfxCaster.build(nm))
+	_load_files()                          # echte Aufnahmen aus assets/sounds ersetzen gleichnamige berechnete Klänge
 	for i in 12:
 		var pl := AudioStreamPlayer.new()
 		host.add_child(pl)
@@ -60,6 +61,48 @@ func _make(voices: Array) -> AudioStreamWAV:
 		else:
 			_noise(buf, float(v[1]), float(v[2]), float(v[3]), float(v[4]), float(v[5]))
 	return _wav(buf)
+
+
+## Lädt alle WAV-Dateien aus res://assets/sounds (16 Bit, Mono oder Stereo). Dateiname ohne Endung = Klangname, z. B. frost_cast.wav.
+func _load_files() -> void:
+	var dir := DirAccess.open("res://assets/sounds")
+	if dir == null:
+		return
+	for f in dir.get_files():
+		if f.get_extension().to_lower() != "wav":
+			continue
+		var w := _read_wav("res://assets/sounds/" + f)
+		if w != null:
+			streams[f.get_basename()] = w
+
+
+func _read_wav(path: String) -> AudioStreamWAV:
+	var b := FileAccess.get_file_as_bytes(path)
+	if b.size() < 44 or b.slice(0, 4).get_string_from_ascii() != "RIFF":
+		return null
+	var pos := 12
+	var rate := 44100
+	var ch := 1
+	var bits := 16
+	while pos + 8 <= b.size():
+		var id := b.slice(pos, pos + 4).get_string_from_ascii()
+		var sz := int(b.decode_u32(pos + 4))
+		if id == "fmt ":
+			ch = int(b.decode_u16(pos + 10))
+			rate = int(b.decode_u32(pos + 12))
+			bits = int(b.decode_u16(pos + 22))
+		elif id == "data":
+			if bits != 16:
+				push_warning("%s: nur 16 Bit unterstützt" % path)
+				return null
+			var w := AudioStreamWAV.new()
+			w.format = AudioStreamWAV.FORMAT_16_BITS
+			w.mix_rate = rate
+			w.stereo = ch == 2
+			w.data = b.slice(pos + 8, pos + 8 + sz)
+			return w
+		pos += 8 + sz + (sz % 2)
+	return null
 
 
 func _wav(buf: PackedFloat32Array) -> AudioStreamWAV:
