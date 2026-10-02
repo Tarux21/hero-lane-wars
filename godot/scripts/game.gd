@@ -14,6 +14,7 @@ const BotLib := preload("res://scripts/bot.gd")
 const SfxLib := preload("res://scripts/sfx.gd")
 const GoldenRunner := preload("res://scripts/golden_runner.gd")
 const GoldenEconomyRunner := preload("res://scripts/golden_economy_runner.gd")
+const GoldenBossRunner := preload("res://scripts/golden_boss_runner.gd")
 const MINI_W := 290.0                # Größe der Minimap (Pixel)
 const MINI_H := 270.0
 const ENEMY_LANE_VIEW := 700.0       # Gegner-Lane auf der Minimap: nur dieser Abschnitt (Spielwerte) bei deren Basis
@@ -98,6 +99,7 @@ var shopshot := false                 # Test: Shop offen, Gold und ein paar Item
 var golden := false                   # Szenario-Runner (Vergleich mit dem Prototyp)
 var golden_filter := ""
 var golden_eco := false
+var golden_boss := false
 var botplay := false                  # Test: auch dein Held wird vom Bot gesteuert (ganze Partien Bot gegen Bot)
 var golden_eco_filter := ""
 var menu_shot := ""
@@ -149,6 +151,15 @@ func _ready() -> void:
 			selftest_items = true
 			no_bots = true
 			direct = true
+		elif a.begins_with("--golden-boss="):
+			golden_boss = true
+			golden_filter = a.substr(14)
+			no_bots = true
+			direct = true
+		elif a == "--golden-boss":
+			golden_boss = true
+			no_bots = true
+			direct = true
 		elif a == "--golden-eco":
 			golden_eco = true
 			no_bots = true
@@ -192,6 +203,12 @@ func _ready() -> void:
 			for s in sides:
 				s["wave_t"] = 1e9
 			_selftest_items()
+			return
+		if golden_boss:
+			set_process(false)
+			var boss_runner := GoldenBossRunner.new(self)
+			boss_runner.run_boss(golden_filter)
+			get_tree().quit()
 			return
 		if golden_eco:
 			set_process(false)
@@ -1370,15 +1387,20 @@ func _spawn_wave(side: Dictionary) -> void:
 	var from_x: float = minf(float(cfg["spawnX"]), float(cfg["rampStart"]) + float(cfg["rampStep"]) * (n - 1))
 	var base_off := from_x - float(cfg["spawnX"])
 	var si: int = side["idx"]
+	for pl in side["players"]:                # Boss besiegt: dauerhaft Gold pro Welle (wie im Prototyp beim Spawn)
+		if pl["boss_income"] > 0.0:
+			pl["gold"] += pl["boss_income"]
+	var boss_due_done: bool = side["boss_spawned"]      # Merker vor der Schleife: alle Lanes bekommen ihren Boss
 	for lane in lanes_per_team:          # jede Lane des Teams bekommt die Welle (gleich groß, egal wie viele Spieler)
 		for i in count:
 			_spawn_unit("grunt", base_off + i * 4.0, float(cfg["waveSpeedMul"]), lane, si)
 		if n % int(cfg["eliteEvery"]) == 0:
 			for k in int(cfg["eliteCount"]):
 				_spawn_unit("elite", base_off + count * 4.0 + 30.0 + k * 40.0, float(cfg["waveSpeedMul"]), lane, si)
-		if n == int(cfg["bossWave"]) and not side["boss_spawned"]:
-			side["boss_spawned"] = true
+		if n == int(cfg["bossWave"]) and not boss_due_done:                     # ein Boss je Lane (einmalig pro Spiel)
 			_spawn_unit("boss", base_off + count * 4.0 + 160.0, float(cfg["waveSpeedMul"]), lane, si)
+	if n == int(cfg["bossWave"]):
+		side["boss_spawned"] = true
 	if si == 0:
 		var wk := _wave_kind_after(n, side)
 		_flash_msg(("BOSSWELLE %d" if wk == "boss" else ("ELITE-WELLE %d" if wk == "elite" else "Welle %d")) % n, Color("#ff7a7a") if wk == "boss" else (Color("#d9b3ff") if wk == "elite" else Color("#ffd166")))
@@ -1631,9 +1653,6 @@ func step(dt: float) -> void:
 			cur_side = side["idx"]
 			_spawn_wave(side)
 			side["wave_t"] = float(cfg["earlyWaveEvery"]) if side["wave"] <= int(cfg["earlyWaves"]) else float(cfg["waveEvery"])
-			for p in side["players"]:
-				if p["boss_income"] > 0.0:                                # Boss besiegt: dauerhaft Gold pro Welle
-					p["gold"] += p["boss_income"]
 	# Zeitverzögerte Skill-Effekte
 	for tm in timers.duplicate():
 		tm["t"] -= dt
@@ -1983,7 +2002,7 @@ func _step_units(side: Dictionary, dt: float) -> void:
 		var th_d := 1e9
 		for q in heroes:
 			if q["dead"] <= 0.0:
-				var dq := Vector2(u["x"] - q["x"], u["y"] - q["y"]).length()
+				var dq := sqrt(pow(u["x"] - q["x"], 2.0) + pow(u["y"] - q["y"], 2.0))   # 64-Bit wie im Prototyp (Vector2 rechnet in 32-Bit)
 				if dq <= u["range"] + 14.0 and dq < th_d:
 					th_d = dq
 					target_hero = q

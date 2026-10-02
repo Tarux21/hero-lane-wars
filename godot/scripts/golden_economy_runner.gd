@@ -59,7 +59,7 @@ func _record(id: String, diffs: Array) -> void:
 
 
 func _num_ok(a: float, b: float) -> bool:
-	return absf(a - b) <= 0.0012 + 0.0005 * absf(b)
+	return absf(a - b) <= 0.0012 + 0.000001 * absf(b)
 
 
 ## Vergleicht beliebig verschachtelte Werte (Zahlen mit Toleranz)
@@ -136,7 +136,7 @@ func _derived(p: Dictionary) -> Dictionary:
 
 
 func _unit_row(u: Dictionary) -> Dictionary:
-	return {"type": u["type"], "lane": 0, "x": u["x"], "y": u["y"], "hp": u["hp"], "max": u["max"], "dmg": u["dmg"], "spd": u["spd"],
+	return {"type": u["type"], "lane": u["lane"], "x": u["x"], "y": u["y"], "hp": u["hp"], "max": u["max"], "dmg": u["dmg"], "spd": u["spd"],
 		"range": u["range"], "armor": u["armor"], "r": u["r"]}
 
 

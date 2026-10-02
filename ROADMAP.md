@@ -25,7 +25,7 @@ Rolle: Projektmanager (Planung, Abnahme) – Claude setzt um und stellt nach jed
 - [x] Meilenstein 2: Skills (Q W E R) und Heiltrank, Backport – 1:1 zum Prototyp, geprüft mit 205 Vergleichsszenarien (205 von 205 identisch)
 - [x] Meilenstein 3: Shop und Items (49 Items, Rucksack, Rezepte, alle Effekte), geprüft mit Selbsttest und Vergleichsszenarien
 - [x] Meilenstein 4: Gegner-Bot (1:1 Prototyp), Monster senden (alle Lanes des Gegner-Teams), Aufholhilfe, Schwierigkeiten und Stile, Boss, Menü, Pause/Tempo, Endbildschirm – geprüft mit 4339 Vergleichsfällen
-- [ ] Meilenstein 5: Boss, Elite, Sounds und Effekte
+- [x] Meilenstein 5: Boss (Phasen, Stampfen, Verstärkung), Elite, Sounds (aus dem Prototyp), Bildschirmwackeln, Tipps und Meldungen, Boss-Leiste – Boss geprüft mit 32 Szenarien
 - [ ] Meilenstein 6: echte 3D-Figuren, Animationen, Umgebung, Oberfläche
 
 ## Ältere Notiz zu Phase 2
