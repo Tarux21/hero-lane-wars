@@ -5,6 +5,7 @@ extends RefCounted
 ## Kaufen: Knopf "Kaufen" oder Rechtsklick auf ein Item. Verkaufen: Feld im Rucksack anklicken (unten in der Leiste). Alles nur in der Basis.
 
 const HudStein := preload("res://scripts/hud_stein.gd")
+const ItemIcon := preload("res://scripts/item_icon.gd")
 
 ## Vorschläge je Klasse (Schätzung, wird später abgestimmt): {id, Hinweis}
 const RECOMMENDED := {
@@ -327,6 +328,31 @@ func _initials(nm: String) -> String:
 	return words[0].substr(0, 1).to_upper() + words[1].substr(0, 1).to_upper()
 
 
+## Aussehen einer Kachel: gezeichnetes Bildchen (falls vorhanden) auf dunklem Feld, Rand nach Stufe (fertig = Gold), sonst Farbfeld mit Buchstaben
+func _style_tile(b: Button, id: String, size: float) -> Dictionary:
+	var col := _cat_color(id)
+	var tier := _tier(id)
+	var edge: Color = Color("#e8c46a") if tier == "fertig" else col.lightened(0.15)
+	if ItemIcon.has_icon(id):
+		b.text = ""
+		var ic := ItemIcon.new()
+		ic.id = id
+		ic.tier = tier
+		ic.set_anchors_preset(Control.PRESET_FULL_RECT)
+		b.add_child(ic)
+		var plate: Color = Color("#1a1d22").lerp(col, 0.22)
+		return {"normal": HudStein.box(plate, edge, 3 if tier == "fertig" else 2, 3, 2), "sel": HudStein.box(plate.lightened(0.08), pal["hi"], 4, 3, 2)}
+	b.add_theme_stylebox_override("normal", HudStein.box(col.darkened(0.25), pal["border"].darkened(0.35), 2, 3, 2))
+	b.add_theme_stylebox_override("hover", HudStein.box(col, pal["hi"], 2, 3, 2))
+	b.add_theme_stylebox_override("pressed", HudStein.box(col.darkened(0.4), pal["hi"], 2, 3, 2))
+	return {"normal": HudStein.box(col.darkened(0.25), pal["border"].darkened(0.35), 2, 3, 2), "sel": HudStein.box(col, pal["hi"], 4, 3, 2)}
+
+
+func _tier(id: String) -> String:
+	var grp: String = g.items.item[id]["group"]
+	return "fertig" if grp == "fertig" else ("zwischen" if grp == "zwischen" else "basis")
+
+
 func _tile(id: String, size: float) -> Control:
 	var vb := VBoxContainer.new()
 	vb.add_theme_constant_override("separation", 0)
@@ -336,9 +362,11 @@ func _tile(id: String, size: float) -> Control:
 	b.text = _initials(str(g.items.item[id]["name"]))
 	b.add_theme_font_size_override("font_size", int(size * 0.34))
 	var col := _cat_color(id)
-	b.add_theme_stylebox_override("normal", HudStein.box(col.darkened(0.25), pal["border"].darkened(0.35), 2, 3, 2))
-	b.add_theme_stylebox_override("hover", HudStein.box(col, pal["hi"], 2, 3, 2))
-	b.add_theme_stylebox_override("pressed", HudStein.box(col.darkened(0.4), pal["hi"], 2, 3, 2))
+	var sty := _style_tile(b, id, size)
+	if ItemIcon.has_icon(id):
+		b.add_theme_stylebox_override("normal", sty["normal"])
+		b.add_theme_stylebox_override("hover", HudStein.box(sty["normal"].bg_color.lightened(0.12), pal["hi"], 2, 3, 2))
+		b.add_theme_stylebox_override("pressed", HudStein.box(sty["normal"].bg_color.darkened(0.2), pal["hi"], 2, 3, 2))
 	b.tooltip_text = g._item_tip(id)
 	var iid: String = id
 	b.gui_input.connect(func(ev: InputEvent): _on_item_input(ev, iid, false))
@@ -351,7 +379,7 @@ func _tile(id: String, size: float) -> Control:
 	pl.mouse_filter = Control.MOUSE_FILTER_STOP
 	pl.gui_input.connect(func(ev: InputEvent): _on_item_input(ev, iid, false))
 	vb.add_child(pl)
-	tiles.append({"id": id, "btn": b, "box": vb, "sty": HudStein.box(col.darkened(0.25), pal["border"].darkened(0.35), 2, 3, 2), "sty_sel": HudStein.box(col, pal["hi"], 4, 3, 2), "is_sel": false})
+	tiles.append({"id": id, "btn": b, "box": vb, "sty": sty["normal"], "sty_sel": sty["sel"], "is_sel": false})
 	return vb
 
 
@@ -429,17 +457,18 @@ func _small_tile(id: String, size: float, in_tree: bool = false) -> Control:
 	b.text = _initials(str(g.items.item[id]["name"]))
 	b.add_theme_font_size_override("font_size", int(size * 0.34))
 	var col := _cat_color(id)
-	b.add_theme_stylebox_override("normal", HudStein.box(col.darkened(0.25), pal["border"].darkened(0.35), 2, 3, 2))
-	b.add_theme_stylebox_override("hover", HudStein.box(col, pal["hi"], 2, 3, 2))
-	b.add_theme_stylebox_override("pressed", HudStein.box(col.darkened(0.4), pal["hi"], 2, 3, 2))
+	var sty := _style_tile(b, id, size)
+	if ItemIcon.has_icon(id):
+		b.add_theme_stylebox_override("normal", sty["normal"])
+		b.add_theme_stylebox_override("hover", HudStein.box(sty["normal"].bg_color.lightened(0.12), pal["hi"], 2, 3, 2))
+		b.add_theme_stylebox_override("pressed", HudStein.box(sty["normal"].bg_color.darkened(0.2), pal["hi"], 2, 3, 2))
 	b.tooltip_text = g._item_tip(id)
 	var iid: String = id
 	b.gui_input.connect(func(ev: InputEvent): _on_item_input(ev, iid, in_tree))
 	if in_tree:
 		if id == sel:
-			var hb := HudStein.box(col, pal["hi"], 3, 3, 2)
-			b.add_theme_stylebox_override("normal", hb)
-			b.add_theme_stylebox_override("hover", hb)
+			b.add_theme_stylebox_override("normal", sty["sel"])
+			b.add_theme_stylebox_override("hover", sty["sel"])
 	vb.add_child(b)
 	var pl := Label.new()
 	var it: Dictionary = g.items.item[id]
