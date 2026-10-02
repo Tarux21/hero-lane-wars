@@ -52,3 +52,6 @@ Godot_console.exe --path godot --resolution 1280x720 -- --autoplay --sim=60 --sh
 - **Bots** (`scripts/bot.gd`): Gegner und Mitspieler, 1:1 aus dem Prototyp (Kaufplan, Skills, Backport-Einkaufsreisen, Senden nach Schwierigkeit und Stil).
 - **Menü:** Spielmodus, Held, Schwierigkeit (Leicht..Experte), Gegner-Stil. P/Esc = Pause, 1/2/3 = Tempo. Aufholhilfe, Boss (Phasen, Stampfen, Verstärkung, Boss-Einkommen) umgesetzt.
 - **Prüfung:** `-- --golden-eco` vergleicht 4339 Fälle aus `data/golden-economy.json` (Einkommen, Senden, Level, Respawn, Wellen, Items, Item-Effekte, Bot-Kaufpläne/Lernen/Senden/Modus). Stand: 4339 von 4339 identisch zum Prototyp.
+
+## 3D-Figuren (Platzhalter)
+Helden (Krieger, Schurke, Magier) und Monster (GreenDemon, Cyclops, Skull, Bat, Demon, YellowDragon) stammen von **Quaternius** (CC0, Pakete „RPG Characters" und „Cute Animated Monsters"), Ordner `godot/assets/quaternius/`. Sie werden zur Laufzeit aus den glTF-Dateien geladen (`_make_figure` in `game.gd`) und laufen, stehen oder greifen an. Zuordnung: `HERO_MODEL` und `UNIT_MODEL` oben bei `_spawn_unit`. Tausch gegen andere Modelle: Datei ablegen, Zuordnung ändern.

@@ -1143,22 +1143,28 @@ func _make_player(key: String, side_idx: int, slot: int, bot: bool) -> Dictionar
 	var lane_k := slot / per_lane
 	var home_y: float = lane_off_g[lane_k] + slot_ys[slot % per_lane]
 	var node := Node3D.new()
-	var body := MeshInstance3D.new()
-	var cap := CapsuleMesh.new()
-	cap.radius = 0.6
-	cap.height = 2.0
-	body.mesh = cap
-	body.position.y = 1.0
-	body.material_override = _mat(Color.html(d["col"]))
-	node.add_child(body)
+	var fig: Dictionary = {}
+	if not test_mode and HERO_MODEL.has(key):
+		fig = _make_figure(HERO_MODEL[key][0], 2.8)
+	if fig.is_empty():
+		var body := MeshInstance3D.new()
+		var cap := CapsuleMesh.new()
+		cap.radius = 0.6
+		cap.height = 2.0
+		body.mesh = cap
+		body.position.y = 1.0
+		body.material_override = _mat(Color.html(d["col"]))
+		node.add_child(body)
+	else:
+		node.add_child(fig["model"])
 	var team_col := Color("#4fd8ff") if side_idx == 0 else Color("#ff6a4a")      # Teamfarbe unter dem Helden
 	var team_ring := _cyl(Vector3(0, 0.05, 0), 1.0, 0.04, team_col, team_col)
 	remove_child(team_ring)
 	node.add_child(team_ring)
 	var lab := _label3d("", 30, Color("#e8e8e8"))
-	lab.position.y = 3.2
+	lab.position.y = 4.0
 	node.add_child(lab)
-	var hbar := _make_bar(2.2, 0.22, 2.65)
+	var hbar := _make_bar(2.2, 0.22, 3.4)
 	node.add_child(hbar["node"])
 	add_child(node)
 	var ring := _cyl(Vector3(0, 0.08, 0), 1.6, 0.04, Color("#7fd6ff"), Color("#7fd6ff"))   # Backport-Anzeige am Boden
@@ -1167,7 +1173,7 @@ func _make_player(key: String, side_idx: int, slot: int, bot: bool) -> Dictionar
 	node.add_child(ring)
 	return {"key": key, "d": d, "side": sides[side_idx], "bot": bot, "slot": slot, "home_y": home_y, "lane": lane_k,
 		"x": 120.0, "y": home_y, "lvl": 1, "xp": 0.0, "hp": float(d["hp"]), "dead": 0.0, "mul": 1.0,
-		"atk_t": 0.0, "target": null, "move_to": null, "deaths": 0, "node": node, "label": lab, "bar": hbar["fill"], "bar_w": hbar["w"],
+		"atk_t": 0.0, "target": null, "move_to": null, "deaths": 0, "node": node, "label": lab, "bar": hbar["fill"], "bar_w": hbar["w"], "fig": fig, "px": 0.0, "py": 0.0,
 		"bp": 0.0, "bp_cd": 0.0, "ring": ring,
 		"gold": float(cfg["startGold"]), "income": float(cfg["baseIncome"]),     # jeder Spieler hat eigenes Gold und Einkommen
 		"ranks": [0, 0, 0, 0], "cds": [0.0, 0.0, 0.0, 0.0], "sp": 1, "buffs": {}, "leap": null,
@@ -1431,6 +1437,53 @@ func _update_fx(delta: float) -> void:
 
 # ---------------------------------------------------------------- Einheiten und Wellen
 ## Erzeugt ein Monster auf einer Lane der Seite `side_idx`. from_side: Seite, die es geschickt hat (-1 = Welle).
+## Figuren (Quaternius, CC0, als Platzhalter): werden zur Laufzeit aus den glTF-Dateien geladen und gemerkt.
+const MODEL_DIR := "res://assets/quaternius/"
+const HERO_MODEL := {"tank": ["rpg/Warrior.gltf", "Sword_Attack"], "damage": ["rpg/Rogue.gltf", "Dagger_Attack"], "caster": ["rpg/Wizard.gltf", "Staff_Attack"]}
+const UNIT_MODEL := {"grunt": "GreenDemon", "tank": "Cyclops", "archer": "Skull", "fast": "Bat", "elite": "Demon", "boss": "YellowDragon"}
+const LOOP_ANIMS := ["Idle", "Walk", "Run", "Flying", "Attacking_Idle"]
+var model_cache: Dictionary = {}
+
+
+## Lädt ein Modell und skaliert es auf die Höhe `height` (m). Gibt {} zurück, wenn es nicht geladen werden kann.
+## Ergebnis: {"model": Node3D, "anim": AnimationPlayer, "cur": "", "yaw": 0.0}
+func _make_figure(path: String, height: float) -> Dictionary:
+	if not model_cache.has(path):
+		var root: Node = null
+		var st := GLTFState.new()
+		var doc := GLTFDocument.new()
+		if doc.append_from_file(MODEL_DIR + path, st) == OK:
+			root = doc.generate_scene(st)
+		var info := {"root": root, "h": 1.0}
+		if root != null:
+			var top := 0.0
+			for mi in root.find_children("*", "MeshInstance3D", true, false):
+				top = maxf(top, (mi as MeshInstance3D).get_aabb().end.y * (mi as MeshInstance3D).scale.y)
+			info["h"] = maxf(0.1, top)
+			var ap0 := root.find_child("AnimationPlayer", true, false) as AnimationPlayer
+			if ap0 != null:
+				for an in ap0.get_animation_list():
+					ap0.get_animation(an).loop_mode = Animation.LOOP_LINEAR if an in LOOP_ANIMS else Animation.LOOP_NONE
+		model_cache[path] = info
+	var ci: Dictionary = model_cache[path]
+	if ci["root"] == null:
+		return {}
+	var model := (ci["root"] as Node).duplicate() as Node3D
+	var holder := Node3D.new()
+	holder.add_child(model)
+	model.scale = Vector3.ONE * (height / float(ci["h"]))
+	return {"model": holder, "inner": model, "anim": model.find_child("AnimationPlayer", true, false), "cur": "", "yaw": 0.0}
+
+
+## Spielt eine Animation, wenn sie sich ändert (weich übergeblendet).
+func _play_anim(fig: Dictionary, name: String) -> void:
+	var ap: AnimationPlayer = fig["anim"]
+	if ap == null or fig["cur"] == name or not ap.has_animation(name):
+		return
+	fig["cur"] = name
+	ap.play(name, 0.15)
+
+
 func _spawn_unit(type: String, off_x: float, spd_mul: float, lane: int = 0, side_idx: int = 0, from_side: int = -1) -> void:
 	var u: Dictionary = Data.units[type]
 	var m := _hp_mult()
@@ -1438,16 +1491,26 @@ func _spawn_unit(type: String, off_x: float, spd_mul: float, lane: int = 0, side
 	var bar: Dictionary = {}
 	if not test_mode:
 		node = Node3D.new()
-		var body := MeshInstance3D.new()
-		var sph := SphereMesh.new()
-		sph.radius = float(u["r"]) * S
-		sph.height = sph.radius * 2.0
-		body.mesh = sph
-		body.position.y = sph.radius
-		body.material_override = _mat(Color.html(u["col"]))
-		node.add_child(body)
+		var mh := float(u["r"]) * S * 2.8                    # Figurhöhe in Metern
+		var fig := _make_figure("monsters/%s.gltf" % UNIT_MODEL[type], mh)
+		if fig.is_empty():                                   # Ersatz, falls das Modell fehlt
+			var body := MeshInstance3D.new()
+			var sph := SphereMesh.new()
+			sph.radius = float(u["r"]) * S
+			sph.height = sph.radius * 2.0
+			body.mesh = sph
+			body.position.y = sph.radius
+			body.material_override = _mat(Color.html(u["col"]))
+			node.add_child(body)
+		else:
+			node.add_child(fig["model"])
+			fig["flies"] = type == "fast" or type == "boss"
+			bar["fig"] = fig
 		var bw := maxf(0.9, float(u["r"]) * S * 2.4)
-		bar = _make_bar(bw, 0.14 if type != "boss" else 0.28, float(u["r"]) * S * 2.0 + 0.45)
+		var b2 := _make_bar(bw, 0.14 if type != "boss" else 0.28, mh + 0.3)
+		bar["node"] = b2["node"]
+		bar["fill"] = b2["fill"]
+		bar["w"] = b2["w"]
 		node.add_child(bar["node"])
 		add_child(node)
 	var ly: float = lane_half_g - 16.0
@@ -1456,7 +1519,7 @@ func _spawn_unit(type: String, off_x: float, spd_mul: float, lane: int = 0, side
 		"hp": float(u["hp"]) * m, "max": float(u["hp"]) * m,
 		"dmg": float(u["dmg"]) * (1.0 + float(cfg["unitDmgScale"]) * (m - 1.0)),
 		"spd": float(u["spd"]) * spd_mul * float(cfg["speedMul"]), "range": float(u["range"]),
-		"armor": float(u["armor"]), "r": float(u["r"]), "atk_t": 0.0, "node": node, "def": u, "bar": bar.get("fill"), "bar_w": bar.get("w", 1.0),
+		"armor": float(u["armor"]), "r": float(u["r"]), "atk_t": 0.0, "node": node, "def": u, "bar": bar.get("fill"), "bar_w": bar.get("w", 1.0), "fig": bar.get("fig", {}), "px": 0.0, "py": 0.0,
 		"stun": 0.0, "slow": 0.0, "burn": 0.0, "burn_dps": 0.0, "burn_t": 0.0, "bleed": 0.0, "bleed_pct": 0.0, "bleed_t": 0.0,
 		"torm_t": 0.0, "torm_tick": 0.0, "torm_dmg": 0.0, "torm_cd": 0.0, "last_p": {},
 		"boss": type == "boss", "phase": 1, "base": float(u["spd"]) * spd_mul * float(cfg["speedMul"]), "stomp_t": 5.0, "summon_t": 12.0})
@@ -2250,12 +2313,37 @@ func _show_end() -> void:
 	row.add_child(menu)
 
 
+## Figur ausrichten und Animation wählen: läuft → move_anim, sonst Angriff (wenn ein Ziel da ist) oder Ruhe.
+## Gilt für Helden und Monster (Dictionary mit x, y, fig, px, py, target).
+func _animate(e: Dictionary, delta: float, attack_anim: String, move_anim: String, idle_anim: String) -> void:
+	var fig: Dictionary = e["fig"]
+	if fig.is_empty():
+		return
+	var dx: float = (e["y"] - e["py"]) * S
+	var dz: float = -(e["x"] - e["px"]) * S
+	var moved := dx * dx + dz * dz > 1e-8
+	if e["px"] == 0.0 and e["py"] == 0.0:
+		moved = false
+	e["px"] = e["x"]
+	e["py"] = e["y"]
+	var want_yaw: float = fig["yaw"]
+	if moved:
+		want_yaw = atan2(dx, dz)
+	elif e.get("target") != null and e["target"] is Dictionary and e["target"].has("x"):
+		want_yaw = atan2((e["target"]["y"] - e["y"]), -(e["target"]["x"] - e["x"]))
+	fig["yaw"] = lerp_angle(fig["yaw"], want_yaw, minf(1.0, delta * 12.0))
+	(fig["inner"] as Node3D).rotation.y = fig["yaw"]
+	var anim := move_anim if moved else (attack_anim if (e.get("target") != null or e.get("type") != null) else idle_anim)
+	_play_anim(fig, anim)
+
+
 func _sync_visuals(delta: float) -> void:
 	var hn: Node3D = hero["node"]
 	for p in players:                    # alle Helden: Position, Sichtbarkeit, Lebensanzeige
 		var pn: Node3D = p["node"]
 		pn.visible = p["dead"] <= 0.0 and p["side"]["idx"] == hero["side"]["idx"]      # Gegner-Seite bleibt verdeckt
 		pn.position = _wp(p["x"], p["y"], p["side"]["idx"])
+		_animate(p, delta, HERO_MODEL[p["key"]][1] if HERO_MODEL.has(p["key"]) else "", "Run", "Idle")
 		p["label"].text = "Lv %d" % p["lvl"]
 		_set_bar(p["bar"], p["bar_w"], p["hp"] / skills.h_max_hp(p), p["side"]["idx"] == hero["side"]["idx"])
 	for s in sides:                      # alle Monster beider Seiten
@@ -2263,6 +2351,9 @@ func _sync_visuals(delta: float) -> void:
 			var n: Node3D = u["node"]
 			n.position = _wp(u["x"], u["y"], s["idx"])
 			n.visible = s["idx"] == hero["side"]["idx"]
+			if n.visible and not u["fig"].is_empty():
+				_animate(u, delta, "Bite_InPlace" if u["fig"]["anim"] != null and u["fig"]["anim"].has_animation("Bite_InPlace") else "Bite_Front",
+					"Flying" if u["fig"].get("flies", false) else "Walk", "Flying" if u["fig"].get("flies", false) else "Idle")
 			_set_bar(u["bar"], u["bar_w"], u["hp"] / u["max"], true)
 	var fog_x: float = lane_xs[lanes_per_team - 1] + lane_half_g * S + WALL
 	for fx in fx_list:                   # Effekte und Zahlen auf der Gegner-Seite ausblenden
@@ -2641,3 +2732,9 @@ func _wave_kind_after(n: int, side: Dictionary) -> String:
 	if n == int(cfg["bossWave"]):
 		return "boss"
 	return "elite" if n % int(cfg["eliteEvery"]) == 0 else "normal"
+
+
+func _exit_tree() -> void:
+	for k in model_cache:
+		if model_cache[k]["root"] != null:
+			(model_cache[k]["root"] as Node).free()
