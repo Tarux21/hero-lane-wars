@@ -124,6 +124,7 @@ func _portrait() -> Control:
 
 func _center_panel() -> Control:
 	var pc := PanelContainer.new()
+	pc.size_flags_horizontal = Control.SIZE_EXPAND_FILL            # Mittelteil wird in die Länge gezogen
 	pc.add_theme_stylebox_override("panel", box(pal["bg"], pal["border"], 3, 4, 8))
 	var vb := VBoxContainer.new()
 	vb.add_theme_constant_override("separation", 4)
@@ -165,7 +166,8 @@ func _bar_label(pb: ProgressBar) -> Label:
 
 func _skills_block() -> Control:
 	var hb := HBoxContainer.new()
-	hb.add_theme_constant_override("separation", 8)
+	hb.add_theme_constant_override("separation", 40)
+	hb.alignment = BoxContainer.ALIGNMENT_CENTER
 	slots.clear()
 	var keys := ["Q", "W", "E", "R"]
 	var icon_kinds: Dictionary = {
@@ -368,9 +370,10 @@ func _place_bar() -> void:
 		return
 	var vp: Vector2 = g.get_viewport().get_visible_rect().size
 	var ms := bar.get_combined_minimum_size()
-	bar.size = ms
-	var x: float = maxf((vp.x - ms.x) / 2.0, mini_reserved)
-	x = minf(x, maxf(0.0, vp.x - ms.x - 6.0))
+	var w: float = clampf(vp.x - mini_reserved - 14.0, ms.x, 1180.0)     # lang gezogen: füllt den Platz neben der Minimap bis 1180 px
+	bar.size = Vector2(w, ms.y)
+	var x: float = maxf((vp.x - w) / 2.0, mini_reserved)
+	x = minf(x, maxf(0.0, vp.x - w - 6.0))
 	bar.position = Vector2(x, vp.y - ms.y - 8.0)
 
 
