@@ -1389,7 +1389,7 @@ func titan_slam(p: Dictionary, radius_units: float, ang: float = 0.0) -> void:
 	var lmat := _flat_mat(tex_glow, Color(1.0, 0.4, 0.08, 0.0), true)
 	lava.material_override = lmat
 	lava.rotation.y = -atan2(dir.z, dir.x)
-	lava.scale = Vector3(r_m, 1.0, 3.2)
+	lava.scale = Vector3(r_m, 1.0, 7.0)
 	_put(lava, origin + Vector3(0, 0.1, 0), 2.0)
 	var twl := lava.create_tween()
 	twl.tween_property(lmat, "albedo_color:a", 0.75, 0.25)
@@ -1420,14 +1420,14 @@ func titan_slam(p: Dictionary, radius_units: float, ang: float = 0.0) -> void:
 	tw_c.tween_property(cm_c, "albedo_color:a", 0.0, 0.5)
 	tw_c.tween_property(cm_g, "albedo_color:a", 0.0, 1.0)
 	tw_c.chain().tween_property(cm_d, "albedo_color:a", 0.0, 0.6)
-	for k in 6:                                          # Nebenrisse seitlich der Hauptspalte
+	for k in 8:                                          # Nebenrisse seitlich der Hauptspalte
 		var base_f := rng.randf_range(0.15, 0.9)
 		var sd := left * (1.0 if k % 2 == 0 else -1.0)
 		var bpts: Array = []
 		var start := dir * (0.8 + (r_m - 0.8) * base_f)
 		for i in 5:
 			var f2 := float(i) / 4.0
-			bpts.append(start + (sd * 1.6 + dir * 0.6) * f2 * rng.randf_range(0.8, 1.3) + left * rng.randf_range(-0.2, 0.2) + Vector3(0, 0.06, 0))
+			bpts.append(start + (sd * 3.4 + dir * 0.8) * f2 * rng.randf_range(0.8, 1.3) + left * rng.randf_range(-0.2, 0.2) + Vector3(0, 0.06, 0))
 		var bh := Node3D.new()
 		bh.add_child(_ground_ribbon(bpts, 0.5, Color(0.05, 0.03, 0.02, 0.9), false))
 		var bg := _ground_ribbon(bpts, 0.2, Color(1.0, 0.4, 0.1, 0.8), true)
@@ -1438,11 +1438,13 @@ func titan_slam(p: Dictionary, radius_units: float, ang: float = 0.0) -> void:
 		tbg.tween_property(bg.material_override, "albedo_color:a", 0.0, 0.9)
 	# Felsplatten schießen nacheinander entlang der Linie schräg aus dem Boden
 	var n := 11
-	for i in n:
+	for ii in n * 3:                                     # je Schritt drei Platten nebeneinander: breitere Welle
+		var i := ii / 3
+		var kc := ii % 3 - 1
 		var f := float(i) / (n - 1)
 		var d := 1.4 + (r_m - 1.4) * f
 		var delay := 0.05 + 0.5 * f
-		var pos := origin + dir * d + left * (0.9 if i % 2 == 0 else -0.9) * rng.randf_range(0.5, 1.0)
+		var pos := origin + dir * d + left * kc * 2.5 * rng.randf_range(0.8, 1.15) + dir * rng.randf_range(-0.3, 0.3)
 		var slab := MeshInstance3D.new()
 		var bm := BoxMesh.new()
 		var sw := rng.randf_range(1.0, 1.6)
@@ -1467,12 +1469,12 @@ func titan_slam(p: Dictionary, radius_units: float, ang: float = 0.0) -> void:
 		# Erdfontäne, Brocken und Funken an dieser Stelle (zeitlich versetzt)
 		var burst := Node3D.new()
 		_put(burst, pos, 1.6 + delay)
-		var dirt := _ps({"amount": 16, "life": 0.9, "once": true, "explo": 1.0, "add": false, "shape": "sphere", "radius": 0.4, "dir": Vector3.UP, "spread": 40.0,
+		var dirt := _ps({"amount": 16 if kc == 0 else 7, "life": 0.9, "once": true, "explo": 1.0, "add": false, "shape": "sphere", "radius": 0.4, "dir": Vector3.UP, "spread": 40.0,
 			"vmin": 3.0, "vmax": 8.0, "smin": 0.35, "smax": 0.9, "grav": Vector3(0, -9.0, 0), "dmin": 0.5, "dmax": 1.5,
 			"ramp": _ramp([[0.0, Color(0.5, 0.36, 0.24, 0.0)], [0.12, Color(0.52, 0.38, 0.26, 0.8)], [1.0, Color(0.34, 0.25, 0.18, 0.0)]])})
 		dirt.emitting = false
 		burst.add_child(dirt)
-		var emb := _ps({"amount": 10, "life": 0.8, "once": true, "explo": 1.0, "shape": "sphere", "radius": 0.3, "dir": Vector3.UP, "spread": 45.0,
+		var emb := _ps({"amount": 10 if kc == 0 else 4, "life": 0.8, "once": true, "explo": 1.0, "shape": "sphere", "radius": 0.3, "dir": Vector3.UP, "spread": 45.0,
 			"vmin": 3.0, "vmax": 9.0, "smin": 0.08, "smax": 0.18, "grav": Vector3(0, -10.0, 0),
 			"ramp": _ramp([[0.0, Color(1.0, 0.9, 0.5, 1.0)], [0.4, Color(1.0, 0.45, 0.1, 0.9)], [1.0, Color(0.6, 0.1, 0.0, 0.0)]])})
 		emb.emitting = false
@@ -1480,7 +1482,7 @@ func titan_slam(p: Dictionary, radius_units: float, ang: float = 0.0) -> void:
 		var lt := OmniLight3D.new()
 		lt.light_color = magma
 		lt.light_energy = 0.0
-		lt.omni_range = 5.0
+		lt.omni_range = 5.0 if kc == 0 else 0.1
 		lt.position.y = 0.6
 		burst.add_child(lt)
 		var twb := burst.create_tween()
