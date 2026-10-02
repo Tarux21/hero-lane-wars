@@ -35,6 +35,9 @@ var vol_slider: HSlider
 var bar: HBoxContainer
 var mini_reserved := 270.0
 var display_btn: OptionButton
+var tip: Control                     # Hinweis der Fähigkeit unter der Maus (steht immer an derselben Stelle über der Leiste)
+var tip_idx := -1
+var tip_text := ""
 
 
 func _init(game: Node) -> void:
@@ -188,6 +191,8 @@ func _skills_block() -> Control:
 		col.add_child(plus)
 		var slot := SkillSlot.new()
 		slot.set_meta("pal", pal)
+		slot.mouse_entered.connect(func(): _show_tip(idx))
+		slot.mouse_exited.connect(func(): _hide_tip(idx))
 		slot.add_theme_stylebox_override("panel", box(pal["inset"], pal["border"], 3, 3, 3))
 		var holder := Control.new()
 		holder.custom_minimum_size = Vector2(52, 52)
@@ -304,6 +309,7 @@ func update() -> void:
 	if slots.is_empty() or g.hero.is_empty():
 		return
 	_place_bar()
+	_update_tip()
 	var h: Dictionary = g.hero
 	var sk = g.skills
 	level_label.text = str(h["lvl"])
@@ -601,3 +607,38 @@ func toggle_menu() -> void:
 		g.pause_label.visible = false
 		_show_page(menu_main)
 		menu_root.visible = true
+
+
+# ---------------------------------------------------------------- Hinweis der Fähigkeiten (feste Stelle)
+func _show_tip(i: int) -> void:
+	tip_idx = i
+	_rebuild_tip()
+
+
+func _hide_tip(i: int) -> void:
+	if tip_idx != i:
+		return
+	tip_idx = -1
+	if tip != null and is_instance_valid(tip):
+		tip.queue_free()
+	tip = null
+
+
+func _rebuild_tip() -> void:
+	if tip != null and is_instance_valid(tip):
+		tip.queue_free()
+	var slot: Control = slots[tip_idx]["slot"]
+	tip_text = slot.tooltip_text
+	tip = slot.build_tip(tip_text)
+	bar.get_parent().add_child(tip)
+	_update_tip()
+
+
+func _update_tip() -> void:
+	if tip == null or not is_instance_valid(tip) or tip_idx < 0:
+		return
+	if (slots[tip_idx]["slot"] as Control).tooltip_text != tip_text:       # Rang geändert: Text neu aufbauen
+		_rebuild_tip()
+		return
+	tip.left_x = bar.position.x
+	tip.bottom_y = bar.position.y - 14.0

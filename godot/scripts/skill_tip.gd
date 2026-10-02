@@ -5,6 +5,8 @@ extends PanelContainer
 var extra: Control
 var hint: Control
 var forced := false                   # Test: Erweiterung immer zeigen
+var left_x := 0.0                     # feste Stelle: linke Kante und Unterkante (Unterkante wächst nach oben)
+var bottom_y := 0.0
 
 
 func _process(_delta: float) -> void:
@@ -14,3 +16,6 @@ func _process(_delta: float) -> void:
 		if hint != null:
 			hint.visible = not on
 		reset_size()
+	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	size = get_combined_minimum_size()
+	position = Vector2(left_x, bottom_y - size.y)

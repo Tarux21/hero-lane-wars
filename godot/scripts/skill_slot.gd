@@ -19,7 +19,12 @@ func _label(txt: String, pal: Dictionary) -> RichTextLabel:
 	return rt
 
 
-func _make_custom_tooltip(for_text: String) -> Object:
+## Der normale Hinweis wird unterdrückt: die Leiste zeigt den Text selbst an einer festen Stelle (build_tip)
+func _make_custom_tooltip(_for_text: String) -> Object:
+	return Control.new()
+
+
+func build_tip(for_text: String) -> Control:
 	var pc := SkillTip.new()
 	var sb := StyleBoxFlat.new()
 	var pal: Dictionary = get_meta("pal", {})
