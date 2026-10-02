@@ -392,15 +392,62 @@ func _skill_tip(i: int, def: Dictionary, r: int, rmax: int, unlock: int) -> Stri
 		t += "• %s\n" % str(line)
 	t += "\n"
 	if r > 0:
-		t += "[color=#9fe08a]Jetzt (Rang %d):[/color] %s\n" % [r, sk.tip(h, i, r)]
-	if r < rmax:
-		if r > 0:
-			t += "[color=#8fd8ff]Nächster Rang (%d):[/color] %s" % [r + 1, sk.tip(h, i, r + 1)]
-		else:
-			t += "[color=#8fd8ff]Rang 1:[/color] %s" % sk.tip(h, i, 1)
+		t += "[color=#9fe08a]Jetzt (Rang %d):[/color] %s" % [r, sk.tip(h, i, r)]
+	else:
+		t += "[color=#8fd8ff]Rang 1 (noch nicht gelernt):[/color] %s" % sk.tip(h, i, 1)
 	if int(h["sp"]) > 0 and sk.can_learn(h, i):
 		t += "\n\n[color=%s]Klick auf das Plus verbessert diese Fähigkeit.[/color]" % hi
+	if r + 1 <= rmax and r >= 1 or r == 0 and rmax >= 2:       # Erweiterung (nur mit Alt): was jeder weitere Rang ändert
+		var alt := ""
+		for rr in range(maxi(r + 1, 2), rmax + 1):
+			alt += "[color=#8fd8ff]Rang %d:[/color] %s\n" % [rr, _rank_diff(sk.tip(h, i, rr - 1), sk.tip(h, i, rr))]
+		if alt != "":
+			t += "@@ALT@@" + alt.strip_edges()
 	return t
+
+
+## Unterschied zweier Rang-Texte (Teile durch " · " getrennt): geänderte Werte als "alt → neu", neue Teile als "neu: …"
+func _rank_diff(prev: String, cur: String) -> String:
+	var prev_by_key := {}
+	for part in prev.split(" · "):
+		prev_by_key[_part_key(part)] = part
+	var out: Array = []
+	for part in cur.split(" · "):
+		var k := _part_key(part)
+		if not prev_by_key.has(k):
+			out.append("[color=#9fe08a]neu:[/color] " + part)
+		elif prev_by_key[k] != part:
+			out.append(_value_change(prev_by_key[k], part))
+	return " · ".join(out) if not out.is_empty() else "keine Änderung"
+
+
+## Schlüssel eines Teils: der Text ohne Ziffern, Kommas und Punkte (gleiche Größe, anderer Wert = gleicher Schlüssel)
+func _part_key(part: String) -> String:
+	var k := ""
+	for ch in part:
+		if not "0123456789,.".contains(ch):
+			k += ch
+	return k
+
+
+## "Schaden 25" und "Schaden 40" -> "Schaden 25 → 40": gemeinsame Wörter bleiben, nur die Zahlen werden gezeigt
+func _value_change(a: String, b: String) -> String:
+	var re := RegEx.new()
+	re.compile("[0-9]+(?:,[0-9]+)?")
+	var ma := re.search_all(a)
+	var mb := re.search_all(b)
+	if ma.size() != mb.size() or mb.is_empty():
+		return "[color=#9fe08a]" + b + "[/color]"
+	var out := ""
+	var pos := 0
+	for k in mb.size():
+		out += b.substr(pos, mb[k].get_start() - pos)
+		var va := ma[k].get_string()
+		var vb := mb[k].get_string()
+		out += vb if va == vb else "[color=#9fe08a]%s → %s[/color]" % [va, vb]
+		pos = mb[k].get_end()
+	return out + b.substr(pos)
+
 
 
 # ---------------------------------------------------------------- Menü

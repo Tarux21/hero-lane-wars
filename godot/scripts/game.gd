@@ -3174,8 +3174,14 @@ func _run_simulation(secs: float, shot_path: String) -> void:
 			print("TIP ", (sl["slot"] as Control).tooltip_text)
 	if uitip and shot_path != "" and ui != null:                 # Test: Hinweis der Fähigkeit E als Bild zeigen
 		var tt: Control = ui.slots[2]["slot"]._make_custom_tooltip((ui.slots[2]["slot"] as Control).tooltip_text)
-		tt.position = Vector2(330, 250)
+		tt.position = Vector2(330, 150)
 		ui.menu_root.get_parent().add_child(tt)
+		var tt0: Control = ui.slots[0]["slot"]._make_custom_tooltip((ui.slots[0]["slot"] as Control).tooltip_text)       # mit Alt-Erweiterung
+		tt0.forced = true
+		tt0.extra.visible = true
+		tt0.hint.visible = false
+		tt0.position = Vector2(740, 150)
+		ui.menu_root.get_parent().add_child(tt0)
 	if uimenu and ui != null:
 		ui.toggle_menu()
 		if uioptions:
