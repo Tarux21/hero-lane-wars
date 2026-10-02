@@ -5,6 +5,7 @@ extends RefCounted
 
 const HudStein := preload("res://scripts/hud_stein.gd")
 const SkillIcon := preload("res://scripts/skill_icon.gd")
+const OptionsPanel := preload("res://scripts/options_panel.gd")
 
 const MODES := [[1, "1 gegen 1", "Je eine Lane pro Spieler."], [2, "2 gegen 2", "Eine breite Lane pro Team."],
 	[4, "4 gegen 4", "Doppel-Lane pro Team. Zur anderen Lane kommst du nur über die Basis (Backport)."]]
@@ -323,38 +324,15 @@ func _note_page(title: String, text: String) -> Control:
 func _options_page() -> Control:
 	var pc := PanelContainer.new()
 	panels.append(pc)
-	pc.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
-	pc.custom_minimum_size = Vector2(520, 0)
+	pc.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	var vb := VBoxContainer.new()
-	vb.add_theme_constant_override("separation", 12)
+	vb.add_theme_constant_override("separation", 10)
 	pc.add_child(vb)
 	vb.add_child(_label("Optionen", 28))
-	vb.add_child(_label("Lautstärke", 15, true))
-	var sl := HSlider.new()
-	sl.min_value = 0.0
-	sl.max_value = 100.0
-	sl.step = 1.0
-	sl.custom_minimum_size = Vector2(0, 26)
-	sl.value = g._load_volume() * 100.0
-	sl.focus_mode = Control.FOCUS_NONE
-	sl.value_changed.connect(func(v: float): g._save_volume(v / 100.0))
-	vb.add_child(sl)
-	vb.add_child(_label("Anzeige", 15, true))
-	var ob := OptionButton.new()
-	ob.add_item("Fenster", 0)
-	ob.add_item("Vollbild (randlos, empfohlen)", 1)
-	ob.add_item("Exklusives Vollbild", 2)
-	ob.select(ob.get_item_index(g.display_mode))
-	ob.focus_mode = Control.FOCUS_NONE
-	ob.custom_minimum_size = Vector2(0, 36)
-	ob.item_selected.connect(func(idx: int): g.set_display_mode(ob.get_item_id(idx)))
-	vb.add_child(ob)
-	var shake := CheckBox.new()
-	shake.text = "Bildschirmwackeln"
-	shake.button_pressed = g.shake_on
-	shake.focus_mode = Control.FOCUS_NONE
-	shake.toggled.connect(func(on: bool): g.set_shake_on(on))
-	vb.add_child(shake)
+	var op := OptionsPanel.new()
+	op.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	op.build(g, false, HudStein.PALETTES["stone"]["hi"])
+	vb.add_child(op)
 	return pc
 
 

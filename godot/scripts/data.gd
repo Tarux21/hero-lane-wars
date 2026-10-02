@@ -6,9 +6,12 @@ var raw: Dictionary = {}
 var cfg: Dictionary = {}
 var units: Dictionary = {}
 var heroes: Dictionary = {}
+const UserSettings := preload("res://scripts/user_settings.gd")
+var user: UserSettings = null                       # Einstellungen des Spielers (user_settings.gd), siehe Optionen
 
 
 func _ready() -> void:
+	user = UserSettings.new()
 	var f := FileAccess.open("res://data/daten.json", FileAccess.READ)
 	if f == null:
 		push_error("data/daten.json nicht gefunden")

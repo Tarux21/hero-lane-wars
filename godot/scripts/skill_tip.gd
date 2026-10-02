@@ -10,7 +10,7 @@ var bottom_y := 0.0
 
 
 func _process(_delta: float) -> void:
-	var on := forced or Input.is_key_pressed(KEY_ALT)
+	var on := forced or Data.user.alt_always or Input.is_key_pressed(KEY_ALT)
 	if extra != null and extra.visible != on:
 		extra.visible = on
 		if hint != null:

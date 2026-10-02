@@ -176,7 +176,7 @@ func _ps(o: Dictionary) -> CPUParticles3D:
 	q.size = o.get("qsize", Vector2.ONE)
 	q.material = _pmat(o.get("tex", tex_glow), bool(o.get("add", true)))
 	p.mesh = q
-	p.amount = int(o.get("amount", 20))
+	p.amount = maxi(1, int(round(float(o.get("amount", 20)) * Data.user.particle_factor())))     # Grafikqualität: weniger Partikel
 	p.lifetime = float(o.get("life", 1.0))
 	p.one_shot = bool(o.get("once", false))
 	p.explosiveness = float(o.get("explo", 0.0))
@@ -226,7 +226,7 @@ func _put(node: Node3D, pos: Vector3, life: float) -> void:
 func _light(col: Color, energy: float, rng_m: float, life: float, pos: Vector3, decay: bool = true) -> OmniLight3D:
 	var l := OmniLight3D.new()
 	l.light_color = col
-	l.light_energy = energy
+	l.light_energy = energy * Data.user.light_factor()               # Grafikqualität: Effektlichter schwächer oder aus
 	l.omni_range = rng_m
 	l.shadow_enabled = false
 	_put(l, pos, life)

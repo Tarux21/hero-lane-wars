@@ -52,7 +52,7 @@ func build_tip(for_text: String) -> Control:
 		line.custom_minimum_size = Vector2(0, 2)
 		extra.add_child(line)
 		extra.add_child(_label(parts[1], pal))
-		extra.visible = Input.is_key_pressed(KEY_ALT)
+		extra.visible = Data.user.alt_always or Input.is_key_pressed(KEY_ALT)
 		hint.visible = not extra.visible
 		vb.add_child(extra)
 		pc.extra = extra

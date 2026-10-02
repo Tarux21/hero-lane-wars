@@ -7,6 +7,7 @@ extends RefCounted
 const SkillIcon := preload("res://scripts/skill_icon.gd")
 const SkillSlot := preload("res://scripts/skill_slot.gd")
 const ItemIcon := preload("res://scripts/item_icon.gd")
+const OptionsPanel := preload("res://scripts/options_panel.gd")
 
 const PALETTES := {
 	"stone": {"bg": Color("#3b3733"), "dark": Color("#27241f"), "border": Color("#b49a5c"), "hi": Color("#e8c46a"), "text": Color("#ecdfbd"), "dim": Color("#9a917c"), "plate": Color("#2b2824"), "inset": Color("#1c1a17")},
@@ -32,10 +33,9 @@ var menu_options: Control
 var menu_confirm: Control
 var menu_open := false
 var was_paused := false
-var vol_slider: HSlider
 var bar: HBoxContainer
 var mini_reserved := 270.0
-var display_btn: OptionButton
+var options_panel: ScrollContainer
 var tip: Control                     # Hinweis der Fähigkeit unter der Maus (steht immer an derselben Stelle über der Leiste)
 var tip_idx := -1
 var tip_text := ""
@@ -246,7 +246,7 @@ func _skills_block() -> Control:
 		pips.add_theme_color_override("font_color", pal["hi"])
 		col.add_child(pips)
 		hb.add_child(col)
-		slots.append({"plus": plus, "slot": slot, "icon": ic, "cd": cd, "cdl": cdl, "lock": lock, "pips": pips, "key": keys[i], "h": 66.0})
+		slots.append({"plus": plus, "slot": slot, "icon": ic, "cd": cd, "cdl": cdl, "lock": lock, "pips": pips, "key": keys[i], "kl": kl, "h": 66.0})
 	return hb
 
 
@@ -325,7 +325,7 @@ func update() -> void:
 	hp_bar.value = clampf(h["hp"], 0.0, mx)
 	hp_label.text = "%d / %d" % [int(h["hp"]), int(mx)] if h["dead"] <= 0.0 else "Gefallen: %ds" % int(ceil(h["dead"]))
 	var frac: float = h["hp"] / maxf(1.0, mx)
-	var fill: Color = Color("#4cd964").lerp(Color("#ff4d3d"), clampf(1.0 - frac * 1.6, 0.0, 1.0))
+	var fill: Color = Data.user.hp_good().lerp(Data.user.hp_bad(), clampf(1.0 - frac * 1.6, 0.0, 1.0))
 	hp_bar.add_theme_stylebox_override("fill", box(fill, fill, 0, 2, 0))
 	var need: float = g._xp_need(h["lvl"])
 	xp_bar.max_value = need
@@ -333,6 +333,7 @@ func update() -> void:
 	xp_label.text = "Erfahrung  %d / %d" % [int(h["xp"]), int(need)] if h["lvl"] < int(g.cfg["maxLevel"]) else "Höchste Stufe"
 	for i in 4:
 		var s: Dictionary = slots[i]
+		(s["kl"] as Label).text = Data.user.key_name(["q", "w", "e", "r"][i])      # Taste laut Tastenbelegung
 		var def: Dictionary = sk.skill_def(h, i)
 		var r: int = h["ranks"][i]
 		var rmax := int(def["max"])
@@ -365,14 +366,18 @@ func update() -> void:
 			s["cdl"].text = ""
 		(s["slot"] as Control).tooltip_text = _skill_tip(i, def, r, rmax, unlock)
 	gold_btn.text = "Gold  %d" % int(h["gold"])
+	gold_btn.tooltip_text = "Klick: Shop öffnen oder schließen (Taste %s)" % Data.user.key_name("shop")
+	g.pot_btn.tooltip_text = "Heiltrank trinken (Taste %s)" % Data.user.key_name("potion")
+	bp_btn.tooltip_text = "Backport: zurück in die Basis (Taste %s), Schaden unterbricht" % Data.user.key_name("backport")
+	var bpk: String = Data.user.key_name("backport")
 	if h["bp"] > 0.0:
-		bp_btn.text = "Backport (B)\n%.1fs" % h["bp"]
+		bp_btn.text = "Backport (%s)\n%.1fs" % [bpk, h["bp"]]
 	elif g._in_base():
-		bp_btn.text = "Backport (B)\nin der Basis"
+		bp_btn.text = "Backport (%s)\nin der Basis" % bpk
 	elif h["bp_cd"] > 0.0:
-		bp_btn.text = "Backport (B)\nCD %ds" % int(ceil(h["bp_cd"]))
+		bp_btn.text = "Backport (%s)\nCD %ds" % [bpk, int(ceil(h["bp_cd"]))]
 	else:
-		bp_btn.text = "Backport (B)\nbereit"
+		bp_btn.text = "Backport (%s)\nbereit" % bpk
 	portrait_wrap.tooltip_text = "%s  ·  Level %d\nAngriff %d  ·  Rüstung %d\nAngriffstempo %.2f  ·  Lauftempo %d\nZauberkraft %d\n\nEsc: Menü  ·  P: Pause" % [
 		str(h["d"]["name"]), h["lvl"], int(sk.h_dmg(h)), int(sk.h_armor(h)), sk.h_as(h), int(sk.h_spd(h)), int(sk.h_sp(h))]
 
@@ -395,7 +400,7 @@ func _skill_tip(i: int, def: Dictionary, r: int, rmax: int, unlock: int) -> Stri
 	var h: Dictionary = g.hero
 	var passive: bool = def.get("passive", false)
 	var hi: String = "#" + (pal["hi"] as Color).to_html(false)
-	var t := "[b][color=%s]%s[/color][/b]   [color=#b8b0a0](Taste %s)[/color]\n" % [hi, str(def["name"]), str(slots[i]["key"])]
+	var t := "[b][color=%s]%s[/color][/b]   [color=#b8b0a0](Taste %s)[/color]\n" % [hi, str(def["name"]), Data.user.key_name(["q", "w", "e", "r"][i])]
 	var meta := "Rang %d von %d" % [r, rmax]
 	if not passive:
 		meta = "Abklingzeit %s s  ·  " % sk._f1(float(def["cd"]) * (1.0 - float(h["cdr"]))) + meta
@@ -480,7 +485,7 @@ func build_menu(layer: CanvasLayer) -> void:
 	center.set_anchors_preset(Control.PRESET_FULL_RECT)
 	menu_root.add_child(center)
 	var stack := Control.new()
-	stack.custom_minimum_size = Vector2(380, 400)
+	stack.custom_minimum_size = Vector2(620, 620)
 	center.add_child(stack)
 	menu_main = _menu_panel("Menü", [["Weiter spielen", toggle_menu], ["Optionen", func(): _show_page(menu_options)], ["Speichern", Callable()],
 		["Zurück zum Hauptmenü", func(): _show_page(menu_confirm)]])
@@ -506,7 +511,9 @@ func build_menu(layer: CanvasLayer) -> void:
 
 func _menu_panel(title: String, entries: Array) -> PanelContainer:
 	var pc := PanelContainer.new()
-	pc.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	pc.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	pc.offset_left = -190.0
+	pc.offset_right = 190.0
 	pc.add_theme_stylebox_override("panel", box(pal["bg"], pal["border"], 4, 4, 18))
 	var vb := VBoxContainer.new()
 	vb.add_theme_constant_override("separation", 10)
@@ -542,46 +549,10 @@ func _build_options() -> PanelContainer:
 	tl.add_theme_font_size_override("font_size", 24)
 	tl.add_theme_color_override("font_color", pal["hi"])
 	vb.add_child(tl)
-	var vl := Label.new()
-	vl.text = "Lautstärke"
-	vb.add_child(vl)
-	vol_slider = HSlider.new()
-	vol_slider.min_value = 0.0
-	vol_slider.max_value = 100.0
-	vol_slider.step = 1.0
-	vol_slider.custom_minimum_size = Vector2(0, 26)
-	vol_slider.focus_mode = Control.FOCUS_NONE
-	vol_slider.value_changed.connect(func(v: float):
-		if g.snd != null:
-			g.snd.volume = v / 100.0
-		g._save_volume(v / 100.0))
-	vb.add_child(vol_slider)
-	var dl := Label.new()
-	dl.text = "Anzeige"
-	vb.add_child(dl)
-	display_btn = OptionButton.new()
-	display_btn.add_item("Fenster", 0)
-	display_btn.add_item("Vollbild (randlos, empfohlen)", 1)
-	display_btn.add_item("Exklusives Vollbild", 2)
-	display_btn.focus_mode = Control.FOCUS_NONE
-	display_btn.custom_minimum_size = Vector2(0, 34)
-	display_btn.item_selected.connect(func(idx: int): g.set_display_mode(display_btn.get_item_id(idx)))
-	vb.add_child(display_btn)
-	var shake := CheckBox.new()
-	shake.text = "Bildschirmwackeln"
-	shake.button_pressed = g.shake_on
-	shake.focus_mode = Control.FOCUS_NONE
-	shake.toggled.connect(func(on: bool): g.set_shake_on(on))
-	vb.add_child(shake)
-	var tips := Button.new()
-	tips.text = "Tipps erneut zeigen"
-	tips.custom_minimum_size = Vector2(0, 40)
-	tips.focus_mode = Control.FOCUS_NONE
-	tips.pressed.connect(func():
-		g.tips_seen = {}
-		g._save_tips()
-		g._flash_msg("Tipps werden wieder gezeigt"))
-	vb.add_child(tips)
+	options_panel = OptionsPanel.new()
+	options_panel.custom_minimum_size = Vector2(0, 470)
+	options_panel.build(g, true, pal["hi"])
+	vb.add_child(options_panel)
 	var back := Button.new()
 	back.text = "Zurück"
 	back.custom_minimum_size = Vector2(0, 44)
@@ -594,10 +565,6 @@ func _build_options() -> PanelContainer:
 func _show_page(page: Control) -> void:
 	for p in [menu_main, menu_options, menu_confirm]:
 		(p as Control).visible = p == page
-	if page == menu_options and display_btn != null:
-		display_btn.select(display_btn.get_item_index(g.display_mode))
-	if page == menu_options and vol_slider != null:
-		vol_slider.set_value_no_signal((g.snd.volume if g.snd != null else 0.4) * 100.0)
 
 
 func toggle_menu() -> void:

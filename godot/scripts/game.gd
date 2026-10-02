@@ -99,6 +99,8 @@ var lane_off_g: Array[float] = []    # Quer-Mitte jeder Lane deines Teams in Spi
 
 var cam: Camera3D
 var hud: Label
+var sun: DirectionalLight3D            # Sonne (Schatten je nach Grafikqualität)
+var fps_ema := 60.0
 var hud_mid: Label
 var hud_right: Label
 var msg: Label
@@ -215,6 +217,12 @@ func _ready() -> void:
 			direct = true
 		elif a.begins_with("--diff="):
 			diff_key = a.substr(7)
+		elif a.begins_with("--uiscale="):
+			Data.user.ui_scale = float(a.substr(10))                  # Test: Oberflächengröße ohne zu speichern
+		elif a == "--colorblind":
+			Data.user.colorblind = true
+		elif a == "--gfxlow":
+			Data.user.gfx = 0
 		elif a.begins_with("--style="):
 			bot_style = a.substr(8)
 		elif a == "--botplay":
@@ -328,6 +336,7 @@ func _start_game() -> void:
 		snd = SfxLib.new(self)               # Sounds nur im echten Spiel (nicht in Tests)
 		snd.volume = _load_volume()
 		_load_tips()
+	apply_settings()
 	if not no_bots:
 		_spawn_others()
 	if botplay:                          # Test: dein Held spielt auch als Bot (gleiche Schwierigkeit wie der Gegner)
@@ -462,7 +471,7 @@ func _build_world() -> void:
 	we.environment = env
 	add_child(we)
 
-	var sun := DirectionalLight3D.new()
+	sun = DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-60, -25, 0)
 	sun.light_color = Color("#fff1d6")
 	sun.light_energy = 1.15
@@ -697,7 +706,7 @@ func _bar_mat(col: Color, prio: int) -> StandardMaterial3D:
 func _set_bar(fill: MeshInstance3D, w: float, frac: float, ally: bool) -> void:
 	frac = clampf(frac, 0.0, 1.0)
 	fill.scale.x = maxf(0.001, w * frac)
-	var c: Color = Color("#4cd964").lerp(Color("#ff4d3d"), 1.0 - frac) if ally else Color("#e0453a")
+	var c: Color = Data.user.hp_good().lerp(Data.user.hp_bad(), 1.0 - frac) if ally else Data.user.hp_enemy()
 	(fill.material_override as StandardMaterial3D).albedo_color = c
 
 
@@ -991,16 +1000,17 @@ func _update_send() -> void:
 	for e in send_btns:
 		var ud: Dictionary = Data.units[e["type"]]
 		e["btn"].disabled = hero["gold"] < float(ud["cost"]) or over
+		e["btn"].text = "%s  %s  %d g  (+%s)" % [Data.user.key_name("send_" + str(e["type"])), str(ud["name"]), int(ud["cost"]), str(ud["inc"])]
 
 
 ## Monster-Senden-Leiste (links): Taste, Name, Kosten und Einkommen. Senden kostet Gold und erhöht dein Einkommen.
 func _build_send_panel(layer: CanvasLayer) -> void:
 	var frame := PanelContainer.new()                    # Steintafel links
-	frame.set_anchors_preset(Control.PRESET_CENTER_LEFT)
+	frame.set_anchors_preset(Control.PRESET_TOP_LEFT)                  # unter der Anzeige oben links, bleibt auch bei großer Oberfläche über der Minimap
 	frame.offset_left = 8.0
 	frame.offset_right = 262.0
-	frame.offset_top = -170.0
-	frame.offset_bottom = 60.0
+	frame.offset_top = 72.0
+	frame.offset_bottom = 302.0
 	layer.add_child(frame)
 	var box := VBoxContainer.new()
 	frame.add_child(box)
@@ -1057,7 +1067,7 @@ func _update_shop() -> void:
 	if shop_btn == null or hero.is_empty():
 		return
 	var in_base := _in_base()
-	pot_btn.text = "Trank\n(F)  x%d%s" % [hero["cons"]["potion"], ("\n%ds" % int(ceil(hero["pot_cd"]))) if hero["pot_cd"] > 0.0 else ""]
+	pot_btn.text = "Trank\n(%s)  x%d%s" % [Data.user.key_name("potion"), hero["cons"]["potion"], ("\n%ds" % int(ceil(hero["pot_cd"]))) if hero["pot_cd"] > 0.0 else ""]
 	for i in bag_btns.size():
 		var b: Button = bag_btns[i]
 		if i < hero["bag"].size():
@@ -1868,14 +1878,13 @@ func _load_volume() -> float:
 	if cf.load("user://settings.cfg") == OK:
 		shake_on = bool(cf.get_value("sound", "shake", true))
 		display_mode = clampi(int(cf.get_value("display", "mode", 0)), 0, 2)
-		return clampf(float(cf.get_value("sound", "volume", 0.4)), 0.0, 1.0)
-	return 0.4
+	return Data.user.volume
 
 
 ## Beim Start: gespeicherte Anzeige anwenden, aber nicht in Tests und Bild-Läufen (feste Auflösung)
 func _apply_saved_display() -> void:
 	for a in OS.get_cmdline_user_args():
-		for t in ["--sim", "--shot", "--selftest", "--golden", "--fxtest", "--menushot", "--menuclick", "--menu-test", "--shopshot", "--itemcatalog", "--dbgshot", "--uimenu", "--uitip", "--botplay", "--autoplay"]:
+		for t in ["--sim", "--shot", "--selftest", "--golden", "--fxtest", "--menushot", "--menuclick", "--menu-test", "--shopshot", "--uiscale", "--colorblind", "--gfxlow", "--itemcatalog", "--dbgshot", "--uimenu", "--uitip", "--botplay", "--autoplay"]:
 			if a.begins_with(t):
 				return
 	var cf := ConfigFile.new()
@@ -1911,10 +1920,22 @@ func set_shake_on(on: bool) -> void:
 
 
 func _save_volume(v: float) -> void:
-	var cf := ConfigFile.new()
-	cf.load("user://settings.cfg")
-	cf.set_value("sound", "volume", v)
-	cf.save("user://settings.cfg")
+	Data.user.volume = v
+	Data.user.save()
+	apply_settings()
+
+
+## Alle Optionen auf das laufende Spiel anwenden (Ton, Grafikqualität, Bildrate, Oberflächengröße). Darf auch im Menü aufgerufen werden.
+func apply_settings() -> void:
+	var u = Data.user
+	if snd != null:
+		snd.volume = 0.0 if u.mute else u.volume
+	if sun != null:
+		sun.shadow_enabled = u.gfx >= 1
+	get_viewport().msaa_3d = [Viewport.MSAA_DISABLED, Viewport.MSAA_2X, Viewport.MSAA_4X][u.gfx]
+	Engine.max_fps = u.fps_cap
+	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_ENABLED if u.vsync else DisplayServer.VSYNC_DISABLED)
+	get_window().content_scale_factor = u.ui_scale
 
 
 func _save_tips() -> void:
@@ -2626,7 +2647,7 @@ func _sync_visuals(delta: float) -> void:
 		pn.visible = p["dead"] <= 0.0 and p["side"]["idx"] == hero["side"]["idx"]      # Gegner-Seite bleibt verdeckt
 		var hm: Array = HERO_MODEL.get(p["key"], ["", "", "Run", "Idle", 2.8])
 		_animate(p, pn, p["side"]["idx"], delta, str(hm[1]), str(hm[2]), str(hm[3]), 5.0)
-		p["label"].text = "Lv %d" % p["lvl"]
+		p["label"].text = ("Lv %d   %d" % [p["lvl"], int(p["hp"])]) if Data.user.hp_numbers else ("Lv %d" % p["lvl"])
 		_set_bar(p["bar"], p["bar_w"], p["hp"] / skills.h_max_hp(p), p["side"]["idx"] == hero["side"]["idx"])
 	for s in sides:                      # alle Monster beider Seiten
 		for u in s["units"]:
@@ -2650,6 +2671,7 @@ func _sync_visuals(delta: float) -> void:
 			f["node"].queue_free()
 			texts.erase(f)
 	_update_fx(delta)
+	_cam_input(delta)
 	var off := _cam_offset()
 	var want := (cam_focus if cam_free else hn.position) + off
 	cam.position = want if not cam_init else cam.position.lerp(want, minf(1.0, delta * 6.0))
@@ -2670,7 +2692,8 @@ func _sync_visuals(delta: float) -> void:
 	var min_t := int(t) / 60
 	hud.text = "Team-Leben  %d   (Gegner %d)\nEinkommen  +%.0f alle %d s" % [team_lives[0], team_lives[1], hero["income"], int(cfg["incomeTick"])]
 	hud_mid.text = "Welle %d\nZeit %d:%02d" % [sides[0]["wave"], min_t, int(t) % 60]
-	hud_right.text = "Kills  %d" % kills + ("\nHeld tot: %d s" % int(ceil(hero["dead"])) if hero["dead"] > 0.0 else "")
+	fps_ema = lerpf(fps_ema, 1.0 / maxf(delta, 0.0001), 0.05)
+	hud_right.text = "Kills  %d" % kills + ("\nHeld tot: %d s" % int(ceil(hero["dead"])) if hero["dead"] > 0.0 else "") + ("\nFPS %d" % int(round(fps_ema)) if Data.user.show_fps else "")
 	if mini != null:
 		mini.queue_redraw()
 	_update_skillbar()
@@ -2697,6 +2720,49 @@ func _mouse_info() -> Dictionary:
 	return {"dx": dx, "dy": dy, "dist": maxf(1.0, Vector2(dx, dy).length()), "ang": atan2(dy, dx), "wx": gx, "wy": gy}
 
 
+## Fähigkeit (0..3) zu einer Taste laut Tastenbelegung, sonst -1
+func _slot_for_key(code: int) -> int:
+	return ["q", "w", "e", "r"].find(Data.user.action_for_key(code))
+
+
+## Kamera: Pfeiltasten und (wenn aktiviert) Mauszeiger am Bildrand schieben die Kamera; Leertaste holt sie zum Helden zurück
+func _cam_input(delta: float) -> void:
+	if not started or over:
+		return
+	var dir := Vector2.ZERO
+	if Input.is_key_pressed(KEY_LEFT):
+		dir.x -= 1.0
+	if Input.is_key_pressed(KEY_RIGHT):
+		dir.x += 1.0
+	if Input.is_key_pressed(KEY_UP):
+		dir.y -= 1.0
+	if Input.is_key_pressed(KEY_DOWN):
+		dir.y += 1.0
+	if Data.user.edge_scroll and get_window().has_focus():
+		var vp := get_viewport()
+		var mp := vp.get_mouse_position()
+		var sz := vp.get_visible_rect().size
+		if mp.x >= 0.0 and mp.y >= 0.0 and mp.x <= sz.x and mp.y <= sz.y:
+			if mp.x <= 6.0:
+				dir.x -= 1.0
+			if mp.x >= sz.x - 6.0:
+				dir.x += 1.0
+			if mp.y <= 6.0:
+				dir.y -= 1.0
+			if mp.y >= sz.y - 6.0:
+				dir.y += 1.0
+	if dir == Vector2.ZERO:
+		return
+	if not cam_free:
+		cam_free = true
+		cam_focus = (hero["node"] as Node3D).position
+	var m := _mini_map()
+	var own_x_max: float = lane_xs[lanes_per_team - 1] + lane_half_g * S      # Gegner-Seite ist nicht einsehbar
+	var step_len: float = 45.0 * float(Data.user.cam_speed) * delta
+	cam_focus.x = clampf(cam_focus.x + dir.x * step_len, lane_xs[0] - lane_half_g * S, own_x_max)
+	cam_focus.z = clampf(cam_focus.z + dir.y * step_len, m["z_top"], m["z_bot"])
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_F11:
 		set_display_mode(0 if display_mode != 0 else 1)           # F11: Fenster <-> Vollbild
@@ -2714,7 +2780,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	if not started or over:
 		return
 	if event is InputEventKey and event.pressed and not event.echo and event.shift_pressed:
-		var lslot := [KEY_Q, KEY_W, KEY_E, KEY_R].find(event.keycode)
+		var lslot := _slot_for_key(event.keycode)
 		if lslot >= 0:
 			skills.learn(hero, lslot)     # Skillpunkte lassen sich auch als toter Held vergeben
 			return
@@ -2726,7 +2792,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			if ui != null:
 				ui.toggle_menu()                       # Esc öffnet/schließt das Menü (pausiert das Spiel)
 			return
-		if event.keycode == KEY_P:
+		if event.keycode == Data.user.key_of("pause"):
 			if ui == null or not ui.menu_open:
 				_toggle_pause()
 			return
@@ -2737,24 +2803,26 @@ func _unhandled_input(event: InputEvent) -> void:
 	if paused:
 		return                            # in der Pause nur noch Shop und Skillpunkte
 	if event is InputEventKey and event.pressed and not event.echo:
-		var stype: String = {KEY_Z: "grunt", KEY_X: "tank", KEY_C: "archer", KEY_V: "fast", KEY_N: "elite"}.get(event.keycode, "")
+		var act0: String = Data.user.action_for_key(event.keycode)
+		var stype: String = act0.substr(5) if act0.begins_with("send_") else ""
 		if stype != "":
 			send(hero, stype)             # Monster senden geht auch als toter Held
 			return
 	if hero["dead"] > 0.0:
 		return
 	if event is InputEventKey and event.pressed and not event.echo:
-		if event.keycode == KEY_B:
+		var act: String = Data.user.action_for_key(event.keycode)
+		if act == "backport":
 			_start_backport(hero)
-		elif event.keycode == KEY_S:      # Stopp
+		elif act == "stop":               # Stopp
 			hero["move_to"] = null
 			hero["target"] = null
-		elif event.keycode == KEY_TAB:    # Shop ein-/ausblenden
+		elif act == "shop":               # Shop ein-/ausblenden
 			_toggle_shop()
-		elif event.keycode == KEY_F:      # Heiltrank
+		elif act == "potion":             # Heiltrank
 			items.drink_potion(hero)
 		else:
-			var slot := [KEY_Q, KEY_W, KEY_E, KEY_R].find(event.keycode)
+			var slot := _slot_for_key(event.keycode)
 			if slot >= 0 and not event.shift_pressed:
 				skills.cast_slot(hero, slot, _mouse_info())
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_RIGHT:
@@ -3004,6 +3072,14 @@ func _selftest() -> void:
 	set_display_mode(0, false)
 	check.call("Anzeige: Fenster-Modus wird gemerkt", display_mode == 0)
 	var tip_txt: String = ui._skill_tip(0, skills.skill_def(hero, 0), 0, 5, 1)
+	# Optionen: Tastenbelegung
+	var uk = Data.user
+	var old_q: int = uk.keys["q"]
+	uk.keys["q"] = KEY_A
+	check.call("Tastenbelegung: A löst Fähigkeit 1 aus, Q nicht mehr", _slot_for_key(KEY_A) == 0 and _slot_for_key(KEY_Q) == -1 and uk.key_name("q") == "A")
+	uk.keys["q"] = old_q
+	uk.reset_keys()
+	check.call("Tastenbelegung: Standard Q W E R B F Tab S P", _slot_for_key(KEY_E) == 2 and uk.action_for_key(KEY_B) == "backport" and uk.action_for_key(KEY_TAB) == "shop" and uk.action_for_key(KEY_Z) == "send_grunt")
 	check.call("Oberfläche: Hinweis enthält Name und Rang-1-Zahlen", tip_txt.contains(str(skills.skill_def(hero, 0)["name"])) and tip_txt.contains("Schaden"))
 	# Shop: Doppelklick kauft fehlende Teile soweit das Gold reicht (Sturmbrecher mit 400 Gold: Harke + Crit-Mantel)
 	var sv_bag: Array = (hero["bag"] as Array).duplicate()
