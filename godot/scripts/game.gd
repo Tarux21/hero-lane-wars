@@ -524,7 +524,7 @@ func _build_map() -> void:
 			wall_list.append({"x": wall_x, "gapped": lanes_per_team == 2 and k == 0 and side > 0.0})
 			if lanes_per_team == 2 and k == 0 and side > 0.0:
 				_gapped_wall(wall_x)                                  # gemeinsame Wand mit Durchgängen (Helden können die Lane wechseln)
-			else:
+			elif map_theme != "nachtwald":                       # im Nachtwald stehen Bäume statt der Wand (map_nachtwald.gd)
 				_box(Vector3(wall_x, 1.1, z_mid - 6.0), Vector3(WALL, 2.4, lane_len + 2.0), mc["wall"])   # Wand (Fels bzw. dunkles Unterholz)
 				_box(Vector3(wall_x, 2.45, z_mid - 6.0), Vector3(WALL - 1.0, 0.5, lane_len + 2.0), mc["wall_top"])
 	var river_x: float = (lane_xs[lanes_per_team - 1] + lane_xs[lanes_per_team]) / 2.0
@@ -606,7 +606,7 @@ func _sand_piece(wall_x: float, x0: float, x1: float) -> void:
 
 
 func _wall_piece(wall_x: float, x0: float, x1: float) -> void:
-	if x1 <= x0:
+	if x1 <= x0 or map_theme == "nachtwald":
 		return
 	var zc := -(x0 + x1) / 2.0 * S
 	var len := (x1 - x0) * S

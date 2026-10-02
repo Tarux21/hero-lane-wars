@@ -13,6 +13,9 @@ var g: Node
 var rng := RandomNumberGenerator.new()
 var meshes: Dictionary = {}
 var glow_tex: Texture2D
+var tree_hash: Dictionary = {}          # Raster der gesetzten Bäume: verhindert, dass Bäume ineinander stehen
+var dead_xf: Array = []
+var pine_xf: Array = []
 
 
 func _init(game: Node) -> void:
@@ -71,6 +74,29 @@ func _scatter(name: String, xf: Array, shadows: bool = true) -> void:
 	if not shadows:
 		inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	g.add_child(inst)
+
+
+## Baum setzen, wenn er keinen anderen berührt (Radius der Krone). Gibt zurück, ob er gesetzt wurde.
+func _place_tree(x: float, z: float, s: float, is_dead: bool) -> bool:
+	var r: float = (1.15 if is_dead else 1.45) * s
+	var cx := int(floor(x / 3.0))
+	var cz := int(floor(z / 3.0))
+	for ix in range(cx - 1, cx + 2):
+		for iz in range(cz - 1, cz + 2):
+			var key := Vector2i(ix, iz)
+			if tree_hash.has(key):
+				for o in tree_hash[key]:
+					var dx: float = x - o.x
+					var dz: float = z - o.y
+					var minr: float = (r + o.z) * 0.78
+					if dx * dx + dz * dz < minr * minr:
+						return false
+	var k0 := Vector2i(cx, cz)
+	if not tree_hash.has(k0):
+		tree_hash[k0] = []
+	tree_hash[k0].append(Vector3(x, z, r))
+	(dead_xf if is_dead else pine_xf).append(_t(x, z, s))
+	return true
 
 
 func _t(x: float, z: float, s: float = 1.0, yaw: float = -1.0, y: float = 0.0) -> Transform3D:
@@ -144,43 +170,43 @@ func decorate(wall_xs: Array, river_x: float, lane_xs: Array, half: float, x_min
 	var z_near := 10.0
 	var z_far: float = -float(g.cfg["laneLen"]) * g.S - 6.0
 	var gap_z: float = -float(g.WALL_OPEN_BASE) * g.S                        # bis hierhin ist die Basis offen (keine Bäume in der Lücke)
-	var dead: Array = []
-	var pine: Array = []
-	# Baumwände: drei Reihen je Wand, Lücken nur in der offenen Basis zwischen den Lanes eines Teams
+	# Baumwände statt Felswänden: drei Reihen über die Breite der Wand, die Bäume stehen nie ineinander (Raster-Prüfung).
+	# Lücken nur in der offenen Basis zwischen den Lanes eines Teams.
 	for w in wall_xs:
 		var gapped: bool = bool(w["gapped"])
 		var wx: float = w["x"]
 		var z := z_near
 		while z > z_far:
-			z -= rng.randf_range(1.6, 2.4)
+			z -= 1.15
 			if gapped and z > gap_z:
 				continue
-			for off in [-1.1, 0.0, 1.1]:
-				var s := rng.randf_range(0.6, 1.0)
-				var t := _t(wx + off + rng.randf_range(-0.35, 0.35), z + rng.randf_range(-0.5, 0.5), s)
-				(dead if rng.randf() < 0.45 else pine).append(t)
+			for off in [-1.0, 0.0, 1.0]:
+				for attempt in 3:
+					var s := rng.randf_range(0.55, 0.9)
+					if _place_tree(wx + off + rng.randf_range(-0.4, 0.4), z + rng.randf_range(-0.6, 0.6), s, rng.randf() < 0.45):
+						break
 	# Wald außen links und rechts der Karte
 	for side in [-1.0, 1.0]:
 		var edge: float = x_min - 2.0 if side < 0.0 else x_max + 2.0
 		var zz := z_near + 4.0
 		while zz > z_far - 8.0:
-			zz -= 3.2
+			zz -= 2.4
 			var d := 0.0
-			for row in 6:
-				d += rng.randf_range(2.6, 4.2)
-				if rng.randf() < 0.85:
+			for row in 8:
+				d += rng.randf_range(2.0, 3.4)
+				for attempt in 2:
 					var s2 := rng.randf_range(0.7, 1.3)
-					var t2 := _t(edge + side * d, zz + rng.randf_range(-1.2, 1.2), s2)
-					(dead if rng.randf() < 0.5 else pine).append(t2)
+					if _place_tree(edge + side * d, zz + rng.randf_range(-1.2, 1.2), s2, rng.randf() < 0.5):
+						break
 	# Baumreihen zwischen den Wänden und dem Fluss (Ufer bleibt frei)
 	var zr := z_near
 	while zr > z_far:
-		zr -= rng.randf_range(3.5, 6.0)
+		zr -= rng.randf_range(2.8, 4.6)
 		for sd in [-1.0, 1.0]:
 			var bank: float = river_x + sd * rng.randf_range(7.5, 11.0)
-			(dead if rng.randf() < 0.6 else pine).append(_t(bank, zr, rng.randf_range(0.6, 1.0)))
-	_scatter("tree_dead", dead)
-	_scatter("tree_pine", pine)
+			_place_tree(bank, zr, rng.randf_range(0.6, 1.0), rng.randf() < 0.6)
+	_scatter("tree_dead", dead_xf)
+	_scatter("tree_pine", pine_xf)
 
 	# Knochensäulen und Pilze an den Lane-Rändern, Feuerschalen mit Licht
 	var pillars: Array = []
