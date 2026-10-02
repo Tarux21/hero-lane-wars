@@ -15,6 +15,7 @@ const SfxLib := preload("res://scripts/sfx.gd")
 const FxLib := preload("res://scripts/fx.gd")
 const HudStein := preload("res://scripts/hud_stein.gd")
 const MainMenuLib := preload("res://scripts/main_menu.gd")
+const NachtLib := preload("res://scripts/map_nachtwald.gd")
 const ShopLib := preload("res://scripts/shop_stein.gd")
 const GoldenRunner := preload("res://scripts/golden_runner.gd")
 const GoldenEconomyRunner := preload("res://scripts/golden_economy_runner.gd")
@@ -99,6 +100,9 @@ var lane_off_g: Array[float] = []    # Quer-Mitte jeder Lane deines Teams in Spi
 
 var cam: Camera3D
 var hud: Label
+var map_theme := "nachtwald"            # Karte: nachtwald (giftiger Nachtwald) oder gras (alte Wiese), Test: --map=gras
+var decor                              # Dekoration der Karte (map_nachtwald.gd)
+var mc: Dictionary = {}                # Farben der Karte
 var sun: DirectionalLight3D            # Sonne (Schatten je nach Grafikqualität)
 var fps_ema := 60.0
 var hud_mid: Label
@@ -217,6 +221,8 @@ func _ready() -> void:
 			direct = true
 		elif a.begins_with("--diff="):
 			diff_key = a.substr(7)
+		elif a.begins_with("--map="):
+			map_theme = a.substr(6)
 		elif a.begins_with("--uiscale="):
 			Data.user.ui_scale = float(a.substr(10))                  # Test: Oberflächengröße ohne zu speichern
 		elif a == "--colorblind":
@@ -479,6 +485,10 @@ func _build_world() -> void:
 	sun.directional_shadow_max_distance = 90.0
 	add_child(sun)
 
+	mc = NachtLib.COLORS if map_theme == "nachtwald" else {"ground": Color("#4b6b30"), "lane": Color("#a89462"), "strip": Color("#8d7d55"), "wall": Color("#4c4f55"), "wall_top": Color("#5f636b"), "river": Color("#1f5fa8"), "plaza": Color("#8b8272"), "fog": Color(0.62, 0.68, 0.78, 0.72)}
+	decor = NachtLib.new(self)
+	if map_theme == "nachtwald":
+		decor.setup_environment(env, sun)
 	_build_map()
 	_build_fog()
 
@@ -501,29 +511,36 @@ func _build_map() -> void:
 	var z_far := -lane_len - 10.0
 	var z_mid := (z_far + 14.0) / 2.0
 	var z_len := 14.0 - z_far
-	_box(Vector3(mid_x, -0.5, z_mid), Vector3(span + 120.0, 1.0, z_len + 30.0), Color("#4b6b30"))            # Gras
+	_box(Vector3(mid_x, -0.5, z_mid), Vector3(span + 120.0, 1.0, z_len + 30.0), mc["ground"])            # Boden (Gras bzw. dunkle Erde)
+	var wall_list: Array = []
 	for i in n:
 		var cx: float = lane_xs[i]
 		var k := i % lanes_per_team
-		_box(Vector3(cx, -0.04, z_mid + 4.0), Vector3(half * 2.0, 0.1, z_len - 8.0), Color("#a89462"))       # Lane (Sandweg)
-		_box(Vector3(cx, 0.02, z_mid + 4.0), Vector3(half * 0.5, 0.06, z_len - 8.0), Color("#8d7d55"))       # Pflasterstreifen in der Mitte
+		_box(Vector3(cx, -0.04, z_mid + 4.0), Vector3(half * 2.0, 0.1, z_len - 8.0), mc["lane"])       # Lane (Weg)
+		_box(Vector3(cx, 0.02, z_mid + 4.0), Vector3(half * 0.5, 0.06, z_len - 8.0), mc["strip"])       # Pflasterstreifen in der Mitte
 		var sides: Array = [1.0] if k > 0 else [-1.0, 1.0]   # Lanes desselben Teams teilen sich eine Wand (nur rechts bauen)
 		for side in sides:
 			var wall_x: float = cx + side * (half + WALL / 2.0)
+			wall_list.append({"x": wall_x, "gapped": lanes_per_team == 2 and k == 0 and side > 0.0})
 			if lanes_per_team == 2 and k == 0 and side > 0.0:
 				_gapped_wall(wall_x)                                  # gemeinsame Wand mit Durchgängen (Helden können die Lane wechseln)
 			else:
-				_box(Vector3(wall_x, 1.1, z_mid - 6.0), Vector3(WALL, 2.4, lane_len + 2.0), Color("#4c4f55"))   # Felswand
-				_box(Vector3(wall_x, 2.45, z_mid - 6.0), Vector3(WALL - 1.0, 0.5, lane_len + 2.0), Color("#5f636b"))
+				_box(Vector3(wall_x, 1.1, z_mid - 6.0), Vector3(WALL, 2.4, lane_len + 2.0), mc["wall"])   # Wand (Fels bzw. dunkles Unterholz)
+				_box(Vector3(wall_x, 2.45, z_mid - 6.0), Vector3(WALL - 1.0, 0.5, lane_len + 2.0), mc["wall_top"])
 	var river_x: float = (lane_xs[lanes_per_team - 1] + lane_xs[lanes_per_team]) / 2.0
-	_box(Vector3(river_x, -0.06, z_mid - 6.0), Vector3(5.0, 0.2, lane_len + 2.0), Color("#1f5fa8"))           # Fluss zwischen den Teams
+	var river_box := _box(Vector3(river_x, -0.06, z_mid - 6.0), Vector3(5.0, 0.2, lane_len + 2.0), mc["river"])           # Fluss (Wasser bzw. Lava) zwischen den Teams
+	if map_theme == "nachtwald":
+		var lm := river_box.material_override as StandardMaterial3D
+		lm.emission_enabled = true
+		lm.emission = Color("#ff4a14")
+		lm.emission_energy_multiplier = 1.8
 	var spawn_z := -float(cfg["spawnX"]) * S
 	for i in n:
 		_box(Vector3(lane_xs[i], 0.03, spawn_z - 2.0), Vector3(half * 2.0, 0.06, 6.0), Color("#6e2a2a"))     # Monster-Spawn
 	# Platz am unteren Ende (Basis): Pflaster, magischer Kreis, Feuerstellen
 	var plaza_z := 7.0
 	var plaza_r := span / 2.0 + 6.0
-	var plaza := _cyl(Vector3(mid_x, -0.02, plaza_z), plaza_r, 0.1, Color("#8b8272"))
+	var plaza := _cyl(Vector3(mid_x, -0.02, plaza_z), plaza_r, 0.1, mc["plaza"])
 	plaza.scale = Vector3(1.0, 1.0, minf(1.0, 13.0 / plaza_r))
 	_cyl(Vector3(mid_x, 0.06, plaza_z), 4.2, 0.05, Color("#2a3a7a"), Color("#4a7aff"))                         # magischer Kreis
 	_cyl(Vector3(mid_x, 0.1, plaza_z), 2.4, 0.06, Color("#3b3f48"))
@@ -562,6 +579,10 @@ func _build_map() -> void:
 		ll.position = Vector3(cx, 3.8, 0.8)
 		add_child(ll)
 		life_labels.append(ll)
+	if map_theme == "nachtwald":
+		if not test_mode:
+			decor.decorate(wall_list, river_x, lane_xs, half, x_min, x_max)
+		return
 	# Bäume außerhalb der Lanes
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 7
@@ -581,7 +602,7 @@ func _gapped_wall(wall_x: float) -> void:
 
 
 func _sand_piece(wall_x: float, x0: float, x1: float) -> void:
-	_box(Vector3(wall_x, -0.04, -(x0 + x1) / 2.0 * S), Vector3(WALL + 0.2, 0.1, (x1 - x0) * S), Color("#a89462"))
+	_box(Vector3(wall_x, -0.04, -(x0 + x1) / 2.0 * S), Vector3(WALL + 0.2, 0.1, (x1 - x0) * S), mc["lane"])
 
 
 func _wall_piece(wall_x: float, x0: float, x1: float) -> void:
@@ -589,8 +610,8 @@ func _wall_piece(wall_x: float, x0: float, x1: float) -> void:
 		return
 	var zc := -(x0 + x1) / 2.0 * S
 	var len := (x1 - x0) * S
-	_box(Vector3(wall_x, 1.1, zc), Vector3(WALL, 2.4, len), Color("#4c4f55"))
-	_box(Vector3(wall_x, 2.45, zc), Vector3(WALL - 1.0, 0.5, len), Color("#5f636b"))
+	_box(Vector3(wall_x, 1.1, zc), Vector3(WALL, 2.4, len), mc["wall"])
+	_box(Vector3(wall_x, 2.45, zc), Vector3(WALL - 1.0, 0.5, len), mc["wall_top"])
 
 
 func _cyl(pos: Vector3, radius: float, height: float, col: Color, glow: Color = Color(0, 0, 0, 0)) -> MeshInstance3D:
@@ -660,7 +681,7 @@ func _build_fog() -> void:
 	var mat := StandardMaterial3D.new()
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.albedo_color = Color(0.62, 0.68, 0.78, 0.72)      # Nebel: Gelände schimmert durch, Gegner bleiben unsichtbar
+	mat.albedo_color = mc["fog"]      # Nebel: Gelände schimmert durch, Gegner bleiben unsichtbar
 	box.material_override = mat
 	box.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	box.position = Vector3(river_x + 100.0, 7.0, -lane_len / 2.0)
@@ -1153,7 +1174,7 @@ func _draw_minimap() -> void:
 		mini.draw_rect(Rect2(1.5, 1.5, MINI_W - 3.0, MINI_H - 3.0), ui.pal["border"], false, 3.0)     # Rahmen in den Farben der Klasse
 	var river_x: float = (lane_xs[lanes_per_team - 1] + lane_xs[lanes_per_team]) / 2.0
 	var rp := _mini_pt(m, river_x - 2.5, z_top)
-	mini.draw_rect(Rect2(rp.x, rp.y, 5.0 * m["sx"], (z_bot - z_top) * m["sy"]), Color("#1f5fa8"))
+	mini.draw_rect(Rect2(rp.x, rp.y, 5.0 * m["sx"], (z_bot - z_top) * m["sy"]), mc["river"])
 	var base_z := -float(cfg["baseX"]) * S
 	var enemy_view_z := -float(ENEMY_LANE_VIEW) * S      # Gegner-Lane: nur bis hierhin (vom Ende her) sichtbar
 	var counts: Array[int] = []
@@ -1884,7 +1905,7 @@ func _load_volume() -> float:
 ## Beim Start: gespeicherte Anzeige anwenden, aber nicht in Tests und Bild-Läufen (feste Auflösung)
 func _apply_saved_display() -> void:
 	for a in OS.get_cmdline_user_args():
-		for t in ["--sim", "--shot", "--selftest", "--golden", "--fxtest", "--menushot", "--menuclick", "--menu-test", "--shopshot", "--uiscale", "--colorblind", "--gfxlow", "--itemcatalog", "--dbgshot", "--uimenu", "--uitip", "--botplay", "--autoplay"]:
+		for t in ["--sim", "--shot", "--selftest", "--golden", "--fxtest", "--menushot", "--menuclick", "--menu-test", "--shopshot", "--map", "--uiscale", "--colorblind", "--gfxlow", "--itemcatalog", "--dbgshot", "--uimenu", "--uitip", "--botplay", "--autoplay"]:
 			if a.begins_with(t):
 				return
 	var cf := ConfigFile.new()

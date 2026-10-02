@@ -87,3 +87,8 @@ Helden (Krieger, Schurke, Magier) und Monster (GreenDemon, Cyclops, Skull, Bat, 
 - Bilder zum Prüfen: `-- --hero=damage --uitip --sim=60 --shot=bild.png` (Hinweis der Fähigkeit E), `-- --uimenu --sim=10 --shot=bild.png` (Menü offen).
 - **Layout:** Die Leiste ist ein kompakter Block in der Mitte unten (so breit wie ihr Inhalt), die Minimap bleibt links unten, die Leiste rutscht bei kleinen Fenstern nach rechts, damit sie nie über der Minimap liegt.
 - **Anzeige (Optionen, F11):** Fenster, Vollbild (randlos, empfohlen) oder exklusives Vollbild; wird gespeichert (`user://settings.cfg`, Abschnitt display). F11 wechselt zwischen Fenster und Vollbild.
+
+## Karte "Giftiger Nachtwald" (Prototyp)
+Standard-Karte. Dunkler Wald statt Felswänden, Lava als Fluss, Knochensäulen, leuchtende Pilze, Feuerschalen, Nebel. Die Modelle werden mit Blender per Skript gebaut
+(`godot/tools/blender/make_nachtwald_props.py`, Aufruf steht im Skript) und liegen als GLB in `godot/assets/props/`. Platzierung und Licht: `godot/scripts/map_nachtwald.gd`.
+Alte Wiese zum Vergleichen: Start mit `--map=gras`. Eigene Modelle (z. B. aus Blender) ersetzt man, indem man die GLB-Datei mit gleichem Namen austauscht.
