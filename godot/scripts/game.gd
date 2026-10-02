@@ -1936,6 +1936,7 @@ func apply_settings() -> void:
 	Engine.max_fps = u.fps_cap
 	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_ENABLED if u.vsync else DisplayServer.VSYNC_DISABLED)
 	get_window().content_scale_mode = Window.CONTENT_SCALE_MODE_CANVAS_ITEMS      # Texte und Rahmen werden in der neuen Größe scharf gezeichnet (nicht nur gestreckt)
+	get_window().content_scale_size = Vector2i.ZERO                              # keine feste Basisgröße: nur der Faktor der Oberflächengröße zählt (sonst wird bei großen Fenstern alles mitgestreckt)
 	get_window().content_scale_factor = u.ui_scale
 
 
