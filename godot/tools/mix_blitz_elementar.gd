@@ -5,7 +5,7 @@ extends SceneTree
 ## Aufruf: Godot --headless --path godot --script res://tools/mix_blitz_elementar.gd
 const SfxCaster := preload("res://scripts/sfx_caster.gd")
 const OUT := 44100
-const STRIKE_AT := 0.85                          # Sekunden: Einschlag passend zum Aufleuchten des Zauberkreises
+const STRIKE_AT := 0.6                           # Sekunden: Einschlag passend zum Aufleuchten des Zauberkreises
 
 
 func _init() -> void:
@@ -24,7 +24,7 @@ func _init() -> void:
 	# Einschlag: ab 1,25 s, 1,1 s lang
 	var seg: PackedFloat32Array = raw.slice(int(1.25 * OUT), int(2.35 * OUT))
 	var hp := _highpass(seg, 450.0)                # Donnergrollen weg, nur Knall und Zischen bleiben
-	var shifted := _resample(hp, 1.35)             # höher gestimmt, kürzer, weniger natürlich
+	var shifted := _lowpass(_lowpass(_resample(hp, 1.12), 5200.0), 7000.0)             # höher gestimmt, kürzer, weniger natürlich
 	var ringed := PackedFloat32Array()
 	ringed.resize(shifted.size())
 	for i in shifted.size():                        # Ringmodulation: metallisch-elektrischer Charakter
@@ -34,22 +34,22 @@ func _init() -> void:
 	strike.resize(ringed.size())
 	for i in ringed.size():
 		var env := exp(-2.4 * float(i) / ringed.size())
-		strike[i] = tanh(ringed[i] * 6.0) * env      # starke Sättigung = hart, synthetisch
+		strike[i] = tanh(ringed[i] * 3.0) * env      # starke Sättigung = hart, synthetisch
 	# synthetische Schichten
-	var charge := _up(SfxCaster._noise(rng, 0.85, 300.0, 4800.0, 0.5, 0.8, 0.5))                  # Aufladen: steigendes Rauschen
-	var hum := _up(SfxCaster._tone(1.4, 110.0, 165.0, "sawtooth", 0.7, 1.6, 0.0, 0.0, 42.0, 0.6))   # Brummen mit Zittern
+	var charge := _up(SfxCaster._noise(rng, 0.6, 250.0, 2600.0, 0.6, 0.5, 0.6))                  # Aufladen: steigendes Rauschen
+	var hum := _up(SfxCaster._tone(1.3, 100.0, 140.0, "sawtooth", 0.7, 1.6, 0.0, 0.0, 42.0, 0.6))   # Brummen mit Zittern
 	var arcs := _up(SfxCaster._crackle(rng, 1.2, 130.0, 25.0, 1.8))
-	var zap := _up(SfxCaster._noise(rng, 0.12, 6500.0, 700.0, 0.5, 0.002, 5.0))
+	var zap := _up(SfxCaster._noise(rng, 0.12, 3200.0, 600.0, 0.6, 0.002, 5.0))
 	var thump := _up(SfxCaster._boom(0.5, 115.0, 48.0, 6.0))
 	var buf := PackedFloat32Array()
-	buf.resize(int(2.3 * OUT))
-	_add(buf, charge, 0.0, 0.35)
-	_add(buf, hum, 0.0, 0.22)
-	_add(buf, arcs, STRIKE_AT - 0.1, 0.35)
+	buf.resize(int(2.0 * OUT))
+	_add(buf, charge, 0.0, 0.3)
+	_add(buf, hum, 0.0, 0.2)
+	_add(buf, arcs, STRIKE_AT - 0.05, _arc_vol())
 	_add(buf, strike, STRIKE_AT, 1.0)
 	_add(buf, thump, STRIKE_AT, 0.55)
 	for i in 3:
-		_add(buf, zap, STRIKE_AT + 0.05 + i * 0.11, 0.6)
+		_add(buf, zap, STRIKE_AT + 0.05 + i * 0.11, 0.35)
 	var peak := 0.0001
 	for s in buf:
 		peak = maxf(peak, absf(s))
@@ -64,6 +64,10 @@ func _init() -> void:
 	_save(ProjectSettings.globalize_path("res://assets/sounds/summon_lightning.wav"), buf)
 	print("geschrieben: summon_lightning.wav (%.2f s)" % (n / float(OUT)))
 	quit()
+
+
+func _arc_vol() -> float:
+	return 0.25
 
 
 func _read_mono(path: String) -> PackedFloat32Array:
