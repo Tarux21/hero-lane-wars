@@ -567,7 +567,8 @@ func _build_map() -> void:
 		for sy in slot_ys:
 			var slot_x: float = lane_xs[i] + sy * S
 			for h in 4:
-				_house(Vector3(slot_x + (h - 1.5) * 2.5, 0.0, plaza_z + 5.0))
+				if map_theme != "nachtwald":                          # im Nachtwald steht dort die Burgruine (map_nachtwald.gd)
+					_house(Vector3(slot_x + (h - 1.5) * 2.5, 0.0, plaza_z + 5.0))
 		if map_theme != "nachtwald":
 			for sx in [-1.0, 1.0]:
 				_cyl(Vector3(lane_xs[i] + sx * (half - 1.5), 0.2, plaza_z - 1.0), 1.1, 0.4, Color("#6d6558"))     # Händler-Sockel

@@ -70,6 +70,17 @@ def make_materials():
     M["steel"] = mat("Stahl", (0.55, 0.60, 0.68), rough=0.4)
     M["steel2"] = mat("StahlDunkel", (0.30, 0.33, 0.40), rough=0.45)
     M["gold"] = mat("Gold", (0.95, 0.72, 0.15), emit=(1.0, 0.7, 0.1), strength=0.7, rough=0.3)
+    M["castle"] = mat("BurgStein", (0.15, 0.14, 0.19), rough=0.95)
+    M["castle2"] = mat("BurgStein2", (0.10, 0.09, 0.13), rough=0.95)
+    M["castle3"] = mat("BurgStein3", (0.19, 0.18, 0.23), rough=0.95)
+    M["window"] = mat("FensterGlut", (0.5, 0.25, 0.8), emit=(0.65, 0.3, 1.0), strength=3.0)
+    M["vine"] = mat("Ranke", (0.10, 0.20, 0.12))
+    M["blood"] = mat("Blut", (0.22, 0.03, 0.04), rough=0.6)
+    M["feather"] = mat("Feder", (0.78, 0.76, 0.66))
+    M["horse"] = mat("Pferd", (0.28, 0.17, 0.10))
+    M["horse2"] = mat("PferdDunkel", (0.15, 0.09, 0.06))
+    M["armord"] = mat("RuestungDunkel", (0.20, 0.22, 0.28), rough=0.5)
+    M["cloth_dark"] = mat("StoffDunkel", (0.16, 0.12, 0.14))
     M["statue"] = mat("StatueStein", (0.50, 0.50, 0.57), rough=0.9)
     M["statue2"] = mat("StatueDunkel", (0.34, 0.34, 0.41), rough=0.9)
     M["eyes_g"] = mat("WaechterAugen", (0.3, 1.0, 0.3), emit=(0.3, 1.0, 0.3), strength=7.0)
@@ -961,6 +972,299 @@ def heal_circle():
     cone(1.5, 1.5, 0.08, (0, 0, 0.12), m="stone", verts=18)
 
 
+# ---------------------------------------------------------------- Burgruine und Schlachtfeld (Vorderseite = Blender +Y)
+def block_wall(rnd, w, h, d, limit, y0=0.0, crenel=True, z_base=0.0):
+    """Mauer aus Steinblöcken: limit(x) gibt die Höhe der Mauerkrone an der Stelle x (Löcher und Bresche)"""
+    rows = int(h / 0.6)
+    for r in range(rows):
+        z = z_base + r * 0.6 + 0.3
+        x = -w / 2.0
+        off = 0.0 if r % 2 == 0 else 0.45
+        x += off
+        while x < w / 2.0 - 0.1:
+            bw = rnd.uniform(0.8, 1.3)
+            if x + bw > w / 2.0:
+                bw = w / 2.0 - x
+            xc = x + bw / 2.0
+            if z_base + (r + 1) * 0.6 <= limit(xc) + 0.01 and bw > 0.2:
+                m = ["castle", "castle2", "castle3"][rnd.randrange(3)]
+                box((bw - 0.05, d + rnd.uniform(-0.06, 0.06), 0.56), (xc, y0 + rnd.uniform(-0.03, 0.03), z), (0, 0, rnd.uniform(-0.02, 0.02)), m)
+            x += bw
+    if crenel:
+        k = 0
+        x = -w / 2.0 + 0.4
+        while x < w / 2.0 - 0.3:
+            if abs(limit(x) - h) < 0.01 and k % 2 == 0:
+                box((0.55, d * 0.9, 0.5), (x, y0, z_base + h + 0.25), m="castle3")
+            x += 0.75
+            k += 1
+
+
+def vines(rnd, w, h, y, n=5):
+    for k in range(n):
+        x = rnd.uniform(-w / 2.0 + 0.3, w / 2.0 - 0.3)
+        path([(x, y, 0.1), (x + rnd.uniform(-0.3, 0.3), y, h * 0.4), (x + rnd.uniform(-0.4, 0.4), y + 0.02, h * rnd.uniform(0.55, 0.9))], 0.06, 0.02, "vine", 4)
+        for j in range(3):
+            sphere(0.07, (x + rnd.uniform(-0.1, 0.1), y + 0.05, h * (0.2 + 0.2 * j)), (1, 0.5, 1), "vine", 4, 3)
+
+
+def castle_wall(variant):
+    rnd = random.Random(300 + variant)
+    w, h, d = 6.0, 3.8, 1.2
+    if variant == 0:
+        limit = lambda x: h if abs(x + 1.6) > 0.55 else h - 0.6
+    elif variant == 1:                                                                              # Bresche
+        limit = lambda x: h - 2.4 * math.exp(-((x - 0.4) / 0.9) ** 2) - (0.6 if x > 2.0 else 0.0)
+    else:                                                                                           # niedrige Ruine
+        limit = lambda x: 1.5 + 1.5 * (0.5 + 0.5 * math.sin(x * 1.7 + 1.0))
+    block_wall(rnd, w, h, d, limit, crenel=(variant == 0))
+    vines(rnd, w, h, 0.65, 4)
+    for k in range(3):                                                                              # Schießscharten
+        x = -2.0 + k * 2.0
+        if limit(x) > 2.2:
+            box((0.18, 0.1, 0.7), (x, 0.62, 2.4), m="eye")
+    for k in range(5):
+        a = rnd.uniform(-2.6, 2.6)
+        box((rnd.uniform(0.3, 0.7), rnd.uniform(0.3, 0.6), rnd.uniform(0.2, 0.4)), (a, rnd.uniform(1.0, 1.6), 0.18), (0, 0, rnd.uniform(0, 3)), "castle2")   # Trümmer vor der Mauer
+
+
+def castle_tower():
+    rnd = random.Random(310)
+    s = 4.8
+    h = 9.0
+    def face(rot_z, off):
+        # eine Seite des Turms als Blockreihen (Seite zeigt nach +y), danach gedreht
+        pass
+    for fi in range(4):
+        a = fi * math.pi / 2
+        limits = {0: lambda x: h, 1: lambda x: h - 2.8 - 0.8 * math.sin(x * 2), 2: lambda x: h - 1.2 - 2.0 * (0.5 + 0.5 * math.sin(x * 1.3)), 3: lambda x: h - 0.2}
+        lim = limits[fi]
+        rows = int(h / 0.6)
+        for r in range(rows):
+            z = r * 0.6 + 0.3
+            x = -s / 2.0 + (0.0 if r % 2 == 0 else 0.5)
+            while x < s / 2.0 - 0.1:
+                bw = rnd.uniform(0.9, 1.4)
+                if x + bw > s / 2.0:
+                    bw = s / 2.0 - x
+                xc = x + bw / 2.0
+                if (r + 1) * 0.6 <= lim(xc) + 0.01 and bw > 0.25:
+                    ca, sa = math.cos(a), math.sin(a)
+                    px, py = xc, s / 2.0
+                    wx, wy = px * ca - py * sa, px * sa + py * ca
+                    m = ["castle", "castle2", "castle3"][rnd.randrange(3)]
+                    box((bw - 0.05, 0.9, 0.56), (wx, wy, z), (0, 0, a + rnd.uniform(-0.02, 0.02)), m)
+                x += bw
+    cone(2.1, 2.1, 9.0, (0, 0, 4.5), m="castle2", verts=4, rot=(0, 0, math.pi / 4)) if False else box((s - 0.9, s - 0.9, h - 1.2), (0, 0, (h - 1.2) / 2.0), m="castle2")
+    for fi in range(4):                                                                             # Zinnenstummel auf der heilen Seite
+        a = fi * math.pi / 2
+        for k in range(4):
+            x = -1.8 + k * 1.2
+            if fi in (0, 3):
+                ca, sa = math.cos(a), math.sin(a)
+                px, py = x, s / 2.0
+                box((0.7, 0.8, 0.5), (px * ca - py * sa, px * sa + py * ca, h + 0.25), (0, 0, a), "castle3")
+    for fi in range(4):                                                                             # Schießscharten und Fenster
+        a = fi * math.pi / 2
+        for (x, z, m, sz) in [(-0.9, 3.0, "eye", (0.2, 0.2, 0.8)), (0.9, 3.0, "eye", (0.2, 0.2, 0.8)), (0.0, 6.0, "window", (0.7, 0.2, 1.1))]:
+            ca, sa = math.cos(a), math.sin(a)
+            px, py = x, s / 2.0 + 0.4
+            box(sz, (px * ca - py * sa, px * sa + py * ca, z), (0, 0, a), m)
+    for k in range(6):                                                                              # eingestürzte Dachbalken oben
+        x = rnd.uniform(-1.4, 1.4)
+        limb((x, rnd.uniform(-1.4, 1.4), h - 3.4), (x + rnd.uniform(-1.0, 1.0), rnd.uniform(-1.4, 1.4), h - 1.2), 0.1, 0.08, "wood2", 4)
+    limb((1.6, 1.6, h - 1.0), (2.8, 2.6, h + 1.6), 0.08, 0.06, "wood", 5)                          # Fahnenstange
+    box((1.0, 0.04, 0.9), (2.4, 2.2, h + 1.0), (0.2, 0, 0.7), "cloth")
+    vines(rnd, s, h, s / 2.0 + 0.55, 7)
+    for k in range(20):                                                                             # Schutt am Fuß
+        a = rnd.uniform(0, math.tau)
+        r = rnd.uniform(3.0, 5.5)
+        sz = rnd.uniform(0.3, 0.9)
+        box((sz, sz * rnd.uniform(0.7, 1.3), sz * 0.7), (r * math.cos(a), r * math.sin(a), sz * 0.3), (rnd.uniform(-0.2, 0.2), rnd.uniform(-0.2, 0.2), a), ["castle", "castle2"][k % 2])
+
+
+def castle_gate():
+    rnd = random.Random(320)
+    w, h = 6.0, 3.8
+    for sx in (-1, 1):                                                                              # Pfeiler
+        for r in range(6):
+            box((1.3, 1.3, 0.6), (sx * 2.15 + rnd.uniform(-0.04, 0.04), 0, r * 0.6 + 0.3), (0, 0, rnd.uniform(-0.03, 0.03)), ["castle", "castle2", "castle3"][r % 3])
+    n = 9
+    for k in range(n):                                                                              # Bogen aus Keilsteinen
+        a = math.pi * (k + 0.5) / n
+        if k >= n - 2:
+            continue                                                                                # rechtes Viertel eingestürzt
+        x = 1.15 * math.cos(a)
+        z = 3.5 + 1.15 * math.sin(a)
+        box((0.5, 1.3, 0.55), (x, 0, z), (0, a - math.pi / 2, 0), ["castle", "castle3"][k % 2])
+    box((0.6, 1.3, 0.6), (-0.3, 0, 4.5), (0, 0.2, 0.1), "castle3")
+    for k in range(10):
+        a = rnd.uniform(0, math.tau)
+        r = rnd.uniform(0.8, 2.6)
+        sz = rnd.uniform(0.3, 0.8)
+        box((sz, sz, sz * 0.7), (r * math.cos(a) * 0.9, 1.0 + abs(r * math.sin(a)) * 0.6, sz * 0.3), (0.1, 0.1, a), "castle2")
+    box((0.1, 0.9, 3.0), (-1.0, 0, 1.6), (0, 0, 0), "wood")                                         # zerbrochenes Torblatt
+    box((0.1, 0.8, 1.6), (-1.0, 0.5, 0.6), (0.3, 0, 0.2), "wood2")
+    for z in (0.8, 1.8, 2.7):
+        box((0.12, 0.92, 0.1), (-1.0, 0, z), m="iron")
+    vines(rnd, w, h, 0.7, 4)
+    for sx in (-1, 1):
+        box((0.12, 0.12, 0.5), (sx * 1.6, 0.7, 1.8), m="window")                                    # Laternen am Tor (glühend)
+
+
+def siege_ram():
+    rnd = random.Random(330)
+    for sy in (-1, 1):                                                                              # Längsbalken
+        box((3.6, 0.22, 0.28), (0, sy * 0.7, 0.62), m="wood")
+    for k in range(4):                                                                              # Querbalken
+        box((0.2, 1.5, 0.2), (-1.5 + k * 1.0, 0, 0.62), m="wood2")
+    for (x, sy, ok) in [(-1.3, -1, True), (1.2, -1, True), (-1.3, 1, True), (1.3, 1, False)]:       # Räder (eines gebrochen)
+        if ok:
+            cone(0.5, 0.5, 0.14, (x, sy * 0.85, 0.5), (math.pi / 2, 0, 0), "wood2", 12)
+            cone(0.11, 0.11, 0.2, (x, sy * 0.85, 0.5), (math.pi / 2, 0, 0), "iron", 8)
+            for j in range(4):
+                a = j * math.pi / 4
+                limb((x + 0.45 * math.cos(a), sy * 0.92, 0.5 + 0.45 * math.sin(a)), (x - 0.45 * math.cos(a), sy * 0.92, 0.5 - 0.45 * math.sin(a)), 0.035, 0.035, "wood", 4)
+        else:
+            cone(0.5, 0.5, 0.14, (x, sy * 0.85, 0.2), (math.pi / 2, 0.5, 0), "wood2", 12)
+            box((0.5, 0.1, 0.1), (x + 0.5, sy * 1.1, 0.12), (0, 0, 0.5), "wood")
+    for sx in (-1, 1):                                                                              # Dachgerüst
+        for sy in (-1, 1):
+            limb((sx * 1.4, sy * 0.7, 0.7), (sx * 1.4, sy * 0.7, 2.0) if not (sx == 1 and sy == 1) else (sx * 1.1, sy * 0.9, 1.3), 0.09, 0.08, "wood", 5)
+    box((3.4, 0.7, 0.07), (-0.4, -0.6, 2.05), (0.5, 0.0, 0.0), "wood2")                              # Dachplanke eingestürzt
+    box((2.2, 0.7, 0.07), (0.9, 0.5, 1.2), (-0.7, 0.0, 0.2), "wood")
+    box((1.4, 0.6, 0.07), (1.8, -0.9, 0.2), (0.0, 0.0, 0.5), "wood2")                                # Planke am Boden
+    limb((-1.9, 0.0, 0.35), (1.6, 0.4, 0.3), 0.26, 0.26, "bark", 8)                                 # Rammbalken, abgesenkt
+    for k in range(5):
+        box((0.1, 0.06, 0.5), (-1.2 + k * 0.7, 0.2, 0.62), m="iron")                                # Eisenbänder
+    cone(0.33, 0.1, 0.5, (3.2, 1.5, 0.25), (0, 1.57, 0.3), "steel2", 6)                             # abgebrochener Eisenkopf liegt daneben
+    for k in range(6):                                                                              # Pfeile in Holz
+        x = rnd.uniform(-1.4, 1.4)
+        limb((x, rnd.choice([-0.8, 0.8]), 0.8), (x + rnd.uniform(-0.3, 0.3), rnd.choice([-1.1, 1.1]), 1.3), 0.012, 0.012, "wood2", 3)
+        box((0.04, 0.12, 0.1), (x, rnd.choice([-1.1, 1.1]), 1.3), m="feather")
+    box((0.8, 0.06, 0.8), (0.3, -1.2, 1.1), (0.2, 0, 0.1), "armord")                                 # zerbrochener Schild an der Seite
+    sphere(0.14, (0.3, -1.25, 1.1), m="iron", seg=5, rings=4)
+
+
+def horse_dead():
+    rnd = random.Random(340)
+    sphere(1.0, (0, 0, 0.62), (1.55, 0.62, 0.62), "horse", 12, 8)                                    # Rumpf, auf der Seite liegend
+    sphere(0.55, (1.35, 0.1, 0.5), (1.0, 0.8, 0.8), "horse", 8, 6)                                  # Brust
+    path([(1.4, 0.1, 0.6), (1.9, 0.5, 0.45), (2.3, 0.8, 0.25)], 0.3, 0.2, "horse", 7)               # Hals
+    sphere(0.28, (2.45, 0.85, 0.2), (1.4, 0.8, 0.8), "horse2", 8, 5)                                # Kopf
+    cone(0.18, 0.14, 0.4, (2.75, 0.95, 0.15), (0, 1.57, 0.4), "horse2", 7)                          # Maul
+    for k in range(7):                                                                              # Mähne
+        t = k / 6
+        cone(0.08, 0.0, 0.3, (1.5 + t * 0.75, 0.3 + t * 0.4, 0.7 - t * 0.35), (0, 0.5, 0), "bark", 4)
+    for (x, y, a) in [(0.7, -0.5, 0.2), (-0.7, -0.5, -0.3), (0.9, 0.55, 0.9), (-0.8, 0.5, 1.1)]:      # Beine, steif abgestreckt
+        limb((x, y * 0.5, 0.65), (x + 0.2 * math.cos(a), y * 2.2, 0.25 + 0.5 * abs(math.sin(a))), 0.13, 0.08, "horse", 6)
+        limb((x + 0.2 * math.cos(a), y * 2.2, 0.25 + 0.5 * abs(math.sin(a))), (x + 0.25 * math.cos(a) + 0.25, y * 2.6, 0.12), 0.08, 0.06, "horse2", 5)
+    path([(-1.5, 0.0, 0.6), (-1.9, -0.2, 0.4), (-2.1, 0.1, 0.1)], 0.12, 0.04, "bark", 5)            # Schwanz
+    box((0.8, 0.7, 0.1), (0.3, 0.05, 1.0), (0, 0.1, 0.1), "cloth")                                  # Satteldecke
+    box((0.5, 0.4, 0.14), (0.3, 0.05, 1.12), m="leather")                                           # Sattel
+    limb((0.3, 0.3, 1.0), (0.4, 0.55, 0.4), 0.03, 0.03, "leather", 4)                              # Steigbügel
+    box((0.14, 0.04, 0.14), (0.4, 0.55, 0.36), m="iron")
+    limb((2.3, 0.8, 0.28), (1.7, 0.6, 0.65), 0.02, 0.02, "leather", 3)                              # Zügel
+    for k in range(9):                                                                              # Pfeile im Leib
+        x = -1.0 + k * 0.45 + rnd.uniform(-0.1, 0.1)
+        y = rnd.uniform(-0.2, 0.5)
+        z0 = 0.9 + rnd.uniform(0, 0.3)
+        dx, dy, dz = rnd.uniform(-0.2, 0.2), rnd.uniform(-0.6, -0.2), rnd.uniform(0.5, 0.9)
+        limb((x, y, z0), (x + dx, y + dy, z0 + dz), 0.014, 0.014, "wood2", 3)
+        for fk in range(2):
+            box((0.03, 0.14, 0.14), (x + dx * 0.95, y + dy * 0.95 - 0.03 * fk, z0 + dz * 0.95 - 0.06 * fk), (0, 0, 0.3 * fk), "feather")
+    sphere(0.7, (0.2, 0.0, 0.03), (1.9, 1.3, 0.05), "blood", 8, 3)                                  # Blutlache
+
+
+def corpse(variant):
+    """gefallener Soldat, stilisiert; Variante 0: bäuchlings mit Pfeil, 1: auf dem Rücken mit Schild und fehlendem Bein, 2: zerrissen"""
+    rnd = random.Random(350 + variant)
+    def torso(x, y, yaw=0.0, z=0.18):
+        box((0.62, 0.95, 0.28), (x, y, z), (0, 0, yaw), "armord")
+        sphere(0.28, (x, y, z + 0.1), (1, 1.2, 0.6), "cloth_dark", 6, 4)
+    sphere(1.0, (0, 0, 0.02), (1.3 + 0.2 * variant, 1.1, 0.04), "blood", 8, 3)
+    if variant == 0:
+        torso(0, 0)
+        sphere(0.27, (0, 0.7, 0.2), (1, 1, 1), "armord", 8, 6)                                       # Helm
+        box((0.1, 0.1, 0.1), (0, 0.78, 0.2), m="eye")
+        for sx in (-1, 1):
+            limb((sx * 0.3, 0.3, 0.14), (sx * 0.9, 0.6, 0.1), 0.1, 0.08, "armord", 5)                # Arme gespreizt
+            limb((sx * 0.2, -0.45, 0.14), (sx * 0.4 + sx * 0.2, -1.2, 0.1), 0.12, 0.09, "armord", 5)  # Beine
+            box((0.14, 0.3, 0.1), (sx * 0.6, -1.3, 0.08), m="leather")
+        limb((0.1, 0.0, 0.3), (0.2, 0.1, 1.1), 0.02, 0.02, "wood2", 3)                              # Pfeil im Rücken
+        box((0.04, 0.14, 0.16), (0.2, 0.1, 1.1), m="feather")
+    elif variant == 1:
+        torso(0, 0, 0.2)
+        sphere(0.27, (-0.15, 0.75, 0.24), (1, 1, 0.9), "armord", 8, 6)
+        cone(0.45, 0.45, 0.07, (0.0, 0.05, 0.4), m="wood", verts=12)                                 # Schild auf der Brust
+        sphere(0.12, (0.0, 0.05, 0.46), (1, 1, 0.6), "iron", 6, 4)
+        limb((0.3, -0.4, 0.14), (0.6, -1.2, 0.1), 0.12, 0.09, "armord", 5)                           # ein Bein
+        limb((-0.25, -0.4, 0.14), (-0.4, -0.7, 0.1), 0.12, 0.09, "armord", 4)                        # anderes Bein: Stumpf
+        sphere(0.12, (-0.4, -0.72, 0.1), m="blood", seg=5, rings=3)
+        limb((-0.3, 0.3, 0.14), (-0.95, 0.4, 0.1), 0.1, 0.08, "armord", 5)
+        limb((0.3, 0.3, 0.14), (0.75, 0.9, 0.12), 0.1, 0.08, "armord", 5)
+        box((0.07, 0.9, 0.04), (1.0, 0.4, 0.06), (0, 0, -0.3), "steel")                              # Schwert daneben
+    else:
+        torso(-0.2, 0.0, 0.1)                                                                       # zerrissen: Rumpf, abgetrennter Arm und Bein, Helm separat
+        box((0.4, 0.5, 0.2), (0.45, 0.25, 0.12), (0, 0, 0.5), "armord")
+        limb((1.0, -0.4, 0.1), (1.7, -0.6, 0.08), 0.11, 0.09, "armord", 5)
+        limb((-1.1, 0.5, 0.1), (-1.6, 0.9, 0.08), 0.1, 0.08, "armord", 5)
+        sphere(0.27, (0.8, 0.9, 0.2), (1, 1, 1), "armord", 8, 6)
+        box((0.07, 0.5, 0.04), (-0.8, -0.8, 0.06), (0, 0, 0.9), "steel")
+        for k in range(4):
+            sphere(0.12, (rnd.uniform(-0.8, 0.9), rnd.uniform(-0.6, 0.6), 0.04), (1, 1, 0.4), "blood", 5, 3)
+
+
+def weapon_field():
+    rnd = random.Random(360)
+    for k in range(3):                                                                              # zerbrochene Schwerter im Boden
+        x, y = -0.9 + k * 0.9, rnd.uniform(-0.4, 0.4)
+        t = rnd.uniform(-0.35, 0.35)
+        box((0.09, 0.03, 0.9), (x, y, 0.4), (t, 0, rnd.uniform(-0.4, 0.4)), "steel")
+        box((0.4, 0.06, 0.06), (x - t * 0.4, y, 0.88), (t, 0, 0.0), "gold")
+        limb((x - t * 0.45, y, 0.9), (x - t * 0.6, y, 1.15), 0.035, 0.035, "leather", 4)
+        box((0.08, 0.03, 0.2), (x + 0.3 + k * 0.1, y + 0.4, 0.06), (0.1, 0, 0.9), "steel")           # abgebrochene Klinge liegt daneben
+    for k in range(2):                                                                              # Speere, Schaft gebrochen
+        x = 1.5 + k * 0.5
+        limb((x, -0.3 + 0.2 * k, 0.0), (x - 0.3, -0.35, 1.3), 0.04, 0.035, "wood", 4)
+        cone(0.06, 0.0, 0.3, (x + 0.55, 0.5, 0.06), (0, 1.57, 0.7), "steel", 4)
+    for k in range(2):                                                                              # Schilde, gesplittert
+        x, y = -1.5 + k * 3.0, 0.7 - k * 1.2
+        cone(0.45, 0.45, 0.07, (x, y, 0.5), (1.3, 0.2, rnd.uniform(0, 3)), "wood", 12)
+        cone(0.4, 0.4, 0.05, (x, y, 0.53), (1.3, 0.2, 0), "cloth" if k == 0 else "armord", 12)
+        sphere(0.1, (x, y + 0.05, 0.62), (1, 1, 0.6), "iron", 5, 4)
+        box((0.5, 0.03, 0.04), (x, y + 0.02, 0.58), (1.3, 0, 0.4), "crackd")
+    for k in range(3):
+        box((0.22, 0.08, 0.06), (rnd.uniform(-1, 1), rnd.uniform(-0.8, 0.8), 0.04), (0, 0, rnd.uniform(0, 3)), "iron")      # Splitter
+
+
+def banner_torn():
+    rnd = random.Random(370)
+    limb((0, 0, 0), (0.5, 0, 3.0), 0.07, 0.05, "wood", 5)                                          # schiefe Stange
+    limb((0.5, 0, 3.0), (0.75, 0, 3.4), 0.05, 0.0, "wood2", 4)                                      # abgebrochen
+    for k in range(5):                                                                              # Fetzen
+        w = rnd.uniform(0.18, 0.4)
+        box((w, 0.03, rnd.uniform(0.5, 1.3)), (0.62 + 0.25 * k, 0.04 * k, 2.8 - 0.35 * (k % 2)), (0, 0.1 * k, rnd.uniform(-0.2, 0.2)), "cloth")
+    box((0.5, 0.03, 0.4), (1.4, 0.3, 0.05), (0, 0, 0.5), "cloth")
+    sphere(0.12, (0.6, 0.0, 2.6), m="gold", seg=5, rings=4)
+    for k in range(4):
+        a = k * 1.6
+        sphere(0.2, (0.4 * math.cos(a), 0.4 * math.sin(a), 0.1), (1, 1, 0.6), "castle2", 5, 4)
+
+
+def bone_heap():
+    rnd = random.Random(380)
+    for k in range(10):
+        a = rnd.uniform(0, math.tau)
+        r = rnd.uniform(0.1, 0.8)
+        z = rnd.uniform(0.1, 0.5)
+        bone((r * math.cos(a) - 0.5, r * math.sin(a), z), (r * math.cos(a) + 0.5 * math.cos(a + 1), r * math.sin(a) + 0.5 * math.sin(a + 1), z + rnd.uniform(0, 0.3)), 0.06, 0.1, "bone" if k % 2 else "bonedark")
+    for k in range(3):
+        skull((rnd.uniform(-0.5, 0.5), rnd.uniform(-0.4, 0.4), 0.3 + 0.2 * k), rnd.uniform(0.7, 0.9))
+    for sx in (-1, 1):
+        path([(sx * 0.2, 0.0, 0.2), (sx * 0.55, 0.15, 0.6), (sx * 0.5, 0.45, 0.45)], 0.05, 0.03, "bone", 4)
+
+
 make_all = [("tree_dead", tree_dead), ("tree_pine", tree_pine), ("bone_pillar", bone_pillar), ("bone_arch", bone_arch),
             ("skull_pile", skull_pile), ("mushroom_glow", mushroom_glow), ("rock_dark", rock_dark), ("brazier", brazier), ("lava_rock", lava_rock),
             ("skel_sit", skel_sit), ("skel_impaled", skel_impaled), ("skel_hang", skel_hang), ("cage_skel", cage_skel), ("wagon", wagon), ("barrels", barrels),
@@ -969,7 +1273,11 @@ make_all = [("tree_dead", tree_dead), ("tree_pine", tree_pine), ("bone_pillar", 
             ("goblin_merchant", goblin_merchant), ("market_wagon", market_wagon), ("boar", boar), ("cauldron_fire", cauldron_fire), ("loot_sack", loot_sack),
             ("counter", counter), ("armor_stand", armor_stand), ("crate_stack", crate_stack),
             ("guardian_0", lambda: guardian(0)), ("guardian_1", lambda: guardian(1)), ("guardian_2", lambda: guardian(2)), ("guardian_3", lambda: guardian(3)),
-            ("heal_fountain", heal_fountain), ("heal_circle", heal_circle)]
+            ("heal_fountain", heal_fountain), ("heal_circle", heal_circle),
+            ("castle_wall_0", lambda: castle_wall(0)), ("castle_wall_1", lambda: castle_wall(1)), ("castle_wall_2", lambda: castle_wall(2)),
+            ("castle_tower", castle_tower), ("castle_gate", castle_gate), ("siege_ram", siege_ram), ("horse_dead", horse_dead),
+            ("corpse_0", lambda: corpse(0)), ("corpse_1", lambda: corpse(1)), ("corpse_2", lambda: corpse(2)),
+            ("weapon_field", weapon_field), ("banner_torn", banner_torn), ("bone_heap", bone_heap)]
 for name, fn in make_all:
     bpy.ops.wm.read_factory_settings(use_empty=True)
     make_materials()

@@ -294,6 +294,62 @@ func _burst(pos: Vector3, amount: int) -> void:
 	g.shake_near(pos, 9.0)
 
 
+## Hintere Linie: zerfallene Burg (Mauer mit Lücken, großer Turm je Team, Tor in der Mitte) und davor das Schlachtfeld der Gefallenen.
+## Das Schlachtfeld ist für beide Teams gleich (der Gegner bekommt es gespiegelt): zerstörte Ramme, totes Pferd mit Pfeilen,
+## Gefallene, zerbrochene Waffen und Schilde, zerfetzte Banner, Knochenhaufen und Schädel.
+func build_back_line(lane_xs: Array, half: float, x_min: float, x_max: float, river_x: float) -> void:
+	var z_wall := 20.5
+	var variants := [0, 1, 2, 0, 2, 1, 0, 1]
+	var xs_list: Array = []
+	var x := x_min - 12.0
+	var vi := 0
+	while x < x_max + 12.0:
+		var is_gate: bool = absf(x - river_x) < 3.0
+		var tower_x := false
+		for t in 2:
+			var first: int = t * int(g.lanes_per_team)
+			var cxt: float = (lane_xs[first] + lane_xs[first + int(g.lanes_per_team) - 1]) / 2.0
+			if absf(x - cxt) < 3.0:
+				tower_x = true
+		if is_gate:
+			_put("castle_gate", Vector3(x, 0.0, z_wall), 0.0, 1.0)
+		elif tower_x:
+			_put("castle_tower", Vector3(x, 0.0, z_wall + 0.6), 0.0, 1.0)
+		else:
+			_put("castle_wall_%d" % variants[vi % variants.size()], Vector3(x, 0.0, z_wall), 0.0, 1.0)
+			vi += 1
+		_reserve(x, z_wall, 3.6)
+		x += 6.0
+	# Schlachtfeld: Lage (u = Querposition -1..1 bezogen auf die Breite des Teams, z) je Eintrag
+	var layout := [
+		["siege_ram", -0.42, 13.5, 0.30, 2.8], ["horse_dead", 0.50, 13.0, -0.45, 2.6],
+		["corpse_0", -0.92, 12.5, 0.8, 1.2], ["corpse_2", -0.12, 14.7, 2.3, 1.4], ["corpse_1", 0.08, 12.3, 0.3, 1.2], ["corpse_0", 0.92, 14.4, 3.7, 1.2],
+		["corpse_1", -0.72, 14.9, 1.4, 1.2], ["corpse_2", 0.32, 15.0, 0.1, 1.4], ["corpse_2", 0.98, 12.6, 2.0, 1.4],
+		["weapon_field", -0.78, 12.0, 0.4, 1.8], ["weapon_field", -0.10, 13.7, 1.9, 1.8], ["weapon_field", 0.72, 14.2, 0.7, 1.8], ["weapon_field", 0.18, 12.0, 2.7, 1.8],
+		["weapon_field", 1.0, 13.6, 0.0, 1.8],
+		["banner_torn", -0.80, 15.4, 0.0, 1.0], ["banner_torn", -0.02, 15.7, 0.5, 1.0], ["banner_torn", 0.78, 15.4, -0.3, 1.0],
+		["bone_heap", -0.55, 12.3, 0.0, 1.1], ["bone_heap", 0.62, 12.2, 1.0, 1.1], ["bone_heap", -0.30, 15.2, 2.0, 1.1],
+		["skull_pile", 0.38, 13.9, 0.0, 1.2], ["skull_pile", -0.98, 14.0, 0.0, 1.2],
+	]
+	for t in 2:
+		var first: int = t * int(g.lanes_per_team)
+		var last: int = first + int(g.lanes_per_team) - 1
+		var cxt: float = (lane_xs[first] + lane_xs[last]) / 2.0
+		var hw: float = (lane_xs[last] - lane_xs[first]) / 2.0 + half
+		var sgn: float = 1.0 if t == 0 else -1.0                                      # Gegner: gespiegelt
+		var by_name: Dictionary = {}
+		var keep: Array = [0, 1, 2, 3, 4, 9, 10, 11, 14, 16, 17, 20]                     # schmale Teams (1 gegen 1): weniger Dinge, damit es nicht überfüllt wirkt
+		var li := -1
+		for e in layout:
+			li += 1
+			if hw < 12.0 and not keep.has(li):
+				continue
+			var px: float = cxt + sgn * float(e[1]) * hw * 0.92
+			var yaw: float = sgn * float(e[3]) + (0.0 if t == 0 else PI * 0.0)
+			var mi := _put(str(e[0]), Vector3(px, 0.0, 12.0 + (float(e[2]) - 11.8) * 2.0), yaw, 1.0)
+			_reserve(px, 12.0 + (float(e[2]) - 11.8) * 2.0, float(e[4]))
+
+
 ## Szenen am Wegrand: Name -> [Radius (Platzbedarf), Größe von, Größe bis]
 const SCENES := {
 	"skel_sit": [0.95, 0.9, 1.1], "skel_impaled": [0.8, 0.9, 1.1], "skel_hang": [1.5, 0.85, 1.0], "cage_skel": [1.0, 0.9, 1.1],
@@ -343,6 +399,7 @@ func decorate(wall_xs: Array, river_x: float, lane_xs: Array, half: float, x_min
 	var eyes: Array = []
 	if not g.test_mode:
 		build_camp(x_min - 3.5, -4.0)
+		build_back_line(lane_xs, half, x_min, x_max, river_x)
 
 	_reserve(lane_xs[lane_xs.size() - 1] + half + float(g.WALL) + 0.0, 4.0, 3.0)                  # Platz für den Knochenbogen an der Basis
 	_reserve(lane_xs[lane_xs.size() - 1] + half + float(g.WALL) - 2.0, 10.0, 1.5)
