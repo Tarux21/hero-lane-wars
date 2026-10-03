@@ -100,6 +100,9 @@ var lane_off_g: Array[float] = []    # Quer-Mitte jeder Lane deines Teams in Spi
 
 var cam: Camera3D
 var hud: Label
+var statues: Array = []                # Wächterstatuen der Teams (map_nachtwald.gd), Zerfall nach Team-Leben
+var obstacles: Array = []              # Hindernisse für Helden (Statue, Brunnen): Vector3(x, y, Radius) in Spielwerten
+var heal_lights: Array = []            # Lichter der Heilbrunnen (leuchten stärker, wenn geheilt wird)
 var merchant: Dictionary = {}          # Goblin-Händler an der Basis (map_nachtwald.gd): Positionen und Beschriftungen
 var map_theme := "nachtwald"            # Karte: nachtwald (giftiger Nachtwald) oder gras (alte Wiese), Test: --map=gras
 var decor                              # Dekoration der Karte (map_nachtwald.gd)
@@ -127,7 +130,8 @@ var botplay := false                  # Test: auch dein Held wird vom Bot gesteu
 var golden_eco_filter := ""
 var menu_shot := ""
 var menu_click := ""                  # Test: Menü per echten Mausklicks bedienen, z. B. --menuclick=options oder single,class_tank
-var cam_test_x := -1.0                 # Test: Kamera frei auf Lane-Position x (Spielwert), --camx=1500
+var cam_test_x := -99999.0                 # Test: Kamera frei auf Lane-Position x (Spielwert), --camx=1500
+var lives_test := -1                       # Test: Team-Leben für das Bild setzen (Statuenstufen), --lives=4
 var merchant_test := false              # Test: Klick auf den Händler per Skript
 var menu_obj
 var fxtest := ""                     # Test: Effekt einer Fähigkeit zeigen (q, w, e, rfire, rfrost, rlightning) und Bilder speichern
@@ -228,6 +232,8 @@ func _ready() -> void:
 			map_theme = a.substr(6)
 		elif a == "--merchanttest":
 			merchant_test = true
+		elif a.begins_with("--lives="):
+			lives_test = int(a.substr(8))
 		elif a.begins_with("--camx="):
 			cam_test_x = float(a.substr(7))
 		elif a.begins_with("--uiscale="):
@@ -549,8 +555,9 @@ func _build_map() -> void:
 	var plaza_r := span / 2.0 + 6.0
 	var plaza := _cyl(Vector3(mid_x, -0.02, plaza_z), plaza_r, 0.1, mc["plaza"])
 	plaza.scale = Vector3(1.0, 1.0, minf(1.0, 13.0 / plaza_r))
-	_cyl(Vector3(mid_x, 0.06, plaza_z), 4.2, 0.05, Color("#2a3a7a"), Color("#4a7aff"))                         # magischer Kreis
-	_cyl(Vector3(mid_x, 0.1, plaza_z), 2.4, 0.06, Color("#3b3f48"))
+	if map_theme != "nachtwald":
+		_cyl(Vector3(mid_x, 0.06, plaza_z), 4.2, 0.05, Color("#2a3a7a"), Color("#4a7aff"))                         # magischer Kreis
+		_cyl(Vector3(mid_x, 0.1, plaza_z), 2.4, 0.06, Color("#3b3f48"))
 	for fx in [-1.0, 1.0]:
 		var fire_x: float = mid_x + fx * (plaza_r * 0.5)
 		_cyl(Vector3(fire_x, 0.1, plaza_z - 2.0), 1.3, 0.2, Color("#4c4f55"))
@@ -561,29 +568,35 @@ func _build_map() -> void:
 			var slot_x: float = lane_xs[i] + sy * S
 			for h in 4:
 				_house(Vector3(slot_x + (h - 1.5) * 2.5, 0.0, plaza_z + 5.0))
-		for sx in [-1.0, 1.0]:
-			_cyl(Vector3(lane_xs[i] + sx * (half - 1.5), 0.2, plaza_z - 1.0), 1.1, 0.4, Color("#6d6558"))     # Händler-Sockel
+		if map_theme != "nachtwald":
+			for sx in [-1.0, 1.0]:
+				_cyl(Vector3(lane_xs[i] + sx * (half - 1.5), 0.2, plaza_z - 1.0), 1.1, 0.4, Color("#6d6558"))     # Händler-Sockel
 	# Team-Lebenspunkt: ein Kristall am Ende der Lanes. Bei 4v4 laufen beide Lanes eines Teams hier zusammen.
 	life_labels.clear()
 	for team in 2:
 		var first := team * lanes_per_team
 		var cx: float = (lane_xs[first] + lane_xs[first + lanes_per_team - 1]) / 2.0
 		var col := Color("#4fd8ff") if team == 0 else Color("#ff9a3a")
-		_cyl(Vector3(cx, 0.25, 0.8), 1.6, 0.5, Color("#6d6558"))                                  # Sockel
-		var crystal := MeshInstance3D.new()
-		var sm := SphereMesh.new()
-		sm.radius = 0.7
-		sm.height = 2.2
-		crystal.mesh = sm
-		crystal.position = Vector3(cx, 1.9, 0.8)
-		var cmat := _mat(col)
-		cmat.emission_enabled = true
-		cmat.emission = col
-		cmat.emission_energy_multiplier = 1.4
-		crystal.material_override = cmat
-		add_child(crystal)
+		if map_theme == "nachtwald":
+			if not test_mode:
+				decor.place_statue(team, cx, col)                    # Wächterstatue statt Kristall
+				decor.place_fountain(cx, 7.4)                        # Heilbrunnen dahinter
+		else:
+			_cyl(Vector3(cx, 0.25, 0.8), 1.6, 0.5, Color("#6d6558"))                                  # Sockel
+			var crystal := MeshInstance3D.new()
+			var sm := SphereMesh.new()
+			sm.radius = 0.7
+			sm.height = 2.2
+			crystal.mesh = sm
+			crystal.position = Vector3(cx, 1.9, 0.8)
+			var cmat := _mat(col)
+			cmat.emission_enabled = true
+			cmat.emission = col
+			cmat.emission_energy_multiplier = 1.4
+			crystal.material_override = cmat
+			add_child(crystal)
 		var ll := _label3d("", 44, col)
-		ll.position = Vector3(cx, 3.8, 0.8)
+		ll.position = Vector3(cx, 3.8 if map_theme != "nachtwald" else 6.0, 0.8)
 		add_child(ll)
 		life_labels.append(ll)
 	if map_theme == "nachtwald":
@@ -2262,6 +2275,13 @@ func _step_hero(p: Dictionary, dt: float) -> void:
 			p["y"] += dv.y / d * step_len
 	p["x"] = clampf(p["x"], float(cfg["minX"]), float(cfg["laneLen"]))
 	p["y"] = _clamp_y(p["x"], p["y"], old_y)
+	for ob in obstacles:                    # Statue und Brunnen: der Held läuft darum herum, nicht hindurch
+		var ov: Vector2 = Vector2(p["x"] - ob.x, p["y"] - ob.y)
+		var od: float = ov.length()
+		if od < ob.z:
+			var push: Vector2 = (ov / od if od > 0.001 else Vector2(0.0, 1.0)) * ob.z
+			p["x"] = ob.x + push.x
+			p["y"] = _clamp_y(p["x"], ob.y + push.y, old_y)
 	# Auto-Angriff: auch im Laufen, sobald ein Gegner in Reichweite ist
 	p["atk_t"] -= dt
 	var tgt: Variant = p["target"]
@@ -2716,6 +2736,7 @@ func _sync_visuals(delta: float) -> void:
 			texts.erase(f)
 	_update_fx(delta)
 	_update_merchant(delta)
+	_update_statues(delta)
 	_cam_input(delta)
 	var off := _cam_offset()
 	var want := (cam_focus if cam_free else hn.position) + off
@@ -2753,6 +2774,28 @@ func _ground_point(screen_pos: Vector2) -> Vector3:
 	if absf(d.y) < 0.0001:
 		return Vector3.ZERO
 	return o + d * (-o.y / d.y)
+
+
+## Wächterstatuen: Zerfallsstufe nach Team-Leben (0 ganz, 1 Risse und Arm fällt, 2 Kopf rollt, 3 Trümmer); Heilbrunnen leuchtet beim Heilen
+func _update_statues(delta: float) -> void:
+	for st in statues:
+		var team: int = st["team"]
+		var lives: int = team_lives[team]
+		var start := int(cfg["startLives"])
+		var stage := 0
+		if lives <= 0:
+			stage = 3
+		elif lives < int(ceil(start * 0.4)):
+			stage = 2
+		elif lives < int(ceil(start * 0.75)):
+			stage = 1
+		if lives > 100000000:
+			stage = 0                                                      # Test: unendliche Leben
+		if stage != st["stage"]:
+			decor.set_statue_stage(st, stage)
+	var healing: bool = not hero.is_empty() and _in_heal() and hero["hp"] < skills.h_max_hp(hero) - 0.5
+	for hl in heal_lights:
+		(hl as OmniLight3D).light_energy = lerpf((hl as OmniLight3D).light_energy, (3.2 if healing else 1.4) * Data.user.light_factor(), minf(1.0, delta * 5.0))
 
 
 ## Zeigt die Maus auf den Händler (Goblin oder Wagen)?
@@ -3364,9 +3407,13 @@ func _run_simulation(secs: float, shot_path: String) -> void:
 		hero["y"] = -100.0
 		_sync_visuals(0.4)
 		_sync_visuals(0.2)
-	if cam_test_x >= 0.0:
+	if lives_test >= 0:
+		team_lives[0] = lives_test
+		team_lives[1] = lives_test
+		_update_statues(0.1)
+	if cam_test_x > -99998.0:
 		cam_free = true
-		cam_focus = _wp(cam_test_x, 0.0, 0) + Vector3(-9.0, 0.0, 0.0)
+		cam_focus = _wp(cam_test_x, 0.0, 0) + Vector3(-9.0 if cam_test_x >= 0.0 else 0.0, 0.0, 0.0)
 	if shot_path != "":
 		_sync_visuals(1.0)
 		await get_tree().process_frame

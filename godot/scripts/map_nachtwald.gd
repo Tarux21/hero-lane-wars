@@ -222,6 +222,78 @@ func build_camp(cx: float, cz: float) -> void:
 	g.merchant = {"goblin": goblin_p, "wagon": wagon_p, "counter": counter_p, "armor": armor_p, "pst": pst, "tag": tag, "near": false, "pst_t": 0.0, "hover": false}
 
 
+## Wächterstatue als Basisobjekt eines Teams (4 Zerfallsstufen je nach Team-Leben, siehe game.gd _update_statues)
+func place_statue(team: int, cx: float, col: Color) -> void:
+	var pos := Vector3(cx, 0.0, 0.8)
+	var mi := _put("guardian_0", pos, PI, 1.0)                                   # blickt zur Kamera
+	if mi == null:
+		return
+	g.statues.append({"node": mi, "stage": 0, "team": team, "pos": pos})
+	g._cyl(Vector3(cx, 0.06, 0.8), 2.1, 0.03, col.darkened(0.55), col)           # Farbring: Cyan = du, Orange = Gegner
+	var l := _light(pos + Vector3(0, 2.2, 1.8), col, 1.1, 9.0)
+	l.shadow_enabled = false
+	g.obstacles.append(Vector3(-pos.z / g.S, (cx - g.lane_xs[0]) / g.S, 40.0))   # Spielkoordinaten: Held läuft um die Statue herum
+
+
+## Heilbrunnen mit Runenkreis hinter der Statue (hier heilt der Held 12 % pro Sekunde)
+func place_fountain(cx: float, z: float) -> void:
+	_put("heal_circle", Vector3(cx, 0.0, z), 0.0, 0.9)
+	_put("heal_fountain", Vector3(cx, 0.0, z), PI, 1.0)
+	var l := _light(Vector3(cx, 1.6, z), Color("#6aff7a"), 1.4, 11.0)
+	g.heal_lights.append(l)
+	_motes(Vector3(cx, 1.2, z), Vector3(2.4, 0.6, 2.4), 36, Color("#8aff8a"), 0.2, 0.9, 3.5)
+	g.obstacles.append(Vector3(-z / g.S, (cx - g.lane_xs[0]) / g.S, 30.0))
+
+
+func set_statue_stage(entry: Dictionary, stage: int) -> void:
+	var mesh := _mesh("guardian_%d" % stage)
+	if mesh == null:
+		return
+	(entry["node"] as MeshInstance3D).mesh = mesh
+	entry["stage"] = stage
+	var pos: Vector3 = entry["pos"]
+	_burst(pos + Vector3(0, 1.8, 0.4), 60 if stage < 3 else 110)
+
+
+## Staubwolke und Brocken beim Zerfall
+func _burst(pos: Vector3, amount: int) -> void:
+	var p := CPUParticles3D.new()
+	var q := QuadMesh.new()
+	q.size = Vector2(0.9, 0.9)
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	m.albedo_texture = _glow_texture()
+	m.vertex_color_use_as_albedo = true
+	q.material = m
+	p.mesh = q
+	p.amount = maxi(8, int(round(amount * Data.user.particle_factor())))
+	p.lifetime = 2.2
+	p.one_shot = true
+	p.explosiveness = 0.95
+	p.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
+	p.emission_sphere_radius = 1.2
+	p.direction = Vector3.UP
+	p.spread = 160.0
+	p.initial_velocity_min = 1.5
+	p.initial_velocity_max = 5.0
+	p.gravity = Vector3(0, -2.0, 0)
+	p.color = Color(0.55, 0.55, 0.6, 0.7)
+	var ramp := Gradient.new()
+	ramp.set_color(0, Color(1, 1, 1, 0.9))
+	ramp.set_color(1, Color(1, 1, 1, 0))
+	p.color_ramp = ramp
+	p.position = pos
+	p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	g.add_child(p)
+	p.emitting = true
+	var tw := p.create_tween()
+	tw.tween_interval(3.0)
+	tw.tween_callback(p.queue_free)
+	g.shake_near(pos, 9.0)
+
+
 ## Szenen am Wegrand: Name -> [Radius (Platzbedarf), Größe von, Größe bis]
 const SCENES := {
 	"skel_sit": [0.95, 0.9, 1.1], "skel_impaled": [0.8, 0.9, 1.1], "skel_hang": [1.5, 0.85, 1.0], "cage_skel": [1.0, 0.9, 1.1],

@@ -70,6 +70,11 @@ def make_materials():
     M["steel"] = mat("Stahl", (0.55, 0.60, 0.68), rough=0.4)
     M["steel2"] = mat("StahlDunkel", (0.30, 0.33, 0.40), rough=0.45)
     M["gold"] = mat("Gold", (0.95, 0.72, 0.15), emit=(1.0, 0.7, 0.1), strength=0.7, rough=0.3)
+    M["statue"] = mat("StatueStein", (0.50, 0.50, 0.57), rough=0.9)
+    M["statue2"] = mat("StatueDunkel", (0.34, 0.34, 0.41), rough=0.9)
+    M["eyes_g"] = mat("WaechterAugen", (0.3, 1.0, 0.3), emit=(0.3, 1.0, 0.3), strength=7.0)
+    M["eyes_dim"] = mat("WaechterAugenSchwach", (0.2, 0.5, 0.2), emit=(0.25, 0.8, 0.25), strength=1.6)
+    M["crackd"] = mat("Riss", (0.04, 0.04, 0.05), rough=1.0)
     M["canopy"] = mat("Dach", (0.18, 0.45, 0.22))
     M["canopy2"] = mat("DachStreifen", (0.12, 0.30, 0.15))
 
@@ -803,13 +808,168 @@ def crate_stack():
     box((0.5, 0.4, 0.4), (-0.1, 0.9, 0.2), (0, 0, 0.3), "wood2")
 
 
+# ---------------------------------------------------------------- Wächterstatue (Basisobjekt) in 4 Zerfallsstufen, Heilbrunnen, Heilkreis
+def rubble(rnd, n, rad, z0=0.0, size=0.35):
+    for k in range(n):
+        a = rnd.uniform(0, math.tau)
+        r = rnd.uniform(0.4, 1.0) * rad
+        s = rnd.uniform(0.6, 1.4) * size
+        box((s, s * rnd.uniform(0.7, 1.3), s * rnd.uniform(0.5, 1.0)), (r * math.cos(a), r * math.sin(a), z0 + s * 0.35), (rnd.uniform(-0.3, 0.3), rnd.uniform(-0.3, 0.3), a), "statue" if k % 3 else "statue2")
+
+
+def big_skull(x, y, z, s=2.0, eyes="eyes_g", horns=True, tilt=0.0):
+    skull((x, y, z), s, horns=horns)
+    for sx in (-1, 1):
+        sphere(0.07 * s, (x + sx * 0.12 * s, y - 0.23 * s, z + 0.02 * s), (1, 0.5, 1.1), eyes, 5, 4)
+
+
+def guardian(stage):
+    rnd = random.Random(90 + stage)
+    # Sockel (alle Stufen): drei Stufen, bei Stufe 3 gesprungen
+    cone(1.75, 1.6, 0.3, (0, 0, 0.15), m="statue2", verts=10)
+    cone(1.45, 1.3, 0.3, (0, 0, 0.45), m="statue", verts=10)
+    cone(1.15, 1.0, 0.3, (0, 0, 0.75), m="statue2", verts=10)
+    for k in range(4):                                                                              # Eck-Zacken am Sockel
+        a = k * math.pi / 2 + 0.4
+        box((0.3, 0.3, 0.5), (1.5 * math.cos(a), 1.5 * math.sin(a), 0.45), (0, 0, a), "statue")
+    if stage >= 3:
+        rubble(rnd, 14, 2.0, 0.0, 0.5)
+        rubble(rnd, 8, 1.2, 0.9, 0.45)
+        for k in range(3):
+            limb((0.3 * k - 0.3, 0.2, 0.9), (0.2 * k - 0.2, 0.6, 1.4), 0.05, 0.02, "crackd", 3)
+        big_skull(0.9, 0.9, 1.25, 1.6, "eyes_dim", False)
+        box((0.22, 0.06, 2.4), (-0.6, 0.6, 1.2), (0.0, 1.2, 0.4), "statue2")                       # umgefallenes Schwert
+        box((0.9, 0.12, 0.14), (-1.4, 0.2, 0.55), (0.0, 0.5, 0.4), "statue")
+        for k in range(5):                                                                          # Glut zwischen den Trümmern
+            a = k * 1.3
+            sphere(0.14, (0.8 * math.cos(a), 0.8 * math.sin(a), 0.95), (1, 1, 0.5), "ember", 5, 3)
+        pelvis(-0.2, 0.0, 1.1)
+        ribcage(0.3, -0.3, 1.0, 1.7, 0.4, 3, 0.3)
+        return
+    # Beine
+    z0 = 0.9
+    for sx in (-1, 1):
+        if stage == 2 and sx == 1:                                                                  # rechtes Bein abgebrochen
+            box((0.4, 0.4, 0.5), (sx * 0.38, 0.0, z0 + 0.25), m="statue")
+            rubble(rnd, 4, 0.9, z0, 0.3)
+            continue
+        box((0.4, 0.4, 0.6), (sx * 0.38, 0.1, z0 + 0.35), m="statue")                               # Fuß/Schienbein
+        box((0.5, 0.7, 0.2), (sx * 0.38, 0.25, z0 + 0.1), m="statue2")                              # Stiefel
+        box((0.38, 0.38, 0.9), (sx * 0.38, 0.05, z0 + 1.0), m="statue")                             # Oberschenkel
+        sphere(0.26, (sx * 0.38, 0.05, z0 + 0.7), m="statue2", seg=6, rings=4)                      # Knie
+    zb = z0 + 1.55
+    box((1.05, 0.55, 0.38), (0, 0.0, zb), m="statue2")                                              # Becken/Gürtel
+    box((0.3, 0.1, 0.3), (0, 0.3, zb), m="statue")
+    sphere(0.12, (0, 0.36, zb), m="gold", seg=5, rings=4)
+    zt = zb + 0.3
+    path([(0, -0.1, zt), (0, -0.15, zt + 0.5), (0, -0.1, zt + 1.0)], 0.12, 0.1, "statue2", 6)       # Wirbelsäule
+    ribs_n = 5 if stage < 2 else 4
+    for k in range(ribs_n):
+        t = (k + 0.5) / 5
+        z = zt + 0.1 + t * 0.95
+        w = 0.55 * (1.0 - abs(t - 0.4) * 0.8)
+        for sx in (-1, 1):
+            path([(0, -0.1, z), (sx * w, 0.1, z - 0.03), (sx * w * 0.8, 0.45, z - 0.12)], 0.09, 0.05, "statue", 5)
+    box((0.14, 0.12, 0.8), (0, 0.4, zt + 0.5), m="statue")                                          # Brustbein
+    for sx in (-1, 1):                                                                              # Schulterplatten
+        if stage >= 1 and sx == -1:
+            sphere(0.3, (sx * 0.75, 0, zt + 1.05), (1.0, 1.0, 0.65), "statue2", 8, 5)              # abgeplatzt
+            rubble(rnd, 3, 0.5, zt + 0.6, 0.2)
+        else:
+            sphere(0.38, (sx * 0.75, 0, zt + 1.05), (1.0, 1.0, 0.65), "statue", 8, 5)
+            for k in range(3):
+                cone(0.06, 0.0, 0.18, (sx * (0.55 + 0.2 * k), 0.0, zt + 1.35 - 0.04 * k), m="statue2", verts=4)
+    # Arme
+    for sx in (-1, 1):
+        p_sh = (sx * 0.8, 0.0, zt + 0.95)
+        p_el = (sx * 0.95, 0.35, zt + 0.35)
+        limb(p_sh, p_el, 0.17, 0.14, "statue", 6)
+        sphere(0.17, p_el, m="statue2", seg=6, rings=4)
+        if stage >= 1 and sx == -1:                                                                 # linker Unterarm weg
+            limb(p_el, (sx * 0.95, 0.5, zt + 0.15), 0.12, 0.05, "statue2", 5)
+            limb((-1.5, 1.1, 0.95), (-1.0, 1.4, 1.05), 0.12, 0.1, "statue", 5)
+            sphere(0.14, (-1.0, 1.4, 1.05), m="statue2", seg=6, rings=4)
+        elif stage == 2 and sx == 1:
+            limb(p_el, (sx * 0.9, 0.4, zt - 0.4), 0.12, 0.1, "statue", 5)                           # Arm hängt
+        else:
+            limb(p_el, (0.0, 0.85, zt + 0.15), 0.13, 0.12, "statue", 6)                             # Unterarm zur Waffe
+    # Schwert: nur bis Stufe 1 in der Hand
+    if stage <= 1:
+        box((0.24, 0.07, 2.3), (0, 0.85, 1.95), m="statue2")
+        box((1.0, 0.16, 0.15), (0, 0.85, zt + 0.2), m="statue")
+        sphere(0.14, (0, 0.85, zt + 0.46), m="gold", seg=6, rings=4)
+        cone(0.14, 0.0, 0.35, (0, 0.85, 0.95), (math.pi, 0, 0), "statue2", 4)
+    else:
+        box((0.24, 0.07, 2.3), (-1.55, 0.9, 1.4), (0.0, 0.55, 0.3), "statue2")                     # Schwert lehnt am Sockel
+        box((0.8, 0.14, 0.14), (-1.2, 0.9, 2.3), (0.0, 0.55, 0.3), "statue")
+    # Kopf
+    if stage <= 1:
+        eyes_m = "eyes_g" if stage == 0 else "eyes_dim"
+        zh = zt + 1.55
+        path([(0, -0.1, zt + 1.0), (0, 0.0, zt + 1.2)], 0.14, 0.12, "statue2", 6)                   # Hals
+        big_skull(0, 0.0, zh, 2.3, eyes_m, True)
+    else:
+        big_skull(1.25, 1.1, 1.1, 2.0, "eyes_dim", True)                                            # Kopf liegt auf dem Sockel
+    # Risse
+    if stage >= 1:
+        rnd2 = random.Random(7)
+        for k in range(7 if stage == 1 else 12):
+            x = rnd2.uniform(-0.5, 0.5)
+            z = zb + rnd2.uniform(-0.6, 1.4)
+            limb((x, 0.4, z), (x + rnd2.uniform(-0.3, 0.3), 0.42, z + rnd2.uniform(0.3, 0.7)), 0.025, 0.012, "crackd", 3)
+        rubble(rnd, 6 if stage == 1 else 12, 1.6, 0.0, 0.3)
+
+
+def heal_fountain():
+    """Heilbrunnen: Steinbecken mit leuchtendem Wasser, Knochensäule mit Schädel als Wasserspeier"""
+    cone(1.3, 1.2, 0.5, (0, 0, 0.25), m="stone", verts=10)
+    cone(1.15, 1.15, 0.05, (0, 0, 0.5), m="stone2", verts=10)
+    cone(1.0, 1.0, 0.04, (0, 0, 0.5), m="potion_g", verts=10)                                       # Wasser
+    for k in range(10):
+        a = k * math.tau / 10
+        box((0.55, 0.28, 0.3), (1.2 * math.cos(a), 1.2 * math.sin(a), 0.5), (0, 0, a), "stone2")   # Beckenrand
+    limb((0, 0, 0.5), (0, 0, 2.3), 0.22, 0.16, "bonedark", 8)                                       # Säule aus Knochen
+    for k in range(5):
+        z = 0.8 + k * 0.3
+        sphere(0.25, (0, 0, z), (1, 1, 0.6), "bone", 7, 4)
+        for sx in (-1, 1):
+            limb((sx * 0.2, 0, z), (sx * 0.6, 0.1, z - 0.15), 0.06, 0.03, "bone", 4)
+    skull((0, 0.15, 2.55), 1.1, horns=True)
+    for sx in (-1, 1):
+        sphere(0.07, (sx * 0.13, -0.15, 2.57), (1, 0.5, 1.1), "eyes_g", 5, 3)
+    for k in range(6):                                                                              # Wasserstrahlen (feste Formen)
+        a = k * math.tau / 6
+        path([(0, -0.1, 2.15), (0.5 * math.cos(a), 0.5 * math.sin(a), 1.8), (0.95 * math.cos(a), 0.95 * math.sin(a), 0.6)], 0.05, 0.03, "potion_g", 4)
+    for k in range(4):
+        a = k * math.tau / 4 + 0.8
+        limb((1.4 * math.cos(a), 1.4 * math.sin(a), 0.5), (1.4 * math.cos(a), 1.4 * math.sin(a), 1.5), 0.06, 0.02, "bonedark", 4)      # Knochenzacken
+        sphere(0.12, (1.4 * math.cos(a), 1.4 * math.sin(a), 1.55), m="potion_g", seg=6, rings=4)
+
+
+def heal_circle():
+    """flacher Runenkreis am Boden (Heilfeld)"""
+    cone(4.3, 4.3, 0.05, (0, 0, 0.025), m="stone2", verts=24)
+    cone(4.0, 4.0, 0.06, (0, 0, 0.05), m="potion_g", verts=24)
+    cone(3.7, 3.7, 0.08, (0, 0, 0.055), m="stone", verts=24)
+    for k in range(8):
+        a = k * math.tau / 8
+        box((0.8, 0.12, 0.05), (2.9 * math.cos(a), 2.9 * math.sin(a), 0.1), (0, 0, a + math.pi / 2), "potion_g")
+        box((0.25, 0.25, 0.05), (3.6 * math.cos(a + 0.2), 3.6 * math.sin(a + 0.2), 0.1), (0, 0, a), "potion_g")
+    for k in range(6):
+        a = k * math.pi / 3
+        box((3.0, 0.1, 0.04), (0, 0, 0.12), (0, 0, a), "potion_g")
+    cone(1.5, 1.5, 0.08, (0, 0, 0.12), m="stone", verts=18)
+
+
 make_all = [("tree_dead", tree_dead), ("tree_pine", tree_pine), ("bone_pillar", bone_pillar), ("bone_arch", bone_arch),
             ("skull_pile", skull_pile), ("mushroom_glow", mushroom_glow), ("rock_dark", rock_dark), ("brazier", brazier), ("lava_rock", lava_rock),
             ("skel_sit", skel_sit), ("skel_impaled", skel_impaled), ("skel_hang", skel_hang), ("cage_skel", cage_skel), ("wagon", wagon), ("barrels", barrels),
             ("tent", tent), ("campfire", campfire), ("banner", banner), ("sword_grave", sword_grave), ("totem", totem), ("stone_circle", stone_circle),
             ("torch", torch), ("eyes", eyes),
             ("goblin_merchant", goblin_merchant), ("market_wagon", market_wagon), ("boar", boar), ("cauldron_fire", cauldron_fire), ("loot_sack", loot_sack),
-            ("counter", counter), ("armor_stand", armor_stand), ("crate_stack", crate_stack)]
+            ("counter", counter), ("armor_stand", armor_stand), ("crate_stack", crate_stack),
+            ("guardian_0", lambda: guardian(0)), ("guardian_1", lambda: guardian(1)), ("guardian_2", lambda: guardian(2)), ("guardian_3", lambda: guardian(3)),
+            ("heal_fountain", heal_fountain), ("heal_circle", heal_circle)]
 for name, fn in make_all:
     bpy.ops.wm.read_factory_settings(use_empty=True)
     make_materials()
