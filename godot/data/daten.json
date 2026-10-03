@@ -7,6 +7,8 @@
   "baseX": 230,
   "spawnX": 2950,
   "leakX": 30,
+  "healX": -40,
+  "minX": -230,
   "speedMul": 1,
   "startGold": 300,
   "baseIncome": 24,

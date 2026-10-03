@@ -267,6 +267,8 @@ func think(p: Dictionary, dt: float) -> void:
 			if b["mode"] == "shop":
 				b["trips"] += 1
 				b["mode"] = "fight"
+			elif not g._in_heal(p) and p["hp"] < 0.9 * mx:
+				p["move_to"] = Vector2(float(g.cfg["healX"]) - 80.0, p["home_y"])      # zum Heilfeld hinter dem Kristall laufen
 			return
 		if p["bp"] <= 0.0:
 			p["target"] = null

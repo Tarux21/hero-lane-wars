@@ -177,6 +177,7 @@
 // ====== KONFIGURATION (hier Zahlen zum Balancen ändern) ======
 const CFG = {
   laneLen: 3000, laneHalf: 90, baseX: 230, spawnX: 2950, leakX: 30,
+  healX: -40, minX: -230,       // Heilfeld: nur hinter dem Kristall (x < healX), der Platz reicht bis minX (Basis vorn: Shop und Backport bleiben bei x < baseX)
   speedMul: 1.0,              // Lauftempo aller Monster (zum Anpassen an die Lanelänge)
   startGold: 300, baseIncome: 24, incomeTick: 10,   // Wirtschaft x3 (wegen der teureren Items)
   startLives: 20,
@@ -422,6 +423,7 @@ const hAs    = ()=>H.d.as * (1 + H.bonusAs + (buff('rage')?buff('rage').as:0) + 
 const hSpd  = ()=>H.d.spd + H.bonusSpd + (buff('rage')?buff('rage').spd:0);
 const hSp    = ()=>(H.bonusSp + (H.uniq.has('hpAp') ? H.bonusHp*CFG.hpApRatio : 0)) * (1 + (H.uniq.has('spMul') ? CFG.spMulBonus : 0));   // Zauberkrone: +30 % auf die gesamte Zauberkraft
 const inBase = ()=>H.x < CFG.baseX && !H.dead;
+const inHeal = ()=>H.x < CFG.healX && !H.dead;   // Heilung (12 % Leben pro Sekunde) nur hinter dem Kristall
 const reduce = (dmg,armor)=>dmg*(1-armor/(armor+CFG.armorK));   // Rüstung: Schadensverringerung = Rüstung/(Rüstung+armorK)
 const xpNeed = l=>CFG.xpBase + CFG.xpPer*l;
 const hpMult = ()=>1 + (G.t/60)*CFG.hpScalePerMin;
@@ -948,7 +950,7 @@ function update(dt){
     const ir = ironPassive(), st = buff('storm');
     H.dmgT += dt;
     if(H.uniq.has('lifeflow') && H.dmgT >= CFG.lifeflowDelay) H.hp = Math.min(hMaxHp(), H.hp + hMaxHp()*CFG.lifeflowPct*dt);   // Lebensquell-Harnisch
-    H.hp = Math.min(hMaxHp(), H.hp + (inBase()? hMaxHp()*0.12 : 1.5 + H.lvl*0.3)*dt + (ir&&ir.regen? hMaxHp()*ir.regen*dt : 0) + hMaxHp()*H.bonusRegen*dt);
+    H.hp = Math.min(hMaxHp(), H.hp + (inHeal()? hMaxHp()*0.12 : 1.5 + H.lvl*0.3)*dt + (ir&&ir.regen? hMaxHp()*ir.regen*dt : 0) + hMaxHp()*H.bonusRegen*dt);
     if(st){ st.tick -= dt; if(st.tick<=0){ st.tick += .25; circleHit(H.x,H.y,130,st.dmg,{},'#ff9a8a'); } }
     // Sprung
     if(H.leap){ const L = H.leap; L.t -= dt; const k = 1-Math.max(0,L.t)/L.T;
@@ -970,7 +972,7 @@ function update(dt){
         if(d < 4){ if(!H.target) H.moveTo = null; }
         else { const step = Math.min(d, hSpd()*dt); H.x += dx/d*step; H.y += dy/d*step; }
       }
-      H.x = Math.max(20, Math.min(CFG.laneLen, H.x));
+      H.x = Math.max(CFG.minX, Math.min(CFG.laneLen, H.x));
       H.y = clampY(H.y);
       // Auto-Angriff: auch im Laufen, sobald ein Gegner in Reichweite ist
       H.atkT -= dt;
@@ -1350,7 +1352,7 @@ cv.addEventListener('contextmenu', e=>{
   let hit = null, best = 1e9;
   for(const u of G.units){ if(u.lane!==0) continue; const d = Math.hypot(u.x-mouse.wx,u.y-mouse.wy); if(d<u.r+8 && d<best){best=d;hit=u;} }
   if(hit){ H.target = hit; H.moveTo = null; }
-  else { H.target = null; H.moveTo = {x:Math.max(20,mouse.wx), y:clampY(mouse.wy)}; }
+  else { H.target = null; H.moveTo = {x:Math.max(CFG.minX,mouse.wx), y:clampY(mouse.wy)}; }
 });
 addEventListener('keydown', e=>{
   const k = e.key.toLowerCase();
@@ -1555,7 +1557,7 @@ function botThink(I, O, dt){
     else if(nx>0 && !inBase() && H.bpCd<=0 && near===0 && (G.gold>=diff.shopGold*nx || (G.gold>=nx && (en.length===0 || H.hp<.6*hMaxHp())))) b.mode = 'shop';
   }
   if(b.mode==='retreat' || b.mode==='shop'){
-    if(inBase()){ if(b.mode==='shop'){ b.trips++; b.mode='fight'; } return; }
+    if(inBase()){ if(b.mode==='shop'){ b.trips++; b.mode='fight'; } else if(!inHeal() && H.hp < .9*hMaxHp()) H.moveTo = {x:CFG.healX-80, y:0}; return; }
     if(H.bp<=0){ H.target = null;
       if(H.bpCd<=0 && nearCount(260)===0) startBackport(); else H.moveTo = {x:100, y:0}; }
     return;

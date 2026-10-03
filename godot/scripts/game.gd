@@ -1337,6 +1337,12 @@ func _hp_mult() -> float:
 	return 1.0 + (t / 60.0) * float(cfg["hpScalePerMin"])
 
 
+## Heilfeld: nur hinter dem Kristall (x < healX), dort heilt der Held 12 % Leben pro Sekunde
+func _in_heal(p: Dictionary = {}) -> bool:
+	var q: Dictionary = p if not p.is_empty() else hero
+	return q["x"] < float(cfg["healX"]) and q["dead"] <= 0.0
+
+
 func _in_base(p: Dictionary = {}) -> bool:
 	var q: Dictionary = p if not p.is_empty() else hero
 	return q["x"] < float(cfg["baseX"]) and q["dead"] <= 0.0
@@ -2202,7 +2208,7 @@ func _step_hero(p: Dictionary, dt: float) -> void:
 		return
 	var mx := skills.h_max_hp(p)
 	var ir := skills.iron_passive(p)
-	var regen: float = mx * 0.12 if _in_base(p) else 1.5 + p["lvl"] * 0.3
+	var regen: float = mx * 0.12 if _in_heal(p) else 1.5 + p["lvl"] * 0.3
 	p["dmg_t"] += dt
 	if p["uniq"].has("lifeflow") and p["dmg_t"] >= float(cfg["lifeflowDelay"]):   # Lebensquell-Harnisch: Heilung, wenn lange kein Schaden
 		p["hp"] = minf(mx, p["hp"] + mx * float(cfg["lifeflowPct"]) * dt)
@@ -2254,7 +2260,7 @@ func _step_hero(p: Dictionary, dt: float) -> void:
 			var step_len := minf(d, skills.h_spd(p) * dt)
 			p["x"] += dv.x / d * step_len
 			p["y"] += dv.y / d * step_len
-	p["x"] = clampf(p["x"], 20.0, float(cfg["laneLen"]))
+	p["x"] = clampf(p["x"], float(cfg["minX"]), float(cfg["laneLen"]))
 	p["y"] = _clamp_y(p["x"], p["y"], old_y)
 	# Auto-Angriff: auch im Laufen, sobald ein Gegner in Reichweite ist
 	p["atk_t"] -= dt
@@ -2929,7 +2935,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		else:
 			hero["target"] = null
 			var ly: float = lane_half_g - 10.0
-			hero["move_to"] = Vector2(maxf(20.0, gx), clampf(gy, -ly, lane_off_g[lanes_per_team - 1] + ly))
+			hero["move_to"] = Vector2(maxf(float(cfg["minX"]), gx), clampf(gy, -ly, lane_off_g[lanes_per_team - 1] + ly))
 
 
 # ---------------------------------------------------------------- Szenario-Runner (--golden): Vergleich mit dem Prototyp
@@ -3158,6 +3164,28 @@ func _selftest() -> void:
 	set_display_mode(0, false)
 	check.call("Anzeige: Fenster-Modus wird gemerkt", display_mode == 0)
 	var tip_txt: String = ui._skill_tip(0, skills.skill_def(hero, 0), 0, 5, 1)
+	# Heilfeld: nur hinter dem Kristall (nicht mehr vor dem Kristall in der Basis)
+	var hs_x: float = hero["x"]
+	var hs_y: float = hero["y"]
+	var hs_hp: float = hero["hp"]
+	var hs_mx: float = skills.h_max_hp(hero)
+	hero["move_to"] = null
+	hero["target"] = null
+	hero["x"] = 100.0
+	hero["y"] = 0.0
+	hero["hp"] = hs_mx * 0.3
+	_step_hero(hero, 1.0)
+	var hp_front: float = hero["hp"]
+	var front_ok: bool = _in_base() and not _in_heal()
+	hero["x"] = -100.0
+	hero["hp"] = hs_mx * 0.3
+	_step_hero(hero, 1.0)
+	var hp_back: float = hero["hp"]
+	check.call("Heilfeld: vor dem Kristall (Basis) keine Schnellheilung, Shop aber offen", front_ok and hp_front < hs_mx * 0.35)
+	check.call("Heilfeld: hinter dem Kristall 12 %% Leben pro Sekunde (%.0f -> %.0f)" % [hs_mx * 0.3, hp_back], hp_back > hs_mx * 0.3 + hs_mx * 0.1 and _in_base() and _in_heal())
+	hero["x"] = hs_x
+	hero["y"] = hs_y
+	hero["hp"] = hs_hp
 	# Optionen: Tastenbelegung
 	var uk = Data.user
 	var old_q: int = uk.keys["q"]
