@@ -322,7 +322,7 @@ func build_back_line(lane_xs: Array, half: float, x_min: float, x_max: float, ri
 		x += 6.0
 	# Schlachtfeld: Lage (u = Querposition -1..1 bezogen auf die Breite des Teams, z) je Eintrag
 	var layout := [
-		["siege_ram", -0.42, 13.5, 0.30, 2.8], ["horse_dead", 0.50, 13.0, -0.45, 2.6],
+		["siege_ram", -0.42, 13.5, 0.30, 4.2, 1.5], ["horse_dead", 0.50, 13.0, -0.45, 2.6],
 		["corpse_0", -0.92, 12.5, 0.8, 1.2], ["corpse_2", -0.12, 14.7, 2.3, 1.4], ["corpse_1", 0.08, 12.3, 0.3, 1.2], ["corpse_0", 0.92, 14.4, 3.7, 1.2],
 		["corpse_1", -0.72, 14.9, 1.4, 1.2], ["corpse_2", 0.32, 15.0, 0.1, 1.4], ["corpse_2", 0.98, 12.6, 2.0, 1.4],
 		["weapon_field", -0.78, 12.0, 0.4, 1.8], ["weapon_field", -0.10, 13.7, 1.9, 1.8], ["weapon_field", 0.72, 14.2, 0.7, 1.8], ["weapon_field", 0.18, 12.0, 2.7, 1.8],
@@ -335,18 +335,13 @@ func build_back_line(lane_xs: Array, half: float, x_min: float, x_max: float, ri
 		var first: int = t * int(g.lanes_per_team)
 		var last: int = first + int(g.lanes_per_team) - 1
 		var cxt: float = (lane_xs[first] + lane_xs[last]) / 2.0
-		var hw: float = (lane_xs[last] - lane_xs[first]) / 2.0 + half
+		var hw: float = maxf((lane_xs[last] - lane_xs[first]) / 2.0 + half, 15.0)                  # auch bei 1 gegen 1 über die ganze Breite des Platzes verteilen
 		var sgn: float = 1.0 if t == 0 else -1.0                                      # Gegner: gespiegelt
 		var by_name: Dictionary = {}
-		var keep: Array = [0, 1, 2, 3, 4, 9, 10, 11, 14, 16, 17, 20]                     # schmale Teams (1 gegen 1): weniger Dinge, damit es nicht überfüllt wirkt
-		var li := -1
 		for e in layout:
-			li += 1
-			if hw < 12.0 and not keep.has(li):
-				continue
-			var px: float = cxt + sgn * float(e[1]) * hw * 0.92
+			var px: float = cxt + sgn * float(e[1]) * hw * 0.95
 			var yaw: float = sgn * float(e[3]) + (0.0 if t == 0 else PI * 0.0)
-			var mi := _put(str(e[0]), Vector3(px, 0.0, 12.0 + (float(e[2]) - 11.8) * 2.0), yaw, 1.0)
+			var mi := _put(str(e[0]), Vector3(px, 0.0, 12.0 + (float(e[2]) - 11.8) * 2.0), yaw, float(e[5]) if e.size() > 5 else 1.0)
 			_reserve(px, 12.0 + (float(e[2]) - 11.8) * 2.0, float(e[4]))
 
 
