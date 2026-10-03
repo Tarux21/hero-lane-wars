@@ -36,7 +36,7 @@ Skills, Zonen, Timer, Elementare, Statuseffekte, Tod/Respawn und Level/XP stimme
 - **Cooldown-Zeitpunkt**: nur bei erfolgreichem Cast (`res != false`), `cd * (1 − cdr)`; kein Cast bei Tod/Spielende; keine Zauberzeit im Prototyp (Godot ebenfalls keine).
 - **Tod/Respawn**: `dead = 5 + 2*lvl`, Buffs gelöscht, Sprung abgebrochen (Landung entfällt), Timer/Zonen/Elementare bleiben, Heilung des Schildwurfs entfällt bei totem Held; Respawn `hp = max`, Position (120, y).
 - **Backport-Unterbrechung**: Schaden (`bp = 0` in `_damage_hero`, auch bei Tod) und Sprung (`cancel_backport`) brechen ab; während `bp > 0` kein Laufen/Angreifen (gleich). Nur A1 fehlt.
-- **XP/Level/Skillpunkte**: `xpBase + xpPer*lvl`, `sp += 1`, `hp += hpl`, Maximum Level 15, Freischaltlevel `[1,2,3,10]`, Rang-Maxima gleich.
+- **XP/Level/Skillpunkte**: `xpBase + xpPer*lvl`, `sp += 1`, `hp += hpl`, Maximum Level 15, Freischaltlevel `[1,1,1,6]` (früher `[1,2,3,10]`), Rang-Maxima gleich.
 - **Eiserne Haut**: `IRON`-Tabelle, Reflexion vom ungekürzten Schaden mit Rüstung des Angreifers, Regeneration, Grund-Reflexion 0,15 bei Rang 0, Rüstung ersetzt nicht addiert zur Grund-Rüstung (gleich).
 - **Schildwurf bei toten Zielen**: `_hop` sucht das nächste ungetroffene Ziel unbegrenzt weit; Rückkehr/Heilung wie im Prototyp.
 - **Elementar als Ziel**: Monster greifen den Elementar an, wenn der Held nicht in Reichweite ist (`range + 18`, Schaden `reduce(dmg, 10)`); Elementar verschwindet bei `hp <= 0` oder `t <= 0`; ein Elementar gleichzeitig.

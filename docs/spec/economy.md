@@ -67,7 +67,7 @@ Der Bot besitzt je Klasse einen Plan (Liste von Item-IDs in Kaufreihenfolge); be
 `BOT_CLASS.items` (Zeile 1409–1411) wird **nicht benutzt** und enthält ein nicht existierendes Item `'boots'`; nur `BOT_CLASS.bias` wird gelesen.
 
 ### 6.3 Skills lernen (`botLearn`, Zeile 1485)
-Solange `H.sp > 0`: wähle unter den freigeschalteten, nicht vollen Skills den mit dem kleinsten `Rang + bias[i]` (`bias` Tank/Damage `[0,1,1,−10]`, Caster `[0,1,.5,−10]`; der Ultimate hat −10, wird also sofort ab Level 10 gewählt). Ergebnis je Level in `bot.learn`.
+Solange `H.sp > 0`: wähle unter den freigeschalteten, nicht vollen Skills den mit dem kleinsten `Rang + bias[i]` (`bias` Tank/Damage `[0,1,1,−10]`, Caster `[0,1,.5,−10]`; der Ultimate hat −10, wird also sofort ab Level 6 gewählt). Ergebnis je Level in `bot.learn`.
 
 ### 6.4 Senden (`botSend`, Zeile 1520)
 1. Abbruch, wenn `G.t < 35` oder `G.t − lastSend < diff.sendEvery * style.every`.

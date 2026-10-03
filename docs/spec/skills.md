@@ -25,7 +25,7 @@ Ableitungen (Zeile 416–426), Level `L` = 1..15 (`maxLevel 15`):
 - `hSpd = spd + bonusSpd + rage.spd`.
 - `hSp = (bonusSp + (hpAp ? bonusHp*0.12 : 0)) * (1 + (spMul ? 0.30 : 0))`. Die Helden haben **keine** Basis-Zauberkraft.
 - Rüstung wirkt als `dmg * (1 − armor/(armor+150))` (`reduce`, `armorK 150`).
-- Skillpunkte: Start `sp = 1`, +1 je Levelaufstieg (insgesamt 15 bis Level 15). Lernen (`learn`, Zeile 813): nur wenn `sp >= 1`, `rank < max` und `Level >= unlock[i]` mit `unlock = [1, 2, 3, 10]` für Q, W, E, R. Max. Ränge: Q/W/E je 5, R 1.
+- Skillpunkte: Start `sp = 1`, +1 je Levelaufstieg (insgesamt 15 bis Level 15). Lernen (`learn`, Zeile 813): nur wenn `sp >= 1`, `rank < max` und `Level >= unlock[i]` mit `unlock = [1, 1, 1, 6]` für Q, W, E, R (seit 2026-10-03: Q, W, E von Anfang an, nur R ab Level 6). Max. Ränge: Q/W/E je 5, R 1.
 - Abklingzeit eines Skills nach erfolgreichem Cast: `cd * (1 − H.cdr)` (`cdr` höchstens 0.40). Alle `cds` zählen jeden Frame um `dt` herunter (Zeile 942).
 
 ### 1.2 Skillschaden `dmgOf(base, per, r, sc, k)` (Zeile 601)
@@ -125,7 +125,7 @@ Skills werden von der Eingabe **zwischen** zwei `update`-Aufrufen gewirkt (Taste
 
 ### 2.4 R – Titanenstoß (Zeile 739–740)
 
-- Cooldown 50 s, max. Rang 1, ab Level 10. **Kegel nach vorn in Richtung Mauszeiger** (seit Oktober 2026, Entscheidung des Projektmanagers; vorher Kreis, Radius 190): `coneHit(H.x, H.y, m.ang, CFG.tankRRange, CFG.tankRHalf, dmgOf(200, 0, 1, 0, 1), {stun: 3, knock: 120})` mit `tankRRange = 310`, `tankRHalf = 0.68` rad. Schaden `(200 + hDmg) * power * mul * amp * early`; Betäubung 3 s (Boss: 0.9 s), Rückstoß 120. Immer erfolgreich.
+- Cooldown 50 s, max. Rang 1, ab Level 6. **Kegel nach vorn in Richtung Mauszeiger** (seit Oktober 2026, Entscheidung des Projektmanagers; vorher Kreis, Radius 190): `coneHit(H.x, H.y, m.ang, CFG.tankRRange, CFG.tankRHalf, dmgOf(200, 0, 1, 0, 1), {stun: 3, knock: 120})` mit `tankRRange = 310`, `tankRHalf = 0.68` rad. Schaden `(200 + hDmg) * power * mul * amp * early`; Betäubung 3 s (Boss: 0.9 s), Rückstoß 120. Immer erfolgreich.
 
 ## 3. Damage (`SK.damage`, Zeile 742–773)
 
@@ -151,7 +151,7 @@ Skills werden von der Eingabe **zwischen** zwei `update`-Aufrufen gewirkt (Taste
 
 ### 3.4 R – Dolchhagel (früher Schwertregen; Zeile 762–772)
 
-- Cooldown 50 s, max. Rang 1, ab Level 10. **Zufällige Ziele**: alle Gegner mit Abstand `<= 650` zum Helden werden mit `sort(()=>Math.random()−.5)` gemischt, die ersten 5 genommen. Keine Ziele → „Keine Ziele!“, Rückgabe **false**. (In den Golden Values ist `Math.random` fest 0.5, die Auswahl ist dann die ersten 5 in Listenreihenfolge.)
+- Cooldown 50 s, max. Rang 1, ab Level 6. **Zufällige Ziele**: alle Gegner mit Abstand `<= 650` zum Helden werden mit `sort(()=>Math.random()−.5)` gemischt, die ersten 5 genommen. Keine Ziele → „Keine Ziele!“, Rückgabe **false**. (In den Golden Values ist `Math.random` fest 0.5, die Auswahl ist dann die ersten 5 in Listenreihenfolge.)
 - `dmg = dmgOf(60, 0, 1, 0, 0.8)`, `fdmg = dmgOf(18, 0, 1, 0, 0.3)`. Für das i-te Ziel (i = 0…4) mit der **beim Cast gemerkten Position (x,y)** nach `0.3 + 0.25*i` s: `circleHit(x, y, 60, dmg)` und Zone `{x, y, r:70, t:8, every:1, dmg:fdmg}`. Die Zone wird im Timer-Schritt erzeugt und tickt im selben Frame (Timer laufen vor den Zonen).
 
 ## 4. Caster (`SK.caster`, Zeile 774–796)
@@ -177,7 +177,7 @@ Skills werden von der Eingabe **zwischen** zwei `update`-Aufrufen gewirkt (Taste
 
 ### 4.4 R – Elementar (Zeile 790–795, 664–703)
 
-- Cooldown 90 s, max. Rang 1, ab Level 10. Kein Zielpunkt: erscheint bei `(H.x + 35, H.y)`. Hat der Held seit dem Spielstart keinen der Skills Q/W/E erfolgreich benutzt (`lastElem` leer) → Text „Erst Q, W oder E benutzen!“, Rückgabe **false**.
+- Cooldown 90 s, max. Rang 1, ab Level 6. Kein Zielpunkt: erscheint bei `(H.x + 35, H.y)`. Hat der Held seit dem Spielstart keinen der Skills Q/W/E erfolgreich benutzt (`lastElem` leer) → Text „Erst Q, W oder E benutzen!“, Rückgabe **false**.
 - Typ = zuletzt benutzter Skill Q/W/E (`fire`, `frost`, `lightning`). `G.elems = [neuer Elementar]` (es gibt **höchstens einen**, ein neuer ersetzt den alten). Wert: `{hp: 700, max: 700 (elemHp), t: 60 (elemTime), atkT: 1, abT: 2, eRank: max(1, Rang von E), sp: hSp() zum Beschwörzeitpunkt}`. `lastElem` wird beim Tod nicht gelöscht.
 - Der Elementar bewegt sich nicht. Er wird von Gegnern angegriffen, die den Helden **nicht** in Reichweite haben und ihn in `range + 18` erreichen: Schaden `reduce(u.dmg, 10)` (Rüstung 10). Er verschwindet bei `hp <= 0` oder `t <= 0`; Lebensdauer zählt pro Frame `t −= dt`.
 - **Normaler Angriff**: `atkT −= dt`; bei `<= 0`: nächster Gegner im Abstand `< 170` → `hitUnit(t, 8 + 0.15*sp)` (Rüstung wirkt, kein Zauberraub), `atkT = 1.2`; kein Ziel → `atkT = 0.3`.
