@@ -7,6 +7,10 @@ render_mode blend_mix, cull_disabled, depth_draw_never;
 uniform float center_x = 0.0;                   // Mitte der Lane (Welt-x)
 uniform float half_w = 5.4;                     // halbe Lane-Breite in Metern
 uniform float s_end = 147.5;                    // Entfernung der Startlinie der Monster von der Basis (m)
+uniform float court_x = 0.0;                    // Platz an der Basis: Mitte (Statue des Teams)
+uniform float court_z0 = 0.8;                   // Statue (Welt-z)
+uniform float court_z1 = 7.4;                   // Heilbrunnen (Welt-z)
+uniform float court_r = 4.2;                    // Radius des Platzes um Statue und Brunnen
 uniform vec3 slab_col : source_color = vec3(0.42, 0.40, 0.36);
 uniform vec3 moss_col : source_color = vec3(0.13, 0.30, 0.13);
 uniform vec3 dirt_col : source_color = vec3(0.19, 0.16, 0.12);
@@ -54,6 +58,14 @@ void fragment() {
 	float n2 = fbm(p * 1.10 + 5.0);
 	float edge = half_w - 0.5 + (n1 - 0.5) * 2.8 + (n2 - 0.5) * 0.8;      // unregelmäßiger Rand
 	float d = abs(dx) - edge;                              // < 0: innen
+	d = max(d, (-s - 1.0) * 0.8);                        // hinter der Statue endet der Weg ...
+	vec2 ca = vec2(court_x, court_z0);                     // ... und geht in den Platz um Statue und Brunnen über (Kapsel mit welligem Rand)
+	vec2 cb = vec2(court_x, court_z1);
+	vec2 pa = p - ca;
+	vec2 ba = cb - ca;
+	float hk = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
+	float dc = length(pa - ba * hk) - (court_r + (n1 - 0.5) * 2.2 + (n2 - 0.5) * 0.7);
+	d = min(d, dc);
 
 	// Ende: Pflaster löst sich zur Startlinie hin auf (unregelmäßig), Erde und Wurzeln laufen weiter
 	float fade_s = s_end - 11.0 + (n1 - 0.5) * 8.0 + (n2 - 0.5) * 2.5;

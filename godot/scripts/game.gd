@@ -391,7 +391,7 @@ func _start_game() -> void:
 func _setup_sides() -> void:
 	sides.clear()
 	for i in 2:
-		sides.append({"idx": i, "units": [], "players": [], "wave": 0, "wave_t": float(cfg["firstWave"]), "boss_spawned": false, "leak": {}})
+		sides.append({"idx": i, "units": [], "players": [], "wave": 0, "wave_t": float(cfg["firstWave"]), "boss_spawned": false, "leak": {}, "pool": []})
 	units = sides[0]["units"]
 
 
@@ -532,14 +532,16 @@ func _build_map() -> void:
 	var z_far := -lane_len - 10.0
 	var z_mid := (z_far + 14.0) / 2.0
 	var z_len := 14.0 - z_far
-	_box(Vector3(mid_x, -0.5, z_mid), Vector3(span + 120.0, 1.0, z_len + 30.0), mc["ground"])            # Boden (Gras bzw. dunkle Erde)
+	var ground_box := _box(Vector3(mid_x, -0.5, z_mid), Vector3(span + 120.0, 1.0, z_len + 30.0), mc["ground"])            # Boden (Gras bzw. dunkle Erde)
+	if map_theme == "nachtwald" and not test_mode:
+		decor.forest_floor(ground_box)                                   # Waldboden mit Erde, Laub, Moos (Shader)
 	var wall_list: Array = []
 	for i in n:
 		var cx: float = lane_xs[i]
 		var k := i % lanes_per_team
 		if map_theme == "nachtwald":
 			if not test_mode:
-				decor.build_lane_ground(cx, half)
+				decor.build_lane_ground(cx, half, (lane_xs[(i / lanes_per_team) * lanes_per_team] + lane_xs[(i / lanes_per_team) * lanes_per_team + lanes_per_team - 1]) / 2.0)
 		else:
 			_box(Vector3(cx, -0.04, z_mid + 4.0), Vector3(half * 2.0, 0.1, z_len - 8.0), mc["lane"])       # Lane (Weg)
 			_box(Vector3(cx, 0.02, z_mid + 4.0), Vector3(half * 0.5, 0.06, z_len - 8.0), mc["strip"])       # Pflasterstreifen in der Mitte
@@ -566,12 +568,13 @@ func _build_map() -> void:
 	# Platz am unteren Ende (Basis): Pflaster, magischer Kreis, Feuerstellen
 	var plaza_z := 7.0
 	var plaza_r := span / 2.0 + 6.0
-	var plaza := _cyl(Vector3(mid_x, -0.02, plaza_z), plaza_r, 0.1, mc["plaza"])
-	plaza.scale = Vector3(1.0, 1.0, minf(1.0, 13.0 / plaza_r))
+	if map_theme != "nachtwald":                                       # im Nachtwald: Pflasterplatz um Statue und Brunnen (nachtwald_lane.gdshader)
+		var plaza := _cyl(Vector3(mid_x, -0.02, plaza_z), plaza_r, 0.1, mc["plaza"])
+		plaza.scale = Vector3(1.0, 1.0, minf(1.0, 13.0 / plaza_r))
 	if map_theme != "nachtwald":
 		_cyl(Vector3(mid_x, 0.06, plaza_z), 4.2, 0.05, Color("#2a3a7a"), Color("#4a7aff"))                         # magischer Kreis
 		_cyl(Vector3(mid_x, 0.1, plaza_z), 2.4, 0.06, Color("#3b3f48"))
-	for fx in [-1.0, 1.0]:
+	for fx in ([] if map_theme == "nachtwald" else [-1.0, 1.0]):        # Feuerstellen nur in der Graskarte
 		var fire_x: float = mid_x + fx * (plaza_r * 0.5)
 		_cyl(Vector3(fire_x, 0.1, plaza_z - 2.0), 1.3, 0.2, Color("#4c4f55"))
 		_cyl(Vector3(fire_x, 0.5, plaza_z - 2.0), 0.5, 0.8, Color("#ff7a2a"), Color("#ff5a10"))               # Feuer
@@ -1038,6 +1041,8 @@ func _build_hud() -> void:
 	layer.add_child(mini)
 
 
+var send_head: Label                     # Überschrift der Senden-Leiste (zeigt den Pool)
+
 func send(p: Dictionary, type: String) -> bool:
 	var ud: Dictionary = Data.units[type]
 	if over or ud.get("noSend", false) or p["gold"] < float(ud["cost"]):
@@ -1048,12 +1053,14 @@ func send(p: Dictionary, type: String) -> bool:
 	if p == hero:
 		sfx("send")
 	var es: int = 1 - int(p["side"]["idx"])
-	for lane in lanes_per_team:                                         # das Monster erscheint auf allen Lanes des Gegner-Teams
-		_spawn_unit(type, 0.0, 1.0, lane, es, int(p["side"]["idx"]))
+	sides[es]["pool"].append({"type": type, "from": int(p["side"]["idx"])})   # Pool des Gegner-Teams: kommt gesammelt mit dessen nächster Welle (auf allen Lanes)
 	return true
 
 
 func _update_send() -> void:
+	if send_head != null:                                            # Pool: was dein Team gesendet hat, kommt mit der nächsten Gegner-Welle
+		var pn: int = (sides[1 - int(hero["side"]["idx"])]["pool"] as Array).size()
+		send_head.text = "Monster senden" + ("   Pool: %d" % pn if pn > 0 else "")
 	for e in send_btns:
 		var ud: Dictionary = Data.units[e["type"]]
 		e["btn"].disabled = hero["gold"] < float(ud["cost"]) or over
@@ -1073,6 +1080,7 @@ func _build_send_panel(layer: CanvasLayer) -> void:
 	frame.add_child(box)
 	var head := Label.new()
 	head.text = "Monster senden"
+	send_head = head
 	head.add_theme_color_override("font_color", Color("#ffd166"))
 	head.add_theme_font_size_override("font_size", 14)
 	box.add_child(head)
@@ -1084,7 +1092,7 @@ func _build_send_panel(layer: CanvasLayer) -> void:
 		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		b.focus_mode = Control.FOCUS_NONE
 		b.text = "%s  %s  %d g  (+%s)" % [keys[type], str(ud["name"]), int(ud["cost"]), str(ud["inc"])]
-		b.tooltip_text = "%s\nKosten %d Gold, Einkommen +%s pro %d s\nLeben %d, Schaden %d, Rüstung %d\nKommt auf allen Lanes des Gegner-Teams an.\nDer Gegner bekommt XP und Gold, wenn er es besiegt." % [
+		b.tooltip_text = "%s\nKosten %d Gold, Einkommen +%s pro %d s\nLeben %d, Schaden %d, Rüstung %d\nKommt in den Pool und läuft mit der nächsten Welle des Gegner-Teams los (auf allen Lanes).\nDer Gegner bekommt XP und Gold, wenn er es besiegt." % [
 			str(ud["name"]), int(ud["cost"]), str(ud["inc"]), int(cfg["incomeTick"]), int(ud["hp"]), int(ud["dmg"]), int(ud["armor"])]
 		var tp: String = type
 		b.pressed.connect(func(): send(hero, tp))
@@ -1777,6 +1785,10 @@ func _spawn_wave(side: Dictionary) -> void:
 				_spawn_unit("elite", base_off + count * 4.0 + 30.0 + k * 40.0, float(cfg["waveSpeedMul"]), lane, si)
 		if n == int(cfg["bossWave"]) and not boss_due_done:                     # ein Boss je Lane (einmalig pro Spiel)
 			_spawn_unit("boss", base_off + count * 4.0 + 160.0, float(cfg["waveSpeedMul"]), lane, si)
+		var pool: Array = side["pool"]
+		for j in pool.size():                                              # Pool: alle gesendeten Monster laufen gesammelt mit der Welle los
+			_spawn_unit(str(pool[j]["type"]), base_off + count * 4.0 + 60.0 + j * 6.0, 1.0, lane, si, int(pool[j]["from"]))
+	side["pool"] = []
 	if n == int(cfg["bossWave"]):
 		side["boss_spawned"] = true
 	if si == 0:
@@ -3306,6 +3318,28 @@ func _selftest() -> void:
 		if units.is_empty():
 			break
 	check.call("Monster aus Lane 2 erreichen den Kristall in der Mitte (y=%.0f, Mitte=%.0f)" % [gr["y"], team_mid_y], units.is_empty() or absf(gr["y"] - team_mid_y) < absf(lane_off_g[1] - team_mid_y))
+	# 8. Gesendete Monster sammeln sich im Pool und kommen erst mit der nächsten Welle des Gegners
+	var es: Dictionary = sides[1]
+	es["units"].clear()
+	es["pool"] = []
+	hero["gold"] = 1000.0
+	send(hero, "grunt")
+	send(hero, "tank")
+	check.call("Senden: 2 Monster im Pool, noch keins auf der Lane (Pool %d, Einheiten %d)" % [es["pool"].size(), es["units"].size()], es["pool"].size() == 2 and es["units"].is_empty())
+	var wave_n := int(round(float(cfg["waveBase"]) + float(cfg["wavePer"]) * (int(es["wave"]) + 1)))
+	_spawn_wave(es)
+	var sent_n := 0
+	for u in es["units"]:
+		if int(u["from_side"]) == 0:
+			sent_n += 1
+	check.call("Nächste Welle nimmt den Pool mit (gesendet auf der Lane %d, Pool danach %d)" % [sent_n, es["pool"].size()], sent_n == 2 * lanes_per_team and es["pool"].is_empty() and es["units"].size() >= (wave_n + 2) * lanes_per_team)
+	# 9. Held kommt nicht hinter den Spawn
+	hero["dead"] = 0.0
+	hero["x"] = float(cfg["laneLen"])
+	hero["move_to"] = null
+	hero["target"] = null
+	_step_hero(hero, 0.05)
+	check.call("Held bleibt vor dem Spawn (x %.0f, Grenze %.0f)" % [hero["x"], float(cfg["maxX"])], float(hero["x"]) <= float(cfg["maxX"]))
 	print("SELFTEST " + ("OK" if ok else "FEHLER"))
 	get_tree().quit()
 

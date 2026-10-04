@@ -382,7 +382,7 @@ function makeState(heroKey){
   const d = HEROES[heroKey];
   return {
     G: {zones:[], elems:[], timers:[], wave:0, waveT:CFG.firstWave, t:0, gold:CFG.startGold, income:CFG.baseIncome, lives:CFG.startLives, goldMul:1,
-        units:[], fx:[], incomeT:0, over:false, bossIncome:0, bossSpawned:false, stats:{kills:0, gold:0, sent:{}}},
+        units:[], fx:[], incomeT:0, over:false, bossIncome:0, bossSpawned:false, sendPool:[], stats:{kills:0, gold:0, sent:{}}},
     H: {key:heroKey, d, x:120, y:0, lvl:1, xp:0, hp:d.hp, dead:0, moveTo:null, target:null, atkT:0,
         sp:1, ranks:[0,0,0,0], cds:[0,0,0,0], buffs:{}, mul:1, deaths:0,
         bp:0, bpCd:0, bonusDmg:0, bonusArmor:0, bonusHp:0, bonusAs:0, bonusSp:0, bonusSpd:0, bag:[], cons:{potion:0}, potCd:0, critCh:0, uniq:new Set(), cdr:0, bonusRegen:0, comboT:0, ampNow:false, lifesteal:0, dmgT:99, spellVamp:0, dr:0, goldPS:0, bpRed:0, bpMax:0},
@@ -459,6 +459,8 @@ function spawnWave(){
   if(G.bossIncome){ G.gold += G.bossIncome; G.stats.gold += G.bossIncome; }   // Boss-Einkommen: dauerhaft pro Welle für den Killer
   const isBoss = n === CFG.bossWave && !G.bossSpawned;                        // Bosswelle: einmalig, Boss kommt mit der normalen Welle
   if(isBoss){ G.bossSpawned = true; spawn('boss', 0, (from-CFG.spawnX)+list.length*4+160, CFG.waveSpeedMul); }
+  G.sendPool.forEach((t,i)=>spawn(t, 0, (from-CFG.spawnX)+list.length*4+60+i*6, 1));   // Pool: alle gesendeten Monster kommen gesammelt mit der Welle
+  G.sendPool = [];
   if(isMainG()){
     showWave(n, isElite, isBoss); sfx(isBoss ? 'boss' : 'wave');
     if(isBoss) uiAlert('BOSSWELLE! Ein Boss kommt mit der Welle. Wer ihn besiegt, bekommt dauerhaft +'+CFG.bossIncome+' Gold pro Welle', 'danger', 7000);
@@ -466,8 +468,8 @@ function spawnWave(){
   }
 }
 function showWave(n, elite, boss){ const m=document.getElementById('msg'); m.textContent=(boss?'BOSSWELLE ':elite?'ELITE-WELLE ':'Welle ')+n; m.style.color=boss?'#ff7a7a':elite?'#d9b3ff':'#ffd166'; setTimeout(()=>{ if(!G.over) m.textContent=''; },1500); }
-// Gesendetes Monster erscheint auf der Lane des Gegenübers (target = P oder E)
-function sendTo(target, type){ const keep = G; G = target.G; spawn(type, 0, 0, 1); G = keep; }
+// Gesendetes Monster kommt in den Pool des Gegenübers (target = P oder E) und läuft mit dessen nächster Welle los
+function sendTo(target, type){ target.G.sendPool.push(type); }   // gesendete Monster sammeln sich im Pool des Gegner-Teams und kommen mit dessen nächster Welle
 function send(type){
   const u = UNITS[type];
   if(G.gold < u.cost || G.over || !E) return;

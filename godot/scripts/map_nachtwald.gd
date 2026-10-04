@@ -722,23 +722,34 @@ func update_spawns(delta: float) -> void:
 
 
 ## Lane-Boden: alter, verwilderter Pflasterweg mit weichen Rändern (Shader), statt der eckigen Fläche. Am Lane-Ende löst er sich in Erde und Wurzeln auf.
-func build_lane_ground(cx: float, half: float) -> void:
+func build_lane_ground(cx: float, half: float, court_x: float) -> void:
 	var sh := load("res://shaders/nachtwald_lane.gdshader") as Shader
 	if sh == null:
 		return
 	var s_end: float = float(g.cfg["spawnX"]) * g.S
-	var z0: float = 14.0                                                    # bis unter den Platz an der Basis
+	var z0: float = 16.0                                                    # bis hinter den Heilbrunnen (Platz an der Basis)
 	var z1: float = -(s_end + 12.0)
 	var q := PlaneMesh.new()
-	q.size = Vector2((half + 5.0) * 2.0, z0 - z1)
+	q.size = Vector2((half + 9.0) * 2.0, z0 - z1)
 	var sm := ShaderMaterial.new()
 	sm.shader = sh
 	sm.set_shader_parameter("center_x", cx)
 	sm.set_shader_parameter("half_w", half)
 	sm.set_shader_parameter("s_end", s_end)
+	sm.set_shader_parameter("court_x", court_x)
 	var mi := MeshInstance3D.new()
 	mi.mesh = q
 	mi.material_override = sm
 	mi.position = Vector3(cx, 0.02, (z0 + z1) / 2.0)
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	g.add_child(mi)
+
+
+## Waldboden: Erde, Laub, Moos, Zweige und Steinchen statt einer einfarbigen Fläche (Shader auf dem Bodenquader)
+func forest_floor(mi: MeshInstance3D) -> void:
+	var sh := load("res://shaders/nachtwald_ground.gdshader") as Shader
+	if sh == null or mi == null:
+		return
+	var sm := ShaderMaterial.new()
+	sm.shader = sh
+	mi.material_override = sm
