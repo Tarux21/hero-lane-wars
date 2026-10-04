@@ -1776,12 +1776,18 @@ func _update_fx(delta: float) -> void:
 
 
 # ---------------------------------------------------------------- Einheiten und Wellen
+## Pfad des Monstermodells: eigene Giftwald-Brut (GLB, vollständiger Pfad) oder die bisherigen Quaternius-Platzhalter
+func unit_model_path(type: String) -> String:
+	var v: String = UNIT_MODEL[type]
+	return v if v.begins_with("res://") else "monsters/%s.gltf" % v
+
+
 ## Erzeugt ein Monster auf einer Lane der Seite `side_idx`. from_side: Seite, die es geschickt hat (-1 = Welle).
 ## Figuren (Quaternius, CC0, als Platzhalter): werden zur Laufzeit aus den glTF-Dateien geladen und gemerkt.
 const MODEL_DIR := "res://assets/quaternius/"
 ## Held-Modelle: [Datei, Angriffsanimation, Laufanimation, Ruheanimation, Höhe in m]
 const HERO_MODEL := {"tank": ["rpg/Warrior.gltf", "Sword_Attack", "Run_Weapon", "Idle_Weapon", 3.0], "damage": ["rpg/Rogue.gltf", "Dagger_Attack", "Run", "Idle", 2.8], "caster": ["rpg/Wizard.gltf", "Staff_Attack", "Run", "Idle", 2.8]}
-const UNIT_MODEL := {"grunt": "GreenDemon", "tank": "Cyclops", "archer": "Skull", "fast": "Bat", "elite": "Demon", "boss": "YellowDragon"}
+const UNIT_MODEL := {"grunt": "res://assets/monsters/Pilzling.glb", "tank": "Cyclops", "archer": "Skull", "fast": "Bat", "elite": "Demon", "boss": "YellowDragon"}
 const LOOP_ANIMS := ["Idle", "Walk", "Run", "Flying", "Attacking_Idle", "Run_Weapon", "Idle_Weapon"]
 var model_cache: Dictionary = {}
 
@@ -1793,7 +1799,7 @@ func _make_figure(path: String, height: float) -> Dictionary:
 		var root: Node = null
 		var st := GLTFState.new()
 		var doc := GLTFDocument.new()
-		if doc.append_from_file(MODEL_DIR + path, st) == OK:
+		if doc.append_from_file(path if path.begins_with("res://") else MODEL_DIR + path, st) == OK:
 			root = doc.generate_scene(st)
 		var info := {"root": root, "h": 1.0}
 		if root != null:
@@ -1839,7 +1845,7 @@ func _spawn_unit(type: String, off_x: float, spd_mul: float, lane: int = 0, side
 	if not test_mode:
 		node = Node3D.new()
 		var mh := float(u["r"]) * S * 2.8                    # Figurhöhe in Metern
-		var fig := _make_figure("monsters/%s.gltf" % UNIT_MODEL[type], mh)
+		var fig := _make_figure(unit_model_path(type), mh)
 		if fig.is_empty():                                   # Ersatz, falls das Modell fehlt
 			var body := MeshInstance3D.new()
 			var sph := SphereMesh.new()
@@ -2635,6 +2641,9 @@ func _step_units(side: Dictionary, dt: float) -> void:
 			engaged = true
 			if u["atk_t"] <= 0.0:
 				u["atk_t"] = 1.0
+				if not u["fig"].is_empty():                       # Angriffsanimation bei jedem Schlag von vorn
+					u["fig"]["restart"] = true
+					u["fig"]["cur"] = ""
 				if not target_hero.is_empty():
 					_damage_hero(target_hero, u["dmg"], u)
 				else:
@@ -2889,7 +2898,7 @@ func _sync_visuals(delta: float) -> void:
 			if n.visible:
 				vfx.poison_mark(u, n)
 			if n.visible:
-				_animate(u, n, s["idx"], delta, "Bite_InPlace" if u["fig"]["anim"] != null and u["fig"]["anim"].has_animation("Bite_InPlace") else "Bite_Front",
+				_animate(u, n, s["idx"], delta, _unit_attack_anim(u),
 					"Flying" if u["fig"].get("flies", false) else "Walk", "Flying" if u["fig"].get("flies", false) else "Idle", 2.5)
 			if n.visible and map_theme == "nachtwald" and not test_mode:
 				_emerge_from_tree(u, n)
@@ -3645,3 +3654,13 @@ func _exit_tree() -> void:
 	for k in model_cache:
 		if model_cache[k]["root"] != null:
 			(model_cache[k]["root"] as Node).free()
+
+
+## Name der Angriffsanimation eines Monsters (eigene Modelle: "Attack", Quaternius-Platzhalter: "Bite_InPlace" bzw. "Bite_Front")
+func _unit_attack_anim(u: Dictionary) -> String:
+	var ap: AnimationPlayer = u["fig"].get("anim")
+	if ap != null:
+		for an in ["Attack", "Bite_InPlace"]:
+			if ap.has_animation(an):
+				return an
+	return "Bite_Front"

@@ -847,7 +847,7 @@ func update_pool(delta: float) -> void:
 		var typ := str(pool[k]["type"])
 		var ud: Dictionary = Data.units[typ]
 		var mh: float = float(ud["r"]) * g.S * 2.8 * 0.6
-		var fig: Dictionary = g._make_figure("monsters/%s.gltf" % g.UNIT_MODEL[typ], mh)
+		var fig: Dictionary = g._make_figure(g.unit_model_path(typ), mh)
 		if fig.is_empty():
 			figs.append({})
 			continue
