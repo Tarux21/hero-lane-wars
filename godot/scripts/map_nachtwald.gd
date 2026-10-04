@@ -566,3 +566,155 @@ func decorate(wall_xs: Array, river_x: float, lane_xs: Array, half: float, x_min
 	_motes(Vector3(river_x, 0.6, zc), Vector3(2.4, 0.2, (z_near - z_far) / 2.0), 90, Color("#ff9a3a"), 0.28, 1.6, 4.0)
 	_motes(Vector3((x_min + x_max) / 2.0, 1.4, zc), Vector3((x_max - x_min) / 2.0 + 10.0, 1.2, (z_near - z_far) / 2.0), 150, Color("#7aff7a"), 0.22, 0.4, 7.0)
 	_motes(Vector3((x_min + x_max) / 2.0, 2.5, zc), Vector3((x_max - x_min) / 2.0 + 10.0, 1.5, (z_near - z_far) / 2.0), 70, Color("#7ad0ff"), 0.2, 0.3, 8.0)
+
+	# 7) Monster-Spawn am Lane-Ende (eigener Zufallsgenerator, ändert die übrige Karte nicht)
+	if not g.test_mode:
+		build_spawns(lane_xs, half, x_min, x_max)
+
+
+## Spawn-Stellen: je Lane ein hohler, toter Giftbaum mit Dornenwand links und rechts. Die Monster laufen aus der Öffnung (game.gd, _emerge_from_tree).
+## Vor jeder Welle beginnt der Baum innen zu leuchten und giftiger Nebel strömt aus der Öffnung; beides hält an, solange Monster herauskommen.
+var spawns: Array = []
+var spawn_clock := 0.0
+var spawn_debug := OS.get_cmdline_user_args().has("--spawndbg")      # Test: Leuchten und Nebel immer an
+
+
+func build_spawns(lane_xs: Array, half: float, x_min: float, x_max: float) -> void:
+	var r2 := RandomNumberGenerator.new()
+	r2.seed = 777
+	var z_open: float = -float(g.cfg["spawnX"]) * g.S                          # Ebene der Öffnung = Startlinie der Monster
+	var tree_z: float = z_open - 1.25
+	var lpt: int = int(g.lanes_per_team)
+	var back_dead: Array = []
+	var back_pine: Array = []
+	for i in lane_xs.size():
+		var cx: float = lane_xs[i]
+		var mi := _put("spawn_tree", Vector3(cx, 0.0, tree_z), PI, 1.0)
+		if mi == null:
+			return
+		var side_w: float = half - 1.95                                        # vom Stamm bis zum Lane-Rand
+		var n_seg: int = maxi(1, int(ceil(side_w / 3.0)))
+		var seg_w: float = side_w / n_seg
+		for sd in [-1.0, 1.0]:
+			for k in n_seg:
+				var wx: float = cx + sd * (1.95 + seg_w * (k + 0.5))
+				var wm := _put("thorn_wall_%d" % ((i * 2 + k + (0 if sd < 0.0 else 1)) % 3), Vector3(wx, 0.0, tree_z + 0.45), PI, 1.0)
+				if wm != null:
+					wm.transform.basis = Basis(Vector3.UP, PI).scaled(Vector3(seg_w / 3.0 * 1.05, r2.randf_range(0.9, 1.15), 1.0))
+		# leuchtende Flächen heraussuchen (Material "Giftglut") und je Baum ein eigenes Material dafür anlegen
+		var glow_idx := -1
+		var base_e := 4.0
+		var pm: StandardMaterial3D = null
+		var mesh: Mesh = mi.mesh
+		for s in mesh.get_surface_count():
+			var m := mesh.surface_get_material(s)
+			if m is StandardMaterial3D and (m.resource_name.to_lower().contains("giftglut") or m.resource_name.to_lower().contains("gift")):
+				glow_idx = s
+				pm = (m as StandardMaterial3D).duplicate() as StandardMaterial3D
+				base_e = pm.emission_energy_multiplier
+				mi.set_surface_override_material(s, pm)
+		var l := _light(Vector3(cx, 1.5, z_open + 0.3), Color("#9aff40"), 0.4, 6.5)
+		var fog := _fog_particles(Vector3(cx, 0.55, z_open + 0.1), 30, 4.6, 0.8, 1.7, false)
+		var burst := _fog_particles(Vector3(cx, 0.55, z_open + 0.1), 34, 3.2, 2.0, 4.2, true)
+		spawns.append({"side": i / lpt, "lane": i % lpt, "mi": mi, "mat": pm, "base_e": base_e, "light": l, "fog": fog, "burst": burst, "glow": 0.0, "busy": false})
+		# dunkle Wipfel dahinter, damit man hinter dem Baum nicht ins Leere sieht
+		for k in 4:
+			var bx: float = cx + (k - 1.5) * 3.4 + r2.randf_range(-0.6, 0.6)
+			var bz: float = tree_z - r2.randf_range(3.2, 5.0)
+			if _free(bx, bz, 1.0):
+				(back_dead if k % 2 == 0 else back_pine).append(_t_fixed(bx, bz, r2.randf_range(0.8, 1.2), r2.randf() * TAU))
+	var xx: float = x_min - 8.0                                                # Reihe Bäume quer hinter allen Lanes
+	while xx < x_max + 8.0:
+		var bz2: float = z_open - 6.0 - r2.randf_range(0.0, 3.0)
+		if _free(xx, bz2, 1.0):
+			(back_dead if r2.randf() < 0.5 else back_pine).append(_t_fixed(xx, bz2, r2.randf_range(0.9, 1.4), r2.randf() * TAU))
+		xx += r2.randf_range(2.4, 3.6)
+	_scatter("tree_dead", back_dead)
+	_scatter("tree_pine", back_pine)
+
+
+func _t_fixed(x: float, z: float, s: float, yaw: float) -> Transform3D:
+	return Transform3D(Basis(Vector3.UP, yaw).scaled(Vector3.ONE * s), Vector3(x, 0.0, z))
+
+
+## Giftiger Bodennebel: weiche grüne Wolken, die aus der Öffnung nach vorn (zur Basis hin) strömen
+func _fog_particles(pos: Vector3, amount: int, life: float, v_min: float, v_max: float, one_shot: bool) -> CPUParticles3D:
+	var p := CPUParticles3D.new()
+	var q := QuadMesh.new()
+	q.size = Vector2(3.0, 3.0)
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	m.albedo_texture = _glow_texture()
+	m.vertex_color_use_as_albedo = true
+	m.no_depth_test = false
+	q.material = m
+	p.mesh = q
+	p.amount = maxi(4, int(round(amount * Data.user.particle_factor())))
+	p.lifetime = life
+	p.one_shot = one_shot
+	p.explosiveness = 0.85 if one_shot else 0.0
+	p.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
+	p.emission_box_extents = Vector3(0.55, 0.25, 0.2)
+	p.direction = Vector3(0.0, 0.04, 1.0)
+	p.spread = 38.0
+	p.initial_velocity_min = v_min
+	p.initial_velocity_max = v_max
+	p.gravity = Vector3(0.0, -0.05, 0.0)
+	p.damping_min = 0.5
+	p.damping_max = 0.9
+	p.scale_amount_min = 0.7
+	p.scale_amount_max = 1.3
+	var grow := Curve.new()
+	grow.add_point(Vector2(0.0, 0.55))
+	grow.add_point(Vector2(1.0, 1.7))
+	p.scale_amount_curve = grow
+	p.color = Color(0.45, 0.95, 0.22, 0.22)
+	var ramp := Gradient.new()
+	ramp.set_color(0, Color(1, 1, 1, 0))
+	ramp.add_point(0.18, Color(1, 1, 1, 1))
+	ramp.set_color(ramp.get_point_count() - 1, Color(1, 1, 1, 0))
+	p.color_ramp = ramp
+	p.position = pos
+	p.emitting = false
+	p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	g.add_child(p)
+	return p
+
+
+## Jeden Frame: Baum leuchtet auf, wenn eine Welle naht (letzte 4 s) und solange Monster herauskommen; Nebel strömt, beim Spawn ein Stoß.
+func update_spawns(delta: float) -> void:
+	if spawns.is_empty():
+		return
+	spawn_clock += delta
+	var open_x: float = float(g.cfg["spawnX"])
+	var busy: Dictionary = {}
+	for s in g.sides:
+		for u in s["units"]:
+			if float(u["x"]) > open_x - 8.0:
+				busy[int(s["idx"]) * 8 + int(u["lane"])] = true
+	for e in spawns:
+		var key: int = int(e["side"]) * 8 + int(e["lane"])
+		var is_busy: bool = busy.has(key)
+		var wt: float = float(g.sides[int(e["side"])]["wave_t"])
+		var pre: float = clampf(1.0 - wt / 4.0, 0.0, 1.0) if wt > 0.0 and wt < 4.0 else 0.0
+		var want: float = 1.0 if is_busy else pre * 0.9
+		if spawn_debug:
+			want = 1.0
+		var glow: float = float(e["glow"])
+		glow = move_toward(glow, want, delta * (1.1 if want > glow else 0.7))
+		e["glow"] = glow
+		var flick: float = 0.92 + 0.08 * sin(spawn_clock * 9.0 + float(e["lane"]) * 2.0)
+		var pm: StandardMaterial3D = e["mat"]
+		if pm != null:
+			pm.emission_energy_multiplier = float(e["base_e"]) * (0.2 + 0.8 * glow * flick)
+		(e["light"] as OmniLight3D).light_energy = (0.35 + 2.4 * glow * flick) * Data.user.light_factor()
+		(e["fog"] as CPUParticles3D).emitting = glow > 0.22
+		if is_busy and not bool(e["busy"]):
+			var b: CPUParticles3D = e["burst"]
+			b.restart()
+			b.emitting = true
+		e["busy"] = is_busy
+		if spawn_debug and int(spawn_clock * 4.0) != int((spawn_clock - delta) * 4.0):
+			print("SPAWNFX lane=%d glow=%.2f busy=%s wt=%.1f fog=%s mat=%s" % [int(e["lane"]), glow, is_busy, wt, (e["fog"] as CPUParticles3D).emitting, pm != null])

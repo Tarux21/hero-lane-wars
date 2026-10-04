@@ -130,7 +130,9 @@ var botplay := false                  # Test: auch dein Held wird vom Bot gesteu
 var golden_eco_filter := ""
 var menu_shot := ""
 var menu_click := ""                  # Test: Menü per echten Mausklicks bedienen, z. B. --menuclick=options oder single,class_tank
-var cam_test_x := -99999.0                 # Test: Kamera frei auf Lane-Position x (Spielwert), --camx=1500
+var shot_wait := 0.0                        # Test: Sekunden Echtzeit vor dem Bildschirmfoto, --shotwait=4
+var cam_test_dx := -9.0                    # Test: seitlicher Versatz der Testkamera in Metern, --camdx=0
+var cam_test_x := -99999.0                # Test: Kamera frei auf Lane-Position x (Spielwert), --camx=1500
 var lives_test := -1                       # Test: Team-Leben für das Bild setzen (Statuenstufen), --lives=4
 var merchant_test := false              # Test: Klick auf den Händler per Skript
 var menu_obj
@@ -174,6 +176,10 @@ func _ready() -> void:
 		elif a.begins_with("--team="):
 			team_size = int(a.substr(7))
 			direct = true
+		elif a.begins_with("--shotwait="):
+			shot_wait = float(a.substr(11))
+		elif a.begins_with("--pitch="):
+			cam_pitch = float(a.substr(8))
 		elif a.begins_with("--zoom="):
 			cam_dist = float(a.substr(7))
 		elif a == "--autoplay":
@@ -236,6 +242,8 @@ func _ready() -> void:
 			lives_test = int(a.substr(8))
 		elif a.begins_with("--camx="):
 			cam_test_x = float(a.substr(7))
+		elif a.begins_with("--camdx="):
+			cam_test_dx = float(a.substr(8))
 		elif a.begins_with("--uiscale="):
 			Data.user.ui_scale = float(a.substr(10))                  # Test: Oberflächengröße ohne zu speichern
 		elif a == "--colorblind":
@@ -549,7 +557,8 @@ func _build_map() -> void:
 		lm.emission_energy_multiplier = 1.8
 	var spawn_z := -float(cfg["spawnX"]) * S
 	for i in n:
-		_box(Vector3(lane_xs[i], 0.03, spawn_z - 2.0), Vector3(half * 2.0, 0.06, 6.0), Color("#6e2a2a"))     # Monster-Spawn
+		if map_theme != "nachtwald":                                  # im Nachtwald steht dort der Spawn-Baum (map_nachtwald.gd)
+			_box(Vector3(lane_xs[i], 0.03, spawn_z - 2.0), Vector3(half * 2.0, 0.06, 6.0), Color("#6e2a2a"))     # Monster-Spawn
 	# Platz am unteren Ende (Basis): Pflaster, magischer Kreis, Feuerstellen
 	var plaza_z := 7.0
 	var plaza_r := span / 2.0 + 6.0
@@ -1932,7 +1941,7 @@ func _load_volume() -> float:
 ## Beim Start: gespeicherte Anzeige anwenden, aber nicht in Tests und Bild-Läufen (feste Auflösung)
 func _apply_saved_display() -> void:
 	for a in OS.get_cmdline_user_args():
-		for t in ["--sim", "--shot", "--selftest", "--golden", "--fxtest", "--menushot", "--menuclick", "--menu-test", "--shopshot", "--merchanttest", "--camx", "--map", "--uiscale", "--colorblind", "--gfxlow", "--itemcatalog", "--dbgshot", "--uimenu", "--uitip", "--botplay", "--autoplay"]:
+		for t in ["--sim", "--shot", "--selftest", "--golden", "--fxtest", "--menushot", "--menuclick", "--menu-test", "--shopshot", "--merchanttest", "--camx", "--camdx", "--pitch", "--shotwait", "--spawndbg", "--map", "--uiscale", "--colorblind", "--gfxlow", "--itemcatalog", "--dbgshot", "--uimenu", "--uitip", "--botplay", "--autoplay"]:
 			if a.begins_with(t):
 				return
 	var cf := ConfigFile.new()
@@ -2705,6 +2714,19 @@ func _animate(e: Dictionary, node: Node3D, side_idx: int, delta: float, attack_a
 		(fig["model"] as Node3D).position.y = hgt
 
 
+## Nachtwald: Monster stehen anfangs "im Baum" (Spielposition hinter der Startlinie) und sind erst sichtbar, wenn sie die Öffnung erreichen.
+## Auf den ersten 7,5 m laufen sie aus der engen Öffnung heraus und fächern sich dann auf ihre Spielposition auf (nur Anzeige, die Spielregeln bleiben gleich).
+func _emerge_from_tree(u: Dictionary, n: Node3D) -> void:
+	var vis: Vector2 = u.get("vis", Vector2(u["x"], u["y"]))
+	var d: float = vis.x - float(cfg["spawnX"])
+	if d > 0.0:
+		n.visible = false
+		return
+	var t := smoothstep(0.0, 1.0, clampf(-d / 150.0, 0.0, 1.0))
+	var cy: float = lane_off_g[u["lane"]]
+	n.position = _wp(vis.x, lerpf(cy, vis.y, t), u["side_idx"])
+
+
 func _sync_visuals(delta: float) -> void:
 	var hn: Node3D = hero["node"]
 	for p in players:                    # alle Helden: Position, Sichtbarkeit, Lebensanzeige
@@ -2723,6 +2745,8 @@ func _sync_visuals(delta: float) -> void:
 			if n.visible:
 				_animate(u, n, s["idx"], delta, "Bite_InPlace" if u["fig"]["anim"] != null and u["fig"]["anim"].has_animation("Bite_InPlace") else "Bite_Front",
 					"Flying" if u["fig"].get("flies", false) else "Walk", "Flying" if u["fig"].get("flies", false) else "Idle", 2.5)
+			if n.visible and map_theme == "nachtwald" and not test_mode:
+				_emerge_from_tree(u, n)
 			_set_bar(u["bar"], u["bar_w"], u["hp"] / u["max"], true)
 	var fog_x: float = lane_xs[lanes_per_team - 1] + lane_half_g * S + WALL
 	for fx in fx_list:                   # Effekte und Zahlen auf der Gegner-Seite ausblenden
@@ -2738,6 +2762,8 @@ func _sync_visuals(delta: float) -> void:
 	_update_fx(delta)
 	_update_merchant(delta)
 	_update_statues(delta)
+	if map_theme == "nachtwald":
+		decor.update_spawns(delta)
 	_cam_input(delta)
 	var off := _cam_offset()
 	var want := (cam_focus if cam_free else hn.position) + off
@@ -3414,8 +3440,11 @@ func _run_simulation(secs: float, shot_path: String) -> void:
 		_update_statues(0.1)
 	if cam_test_x > -99998.0:
 		cam_free = true
-		cam_focus = _wp(cam_test_x, 0.0, 0) + Vector3(-9.0 if cam_test_x >= 0.0 else 0.0, 0.0, 0.0)
+		cam_focus = _wp(cam_test_x, 0.0, 0) + Vector3(cam_test_dx if cam_test_x >= 0.0 else 0.0, 0.0, 0.0)
 	if shot_path != "":
+		for k in int(shot_wait * 30.0):                              # Test: in Echtzeit warten, damit Partikel (Nebel) sich füllen
+			_sync_visuals(1.0 / 30.0)
+			await get_tree().create_timer(1.0 / 30.0).timeout
 		_sync_visuals(1.0)
 		await get_tree().process_frame
 		await get_tree().process_frame

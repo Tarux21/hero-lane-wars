@@ -88,6 +88,13 @@ def make_materials():
     M["crackd"] = mat("Riss", (0.04, 0.04, 0.05), rough=1.0)
     M["canopy"] = mat("Dach", (0.18, 0.45, 0.22))
     M["canopy2"] = mat("DachStreifen", (0.12, 0.30, 0.15))
+    M["dbark"] = mat("TotRinde", (0.33, 0.29, 0.25), rough=0.95)
+    M["dbark2"] = mat("TotRindeDunkel", (0.20, 0.18, 0.16), rough=0.95)
+    M["hollow"] = mat("Hoehle", (0.01, 0.01, 0.01), rough=1.0)
+    M["poison"] = mat("Giftglut", (0.3, 0.7, 0.1), emit=(0.55, 1.0, 0.15), strength=4.0)           # wird im Spiel zum Leuchten animiert
+    M["fungus"] = mat("Baumpilz", (0.34, 0.27, 0.21))
+    M["thorn"] = mat("TotDorn", (0.10, 0.10, 0.07), rough=0.9)
+    M["thorntip"] = mat("DornSpitze", (0.5, 0.8, 0.2), emit=(0.5, 0.9, 0.15), strength=0.9)
 
 
 def finish(obj, m):
@@ -1265,6 +1272,138 @@ def bone_heap():
         path([(sx * 0.2, 0.0, 0.2), (sx * 0.55, 0.15, 0.6), (sx * 0.5, 0.45, 0.45)], 0.05, 0.03, "bone", 4)
 
 
+# ---------------------------------------------------------------- Monster-Spawn: giftiger Faulbaum und Dornenwand (Vorderseite = Blender +Y)
+def dead_branch(rnd, p, d, length, r, depth):
+    """kahler Ast mit Knick; am Ende grüne Dornenspitzen"""
+    if depth < 0 or length < 0.2:
+        return
+    cur = Vector(p)
+    dirv = Vector(d).normalized()
+    for i in range(2):
+        dirv = (dirv + Vector((rnd.uniform(-0.35, 0.35), rnd.uniform(-0.35, 0.35), rnd.uniform(-0.1, 0.25)))).normalized()
+        nxt = cur + dirv * (length / 2)
+        limb(cur, nxt, r * (1.0 - i * 0.25), r * (0.75 - i * 0.25), "dbark", 5)
+        cur = nxt
+        if i == 0 and depth > 0:
+            for _ in range(2):
+                side = Vector((rnd.uniform(-1, 1), rnd.uniform(-1, 1), rnd.uniform(0.1, 0.8)))
+                dead_branch(rnd, cur, side, length * 0.55, r * 0.5, depth - 1)
+    limb(cur, cur + dirv * 0.35, r * 0.4, 0.0, "thorntip", 4)
+
+
+def spawn_tree():
+    """Hohler, toter Giftbaum: Stamm aus Säulen mit Öffnung nach vorn (+Y), Eiterbeulen, Baumpilze, Dornenranke, Sporensäcke, Wurzelkrallen"""
+    rnd = random.Random(31)
+    R = 1.3
+    gap = math.radians(52)
+    n = 9
+    tops = []
+    for i in range(n):                                                                              # Stamm: Säulen im Ring, vorn bleibt eine Lücke
+        th = math.radians(90) + gap + (math.tau - 2 * gap) * i / (n - 1)
+        c, s = math.cos(th), math.sin(th)
+        top = rnd.uniform(3.9, 5.2)
+        pts = [(R * 1.12 * c, R * 1.12 * s, 0.0), (R * 1.0 * c, R * 1.0 * s, 1.5), (R * 0.9 * c, R * 0.9 * s, 3.0), (R * 0.78 * c, R * 0.78 * s, top)]
+        path(pts, 0.62, 0.14, "dbark" if i % 2 == 0 else "dbark2", 7)
+        tops.append((R * 0.78 * c, R * 0.78 * s, top))
+    for i in range(0, n, 2):                                                                        # Bruchstücke oben (gesplittertes Holz)
+        x, y, z = tops[i]
+        limb((x, y, z - 0.3), (x * 0.8, y * 0.8, z + rnd.uniform(0.4, 0.9)), 0.12, 0.0, "dbark", 4)
+    for sx in (-1, 1):                                                                              # dicke Säulen am Eingang
+        path([(sx * 1.1, 0.95, 0.0), (sx * 1.05, 0.97, 1.6), (sx * 0.98, 0.95, 2.5)], 0.46, 0.28, "dbark2", 7)
+    path([(-1.08, 0.95, 2.3), (-0.55, 1.12, 2.85), (0.0, 1.16, 3.05), (0.55, 1.12, 2.85), (1.08, 0.95, 2.3)], 0.32, 0.32, "dbark", 6)     # Sturz über der Öffnung
+    box((1.9, 0.12, 2.8), (0.0, -0.2, 1.4), m="hollow")                                              # dunkle Rückwand
+    box((1.3, 0.04, 2.1), (0.0, 0.1, 1.25), m="poison")                                              # leuchtende Rückwand (wird animiert)
+    cone(1.05, 1.0, 0.05, (0.0, 0.6, 0.04), m="poison", verts=14)                                    # Giftpfütze im Eingang
+    cone(0.6, 0.55, 0.05, (0.2, 1.55, 0.03), m="poison", verts=10)                                   # Pfütze vor dem Eingang
+    for k in range(5):                                                                              # Gift tropft vom Sturz
+        x = -0.7 + 0.35 * k + rnd.uniform(-0.05, 0.05)
+        zt = 2.9 - abs(x) * 0.55
+        hh = rnd.uniform(0.3, 0.7)
+        limb((x, 1.1, zt), (x, 1.1, zt - hh), 0.04, 0.025, "poison", 4)
+        sphere(0.07, (x, 1.1, zt - hh), m="poison", seg=5, rings=4)
+    for k in range(7):                                                                              # Eiterbeulen am Stamm
+        th = rnd.uniform(math.radians(140), math.radians(400))
+        zz = rnd.uniform(0.7, 3.6)
+        rr = R * (1.12 - zz * 0.1) + 0.45
+        r = rnd.uniform(0.2, 0.32)
+        sphere(r, (rr * math.cos(th), rr * math.sin(th), zz), (1, 1, 0.9), "poison", 7, 5)
+        sphere(r * 1.25, (rr * math.cos(th) * 0.97, rr * math.sin(th) * 0.97, zz), (1, 1, 0.9), "dbark2", 7, 5)
+    for k in range(4):                                                                              # Baumpilze (Konsolen)
+        th = rnd.uniform(math.radians(130), math.radians(410))
+        zz = 1.0 + k * 0.8 + rnd.uniform(-0.2, 0.2)
+        rr = R * (1.05 - zz * 0.08) + 0.2
+        sphere(0.5, (rr * math.cos(th), rr * math.sin(th), zz), (1, 1, 0.25), "fungus", 8, 4)
+    for a in range(2):                                                                              # dicke Dornenranke um den Stamm
+        pts = []
+        for k in range(13):
+            ang = math.radians(150 + a * 60) + k * 0.7
+            zz = 0.4 + k * 0.28
+            pts.append(((R + 0.45) * math.cos(ang), (R + 0.45) * math.sin(ang), zz))
+        path(pts, 0.1, 0.06, "thorn", 5)
+        for k in range(1, 13, 1):
+            p = Vector(pts[k])
+            out = Vector((p.x, p.y, 0.0)).normalized()
+            limb(p, p + out * 0.3 + Vector((0, 0, 0.12)), 0.05, 0.0, "thorn", 4)
+            if k % 2 == 0:
+                limb(p + out * 0.3 + Vector((0, 0, 0.12)), p + out * 0.4 + Vector((0, 0, 0.18)), 0.03, 0.0, "thorntip", 3)
+    for i in range(5):                                                                              # kahle Äste an der Spitze
+        x, y, z = tops[(i * 2) % n]
+        d = (x, y, rnd.uniform(0.4, 0.9))
+        dead_branch(rnd, (x, y, z), d, rnd.uniform(1.0, 1.6), 0.13, 1)
+    for k in range(3):                                                                              # Sporensäcke an Ästen
+        x, y, z = tops[(k * 3 + 1) % n]
+        ex, ey, ez = x * 1.35, y * 1.35, z + 0.2
+        limb((x, y, z), (ex, ey, ez), 0.09, 0.05, "dbark", 4)
+        limb((ex, ey, ez), (ex, ey, ez - 0.7), 0.02, 0.02, "thorn", 3)
+        sphere(0.17, (ex, ey, ez - 0.85), (1, 1, 1.4), "poison", 6, 5)
+    for a in range(9):                                                                              # Wurzelkrallen mit Dornen
+        ang = a * math.tau / 9 + 0.2
+        c, s = math.cos(ang), math.sin(ang)
+        path([(1.0 * c, 1.0 * s, 0.5), (1.9 * c, 1.9 * s, 0.25), (2.7 * math.cos(ang + 0.15), 2.7 * math.sin(ang + 0.15), 0.55)], 0.3, 0.06, "dbark2", 6)
+        mid = (2.0 * c, 2.0 * s, 0.35)
+        limb(mid, (2.15 * c, 2.15 * s, 0.75), 0.06, 0.0, "thorn", 4)
+
+
+def thorn_wall(variant):
+    """Dornenwand-Stück, 3 m breit: dichtes Geflecht aus verdorrten, dicken Dornenranken mit langen Stacheln und kleinen grünen Spitzen"""
+    rnd = random.Random(60 + variant)
+    n = 11
+    stems = []
+    for i in range(n):
+        bx = -1.4 + 2.8 * i / (n - 1) + rnd.uniform(-0.1, 0.1)
+        by = rnd.uniform(-0.3, 0.3)
+        h = rnd.uniform(1.2, 2.0)
+        p1 = (bx + rnd.uniform(-0.45, 0.45), by + rnd.uniform(-0.3, 0.3), h * 0.35)
+        p2 = (p1[0] + rnd.uniform(-0.5, 0.5), p1[1] + rnd.uniform(-0.3, 0.3), h * 0.7)
+        p3 = (p2[0] + rnd.uniform(-0.3, 0.3), p2[1] + rnd.uniform(-0.25, 0.25), h)
+        pts = [(bx, by, 0.0), p1, p2, p3]
+        path(pts, 0.36, 0.1, "thorn", 6)
+        stems.append(pts)
+        for k in range(8):                                                                          # lange Stacheln
+            f = rnd.uniform(0.1, 0.95)
+            seg = min(2, int(f * 3))
+            p = Vector(pts[seg]).lerp(Vector(pts[seg + 1]), f * 3 - seg)
+            d = Vector((rnd.uniform(-1, 1), rnd.uniform(-1, 1), rnd.uniform(0.1, 0.8))).normalized()
+            limb(p, p + d * 0.75, 0.14, 0.0, "thorn", 4)
+            if k % 3 == 0:
+                limb(p + d * 0.52, p + d * 0.68, 0.035, 0.0, "thorntip", 3)
+        top = Vector(pts[3])
+        limb(top, top + Vector((rnd.uniform(-0.3, 0.3), rnd.uniform(-0.3, 0.3), 1.0)).normalized() * 0.5, 0.08, 0.0, "thorntip", 4)
+    for j in range(12):                                                                             # Ranken, die die Stämme verflechten
+        a = rnd.randrange(n)
+        b = max(0, min(n - 1, a + rnd.choice((-2, -1, 1, 2))))
+        if a == b:
+            continue
+        za = rnd.choice((1, 2))
+        p0 = Vector(stems[a][za])
+        p1 = Vector(stems[b][min(3, za + rnd.choice((0, 1)))])
+        mid = (p0 + p1) / 2 + Vector((rnd.uniform(-0.1, 0.1), rnd.uniform(-0.3, 0.3), -0.2))
+        path([tuple(p0), tuple(mid), tuple(p1)], 0.08, 0.06, "thorn", 5)
+    for k in range(6):                                                                              # Wurzelstränge am Boden
+        x = -1.35 + 0.54 * k
+        limb((x, rnd.uniform(-0.3, 0.3), 0.15), (x + rnd.uniform(-0.3, 0.3), rnd.uniform(0.5, 0.9), 0.0), 0.14, 0.04, "dbark2", 4)
+
+
 make_all = [("tree_dead", tree_dead), ("tree_pine", tree_pine), ("bone_pillar", bone_pillar), ("bone_arch", bone_arch),
             ("skull_pile", skull_pile), ("mushroom_glow", mushroom_glow), ("rock_dark", rock_dark), ("brazier", brazier), ("lava_rock", lava_rock),
             ("skel_sit", skel_sit), ("skel_impaled", skel_impaled), ("skel_hang", skel_hang), ("cage_skel", cage_skel), ("wagon", wagon), ("barrels", barrels),
@@ -1277,8 +1416,12 @@ make_all = [("tree_dead", tree_dead), ("tree_pine", tree_pine), ("bone_pillar", 
             ("castle_wall_0", lambda: castle_wall(0)), ("castle_wall_1", lambda: castle_wall(1)), ("castle_wall_2", lambda: castle_wall(2)),
             ("castle_tower", castle_tower), ("castle_gate", castle_gate), ("siege_ram", siege_ram), ("horse_dead", horse_dead),
             ("corpse_0", lambda: corpse(0)), ("corpse_1", lambda: corpse(1)), ("corpse_2", lambda: corpse(2)),
-            ("weapon_field", weapon_field), ("banner_torn", banner_torn), ("bone_heap", bone_heap)]
+            ("weapon_field", weapon_field), ("banner_torn", banner_torn), ("bone_heap", bone_heap),
+            ("spawn_tree", spawn_tree), ("thorn_wall_0", lambda: thorn_wall(0)), ("thorn_wall_1", lambda: thorn_wall(1)), ("thorn_wall_2", lambda: thorn_wall(2))]
+ONLY = sys.argv[sys.argv.index("--") + 2:] if "--" in sys.argv else []                              # optional: nur diese Modelle neu erzeugen
 for name, fn in make_all:
+    if ONLY and name not in ONLY:
+        continue
     bpy.ops.wm.read_factory_settings(use_empty=True)
     make_materials()
     fn()

@@ -92,3 +92,9 @@ Helden (Krieger, Schurke, Magier) und Monster (GreenDemon, Cyclops, Skull, Bat, 
 Standard-Karte. Dunkler Wald statt Felswänden, Lava als Fluss, Knochensäulen, leuchtende Pilze, Feuerschalen, Nebel. Die Modelle werden mit Blender per Skript gebaut
 (`godot/tools/blender/make_nachtwald_props.py`, Aufruf steht im Skript) und liegen als GLB in `godot/assets/props/`. Platzierung und Licht: `godot/scripts/map_nachtwald.gd`.
 Alte Wiese zum Vergleichen: Start mit `--map=gras`. Eigene Modelle (z. B. aus Blender) ersetzt man, indem man die GLB-Datei mit gleichem Namen austauscht.
+
+### Monster-Spawn im Nachtwald
+- Je Lane steht am Lane-Ende ein hohler, toter Giftbaum (`spawn_tree.glb`) mit Dornenwand links und rechts (`thorn_wall_0..2.glb`); alle Wellen starten dort (Regel: `rampStart = spawnX`).
+- Etwa 4 s vor jeder Welle beginnt der Baum innen zu leuchten und giftiger Nebel strömt aus der Öffnung; beides hält an, solange Monster herauskommen (`map_nachtwald.gd`, `update_spawns`).
+- Die Monster sind erst sichtbar, wenn sie die Öffnung erreichen, und fächern sich auf den ersten 7,5 m auf (`game.gd`, `_emerge_from_tree`; nur Anzeige).
+- Testflags: `--camdx=0 --pitch=40 --shotwait=5 --spawndbg` (Leuchten und Nebel immer an), z. B. `--sim=8 --shot=pfad.png --camx=2920`.
