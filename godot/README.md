@@ -98,3 +98,7 @@ Alte Wiese zum Vergleichen: Start mit `--map=gras`. Eigene Modelle (z. B. aus Bl
 - Etwa 4 s vor jeder Welle beginnt der Baum innen zu leuchten und giftiger Nebel strömt aus der Öffnung; beides hält an, solange Monster herauskommen (`map_nachtwald.gd`, `update_spawns`).
 - Die Monster sind erst sichtbar, wenn sie die Öffnung erreichen, und fächern sich auf den ersten 7,5 m auf (`game.gd`, `_emerge_from_tree`; nur Anzeige).
 - Testflags: `--camdx=0 --pitch=40 --shotwait=5 --spawndbg` (Leuchten und Nebel immer an), z. B. `--sim=8 --shot=pfad.png --camx=2920`.
+
+### Lane-Boden im Nachtwald
+- Statt der eckigen Lane-Fläche liegt je Lane ein alter, verwilderter Pflasterweg (`godot/shaders/nachtwald_lane.gdshader`, aufgebaut in `build_lane_ground`): abgerundete, schiefe Platten mit Lücken, Moos, Wurzeln, weiche unregelmäßige Ränder.
+- Zum Lane-Ende (Spawn) löst sich das Pflaster in Erde, Moos und Wurzeln auf; es gibt keine sichtbare Kante, die Lichtung läuft unter den Spawn-Baum.

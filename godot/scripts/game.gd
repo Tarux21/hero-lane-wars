@@ -537,8 +537,12 @@ func _build_map() -> void:
 	for i in n:
 		var cx: float = lane_xs[i]
 		var k := i % lanes_per_team
-		_box(Vector3(cx, -0.04, z_mid + 4.0), Vector3(half * 2.0, 0.1, z_len - 8.0), mc["lane"])       # Lane (Weg)
-		_box(Vector3(cx, 0.02, z_mid + 4.0), Vector3(half * 0.5, 0.06, z_len - 8.0), mc["strip"])       # Pflasterstreifen in der Mitte
+		if map_theme == "nachtwald":
+			if not test_mode:
+				decor.build_lane_ground(cx, half)
+		else:
+			_box(Vector3(cx, -0.04, z_mid + 4.0), Vector3(half * 2.0, 0.1, z_len - 8.0), mc["lane"])       # Lane (Weg)
+			_box(Vector3(cx, 0.02, z_mid + 4.0), Vector3(half * 0.5, 0.06, z_len - 8.0), mc["strip"])       # Pflasterstreifen in der Mitte
 		var sides: Array = [1.0] if k > 0 else [-1.0, 1.0]   # Lanes desselben Teams teilen sich eine Wand (nur rechts bauen)
 		for side in sides:
 			var wall_x: float = cx + side * (half + WALL / 2.0)
@@ -632,6 +636,8 @@ func _gapped_wall(wall_x: float) -> void:
 
 
 func _sand_piece(wall_x: float, x0: float, x1: float) -> void:
+	if map_theme == "nachtwald":
+		return                                                       # Nachtwald: Pflasterweg (Shader) statt Sandfläche
 	_box(Vector3(wall_x, -0.04, -(x0 + x1) / 2.0 * S), Vector3(WALL + 0.2, 0.1, (x1 - x0) * S), mc["lane"])
 
 
