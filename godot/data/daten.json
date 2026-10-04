@@ -58,7 +58,7 @@
   "firstWave": 1,
   "earlyWaves": 4,
   "earlyWaveEvery": 16,
-  "rampStart": 850,
+  "rampStart": 2950,
   "rampStep": 250,
   "tankQBase": 25,
   "tankQcd": 6.5,

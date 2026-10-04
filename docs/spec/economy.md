@@ -51,7 +51,7 @@ Items selbst: `items.md`, Skills: `skills.md`.
 ## 5. Wellen (`spawnWave`, Zeile 449–467; `update`, Zeile 923–924)
 
 - Erste Welle bei `t = firstWave = 1`. `waveT` danach: `earlyWaveEvery 16 s` solange `wave <= earlyWaves (4)` (nach Welle 1–4 je 16 s), sonst `waveEvery 30 s`. Golden: Wellen bei t = 1, 17, 33, 49, 65, 95, 125, …
-- Wellengröße: `round(waveBase 3 + wavePer 1.2 * n)` Grunts; Position `from = min(spawnX, rampStart 850 + rampStep 250*(n−1))`, `x = spawnX + (from − spawnX) + i*4 + Math.random()*30`.
+- Wellengröße: `round(waveBase 3 + wavePer 1.2 * n)` Grunts; Position `from = min(spawnX, rampStart 2950 + rampStep 250*(n−1))` (rampStart = spawnX: jede Welle startet am Lane-Ende), `x = spawnX + (from − spawnX) + i*4 + Math.random()*30`.
 - Elite-Welle (`n % 10 == 0`): zusätzlich 2 Elites (`eliteCount`) bei `from + count*4 + 30 + k*40`.
 - Boss (Welle 20, einmalig): 1 Boss bei `from + count*4 + 160`. Die Welle 20 hat auch die 2 Elites.
 - Boss-Logik: Phasen bei 66 % / 33 % Leben (Tempo ×0.8 / 1.0 / 1.3), Stampfen im Radius 150 mit `dmg*1.5` alle 6/5/4 s, Verstärkung (`2+Phase` Grunts) alle 20/14/10 s (`bossThink`, Zeile 885).
