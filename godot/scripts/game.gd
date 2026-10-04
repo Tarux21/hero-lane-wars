@@ -1787,7 +1787,7 @@ func _spawn_wave(side: Dictionary) -> void:
 			_spawn_unit("boss", base_off + count * 4.0 + 160.0, float(cfg["waveSpeedMul"]), lane, si)
 		var pool: Array = side["pool"]
 		for j in pool.size():                                              # Pool: alle gesendeten Monster laufen gesammelt mit der Welle los
-			_spawn_unit(str(pool[j]["type"]), base_off + count * 4.0 + 60.0 + j * 6.0, 1.0, lane, si, int(pool[j]["from"]))
+			_spawn_unit(str(pool[j]["type"]), base_off + count * 4.0 + 60.0 + j * 6.0, 1.0 if str(pool[j]["type"]) == "fast" else float(cfg["waveSpeedMul"]), lane, si, int(pool[j]["from"]))   # Wellentempo, Läufer bleibt schneller
 	side["pool"] = []
 	if n == int(cfg["bossWave"]):
 		side["boss_spawned"] = true
@@ -3333,6 +3333,11 @@ func _selftest() -> void:
 		if int(u["from_side"]) == 0:
 			sent_n += 1
 	check.call("Nächste Welle nimmt den Pool mit (gesendet auf der Lane %d, Pool danach %d)" % [sent_n, es["pool"].size()], sent_n == 2 * lanes_per_team and es["pool"].is_empty() and es["units"].size() >= (wave_n + 2) * lanes_per_team)
+	var tank_ok := false
+	for u in es["units"]:
+		if int(u["from_side"]) == 0 and u["type"] == "tank":
+			tank_ok = absf(float(u["spd"]) - float(Data.units["tank"]["spd"]) * float(cfg["waveSpeedMul"]) * float(cfg["speedMul"])) < 0.001
+	check.call("Gesendete Monster laufen im Wellentempo", tank_ok)
 	# 9. Held kommt nicht hinter den Spawn
 	hero["dead"] = 0.0
 	hero["x"] = float(cfg["laneLen"])

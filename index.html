@@ -459,7 +459,7 @@ function spawnWave(){
   if(G.bossIncome){ G.gold += G.bossIncome; G.stats.gold += G.bossIncome; }   // Boss-Einkommen: dauerhaft pro Welle für den Killer
   const isBoss = n === CFG.bossWave && !G.bossSpawned;                        // Bosswelle: einmalig, Boss kommt mit der normalen Welle
   if(isBoss){ G.bossSpawned = true; spawn('boss', 0, (from-CFG.spawnX)+list.length*4+160, CFG.waveSpeedMul); }
-  G.sendPool.forEach((t,i)=>spawn(t, 0, (from-CFG.spawnX)+list.length*4+60+i*6, 1));   // Pool: alle gesendeten Monster kommen gesammelt mit der Welle
+  G.sendPool.forEach((t,i)=>spawn(t, 0, (from-CFG.spawnX)+list.length*4+60+i*6, t==="fast" ? 1 : CFG.waveSpeedMul));   // Pool: alle gesendeten Monster kommen gesammelt mit der Welle, im Wellentempo (Läufer bleibt schneller)
   G.sendPool = [];
   if(isMainG()){
     showWave(n, isElite, isBoss); sfx(isBoss ? 'boss' : 'wave');
