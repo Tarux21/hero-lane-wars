@@ -1514,6 +1514,7 @@ func _attack_anim(p: Dictionary, tx: float, ty: float) -> void:
 		tr.set("parameters/as/scale", speed)
 		tr.set("parameters/os/request", AnimationNodeOneShot.ONE_SHOT_REQUEST_FIRE)
 		fig["upper_t"] = length / speed + 0.12
+		fig["twist_tgt"] = Vector2(tx, ty)
 		return
 	cast_pose(p, tx, ty, an, minf(length / speed, interval * 0.95), speed)
 	fig["auto"] = true
@@ -1521,6 +1522,7 @@ func _attack_anim(p: Dictionary, tx: float, ty: float) -> void:
 
 
 ## Knochen des Oberkörpers (Quaternius-Heldenmodelle): ab Torso aufwärts, dazu der Bauch für etwas Drehung
+const TorsoTwist = preload("res://scripts/torso_twist.gd")
 const UPPER_BONES := ["Abdomen", "Torso", "Neck", "Head", "Shoulder.L", "UpperArm.L", "LowerArm.L", "Fist.L", "Fist1.L", "Fist2.L", "Thumb1.L", "Thumb2.L",
 	"Shoulder.R", "UpperArm.R", "LowerArm.R", "Fist.R", "Fist1.R", "Fist2.R", "Weapon.R", "Thumb1.R", "Thumb2.R"]
 
@@ -1563,6 +1565,11 @@ func _upper_tree(fig: Dictionary, run_anim: String, atk_anim: String) -> Animati
 	tr.active = false
 	fig["tree"] = tr
 	fig["tree_run"] = run_anim
+	if sk != null and sk.find_bone("Torso") >= 0:                          # Oberkörper dreht sich beim Laufschlag zum Ziel
+		var tw := TorsoTwist.new()
+		tw.bones = [[sk.find_bone("Abdomen"), 0.4], [sk.find_bone("Torso"), 0.6]] if sk.find_bone("Abdomen") >= 0 else [[sk.find_bone("Torso"), 1.0]]
+		sk.add_child(tw)
+		fig["twist"] = tw
 	fig["run_pos"] = 0.0
 	fig["upper_t"] = 0.0
 	return tr
@@ -2824,6 +2831,14 @@ func _animate(e: Dictionary, node: Node3D, side_idx: int, delta: float, attack_a
 		want_yaw = atan2(fc.y - vis.y, -(fc.x - vis.x))
 	fig["yaw"] = lerp_angle(fig["yaw"], want_yaw, 1.0 - exp(-delta * 30.0))
 	(fig["inner"] as Node3D).rotation.y = fig["yaw"]
+	var tw: Variant = fig.get("twist")
+	if tw != null:                                      # Laufschlag: Oberkörper zum Ziel drehen (höchstens 70°), sonst weich zurück
+		var want_tw := 0.0
+		var trw: AnimationTree = fig.get("tree")
+		if trw != null and trw.active and fig.has("twist_tgt"):
+			var tt: Vector2 = fig["twist_tgt"]
+			want_tw = clampf(wrapf(atan2(tt.y - vis.y, -(tt.x - vis.x)) - float(fig["yaw"]), -PI, PI), -1.22, 1.22)
+		tw.angle = lerpf(float(tw.angle), want_tw, 1.0 - exp(-delta * 14.0))
 	var anim := move_anim if moving else (attack_anim if e.get("type") != null else idle_anim)     # Helden: Angriff wird je Schlag abgespielt (_attack_anim)
 	if force > 0.0:
 		anim = str(fig.get("force_anim", "")) if str(fig.get("force_anim", "")) != "" else attack_anim
