@@ -2637,6 +2637,7 @@ func _step_units(side: Dictionary, dt: float) -> void:
 				if e["p"]["side"] == side and Vector2(u["x"] - e["x"], u["y"] - e["y"]).length() <= u["range"] + 18.0:
 					el = e
 					break
+		u["eng"] = target_hero                                               # nur Anzeige: Monster stellen sich im Kreis um den Helden (_ring_layout)
 		if not target_hero.is_empty() or el != null:
 			engaged = true
 			if u["atk_t"] <= 0.0:
@@ -2869,6 +2870,62 @@ func _animate(e: Dictionary, node: Node3D, side_idx: int, delta: float, attack_a
 		(fig["model"] as Node3D).position.y = hgt
 
 
+## Nahkampf-Monster, die einen Helden angreifen, verteilen sich in der Anzeige im Kreis um ihn (statt alle auf einem Punkt).
+## Sie fächern sich um die Richtung auf, aus der sie kommen; sind es zu viele für einen Kreis, rücken sie enger zusammen (dann überlappen sie).
+## Nur Anzeige: Spielposition, Reichweite und Schaden bleiben unverändert (wie im Prototyp).
+func _ring_layout() -> Dictionary:
+	var out := {}
+	for p in players:
+		if p["dead"] > 0.0:
+			continue
+		var lst: Array = []
+		for s in sides:
+			for u in s["units"]:
+				if is_same(u.get("eng"), p) and float(u["range"]) <= 60.0:
+					lst.append(u)
+		if lst.is_empty():
+			continue
+		var c := Vector2(p["x"], p["y"])
+		var rmax := 0.0
+		var sum := Vector2.ZERO
+		for u in lst:
+			rmax = maxf(rmax, float(u["r"]))
+			sum += (Vector2(u["x"], u["y"]) - c).normalized()
+		var mean := sum.angle() if sum.length() > 0.01 else 0.0
+		var rad := 18.0 + rmax                                            # Abstand zur Mitte des Helden (Spielwerte)
+		var gap := 2.0 * asin(clampf(rmax * 1.15 / rad, 0.0, 1.0))
+		if gap * lst.size() > TAU:
+			gap = TAU / lst.size()
+		lst.sort_custom(func(a, b): return wrapf((Vector2(a["x"], a["y"]) - c).angle() - mean, -PI, PI) < wrapf((Vector2(b["x"], b["y"]) - c).angle() - mean, -PI, PI))
+		for k in lst.size():
+			var ang := mean + (k - (lst.size() - 1) / 2.0) * gap
+			if lst[k]["node"] != null:                                         # Schlüssel: Knoten des Monsters (das Dictionary ändert sich laufend)
+				out[(lst[k]["node"] as Object).get_instance_id()] = {"pos": c + Vector2(cos(ang), sin(ang)) * rad, "hero": c}
+	return out
+
+
+func _ring_apply(u: Dictionary, n: Node3D, ring: Dictionary, delta: float) -> void:
+	var key := n.get_instance_id()
+	var on := ring.has(key)
+	var rk: float = u.get("ring_k", 0.0)
+	rk = move_toward(rk, 1.0 if on else 0.0, delta * 3.0)
+	u["ring_k"] = rk
+	if on:
+		u["ring_pos"] = ring[key]["pos"]
+		u["ring_hero"] = ring[key]["hero"]
+	if rk <= 0.0 or not u.has("ring_pos"):
+		return
+	var rp: Vector2 = u["ring_pos"]
+	var e := smoothstep(0.0, 1.0, rk)
+	n.position = n.position.lerp(_wp(rp.x, rp.y, u["side_idx"]), e)
+	var fig: Dictionary = u["fig"]
+	if not fig.is_empty() and on:                                  # zum Helden schauen
+		var hp: Vector2 = u["ring_hero"]
+		var want := atan2(hp.y - rp.y, -(hp.x - rp.x))
+		fig["yaw"] = lerp_angle(float(fig["yaw"]), want, 1.0 - exp(-delta * 12.0))
+		(fig["inner"] as Node3D).rotation.y = fig["yaw"]
+
+
 ## Nachtwald: Monster stehen anfangs "im Baum" (Spielposition hinter der Startlinie) und sind erst sichtbar, wenn sie die Öffnung erreichen.
 ## Auf den ersten 7,5 m laufen sie aus der engen Öffnung heraus und fächern sich dann auf ihre Spielposition auf (nur Anzeige, die Spielregeln bleiben gleich).
 func _emerge_from_tree(u: Dictionary, n: Node3D) -> void:
@@ -2891,6 +2948,7 @@ func _sync_visuals(delta: float) -> void:
 		_animate(p, pn, p["side"]["idx"], delta, str(hm[1]), str(hm[2]), str(hm[3]), 5.0)
 		p["label"].text = ("Lv %d   %d" % [p["lvl"], int(p["hp"])]) if Data.user.hp_numbers else ("Lv %d" % p["lvl"])
 		_set_bar(p["bar"], p["bar_w"], p["hp"] / skills.h_max_hp(p), p["side"]["idx"] == hero["side"]["idx"])
+	var mob_ring := _ring_layout()
 	for s in sides:                      # alle Monster beider Seiten
 		for u in s["units"]:
 			var n: Node3D = u["node"]
@@ -2902,6 +2960,8 @@ func _sync_visuals(delta: float) -> void:
 					"Flying" if u["fig"].get("flies", false) else "Walk", "Flying" if u["fig"].get("flies", false) else "Idle", 2.5)
 			if n.visible and map_theme == "nachtwald" and not test_mode:
 				_emerge_from_tree(u, n)
+			if n.visible:
+				_ring_apply(u, n, mob_ring, delta)
 			_set_bar(u["bar"], u["bar_w"], u["hp"] / u["max"], true)
 	var fog_x: float = lane_xs[lanes_per_team - 1] + lane_half_g * S + WALL
 	for fx in fx_list:                   # Effekte und Zahlen auf der Gegner-Seite ausblenden
