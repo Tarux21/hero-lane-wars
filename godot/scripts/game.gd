@@ -1504,9 +1504,78 @@ func _attack_anim(p: Dictionary, tx: float, ty: float) -> void:
 	var interval: float = 1.0 / maxf(0.1, skills.h_as(p))
 	var length: float = ap.get_animation(an).length
 	var speed: float = clampf(length / (interval * 0.9), 1.0, 3.0)
+	if float(fig.get("hold", 0.0)) > 0.0 and ap.has_animation(str(hm[2])):    # im Laufen: Beine laufen weiter, nur der Oberkörper schlägt
+		var tr := _upper_tree(fig, str(hm[2]), an)
+		if not tr.active:
+			fig["run_pos"] = ap.current_animation_position if ap.current_animation == str(hm[2]) else 0.0
+			tr.set("parameters/seek/seek_request", float(fig["run_pos"]))
+			ap.active = false
+			tr.active = true
+		tr.set("parameters/as/scale", speed)
+		tr.set("parameters/os/request", AnimationNodeOneShot.ONE_SHOT_REQUEST_FIRE)
+		fig["upper_t"] = length / speed + 0.12
+		return
 	cast_pose(p, tx, ty, an, minf(length / speed, interval * 0.95), speed)
 	fig["auto"] = true
 	fig["restart"] = true
+
+
+## Knochen des Oberkörpers (Quaternius-Heldenmodelle): ab Torso aufwärts, dazu der Bauch für etwas Drehung
+const UPPER_BONES := ["Abdomen", "Torso", "Neck", "Head", "Shoulder.L", "UpperArm.L", "LowerArm.L", "Fist.L", "Fist1.L", "Fist2.L", "Thumb1.L", "Thumb2.L",
+	"Shoulder.R", "UpperArm.R", "LowerArm.R", "Fist.R", "Fist1.R", "Fist2.R", "Weapon.R", "Thumb1.R", "Thumb2.R"]
+
+
+## Zweite Animations-Schicht für Helden (einmal je Figur angelegt): Laufen für den ganzen Körper, darüber ein Schlag nur für den Oberkörper.
+## Solange sie aktiv ist, ruht der normale AnimationPlayer; danach übernimmt er wieder an derselben Stelle des Laufzyklus.
+func _upper_tree(fig: Dictionary, run_anim: String, atk_anim: String) -> AnimationTree:
+	if fig.has("tree"):
+		return fig["tree"]
+	var ap: AnimationPlayer = fig["anim"]
+	var bt := AnimationNodeBlendTree.new()
+	var run := AnimationNodeAnimation.new()
+	run.animation = run_anim
+	var atk := AnimationNodeAnimation.new()
+	atk.animation = atk_anim
+	var os := AnimationNodeOneShot.new()
+	os.fadein_time = 0.06
+	os.fadeout_time = 0.15
+	os.filter_enabled = true
+	var sk := ap.get_parent().find_child("Skeleton3D", true, false) as Skeleton3D
+	var sk_path: String = str(ap.get_parent().get_path_to(sk)) if sk != null else "CharacterArmature/Skeleton3D"
+	for b in UPPER_BONES:
+		os.set_filter_path(NodePath(sk_path + ":" + str(b)), true)
+	bt.add_node("run", run)
+	bt.add_node("seek", AnimationNodeTimeSeek.new())
+	bt.add_node("rs", AnimationNodeTimeScale.new())
+	bt.add_node("atk", atk)
+	bt.add_node("as", AnimationNodeTimeScale.new())
+	bt.add_node("os", os)
+	bt.connect_node("seek", 0, "run")
+	bt.connect_node("rs", 0, "seek")
+	bt.connect_node("as", 0, "atk")
+	bt.connect_node("os", 0, "rs")
+	bt.connect_node("os", 1, "as")
+	bt.connect_node("output", 0, "os")
+	var tr := AnimationTree.new()
+	tr.tree_root = bt
+	ap.get_parent().add_child(tr)
+	tr.anim_player = tr.get_path_to(ap)
+	tr.active = false
+	fig["tree"] = tr
+	fig["tree_run"] = run_anim
+	fig["run_pos"] = 0.0
+	fig["upper_t"] = 0.0
+	return tr
+
+
+func _upper_end(fig: Dictionary) -> void:
+	var tr: AnimationTree = fig["tree"]
+	var ap: AnimationPlayer = fig["anim"]
+	tr.active = false
+	ap.active = true
+	var run_anim: String = fig["tree_run"]
+	if ap.current_animation == run_anim:
+		ap.seek(fmod(float(fig["run_pos"]), maxf(0.01, ap.get_animation(run_anim).length)), true)
 
 
 ## Zauberpose: Figur dreht sich zum Ziel und spielt die Angriffsanimation neu ab
@@ -2729,6 +2798,14 @@ func _animate(e: Dictionary, node: Node3D, side_idx: int, delta: float, attack_a
 	hold = 0.18 if speed > 0.5 else maxf(0.0, hold - delta)       # kurzes Nachhalten: kein Flackern zwischen Laufen und Stehen
 	fig["hold"] = hold
 	var moving := hold > 0.0
+	var utr: AnimationTree = fig.get("tree")
+	if utr != null and utr.active:                      # Schlag im Laufen: Laufzyklus mitzählen, am Ende oder beim Anhalten zurück zum AnimationPlayer
+		var rsp: float = clampf(speed / ref, 0.7, 2.0)
+		utr.set("parameters/rs/scale", rsp)
+		fig["run_pos"] = float(fig["run_pos"]) + delta * rsp
+		fig["upper_t"] = float(fig["upper_t"]) - delta
+		if float(fig["upper_t"]) <= 0.0 or not moving or (float(fig.get("force", 0.0)) > 0.0 and not fig.get("auto", false)):
+			_upper_end(fig)
 	var want_yaw: float = fig["yaw"]
 	var force: float = fig.get("force", 0.0)
 	var mt: Variant = e.get("move_to")
