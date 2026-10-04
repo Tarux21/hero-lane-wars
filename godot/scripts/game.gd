@@ -1486,6 +1486,29 @@ func shake_near(pos: Vector3, px: float) -> void:
 	shake(px * clampf(1.0 - d / 40.0, 0.0, 1.0))
 
 
+## Auto-Angriff: Angriffsanimation bei jedem Schlag von vorn, so schnell, dass sie ins Angriffstempo passt.
+## Eine laufende Zauberpose (Fähigkeit) wird nicht unterbrochen.
+func _attack_anim(p: Dictionary, tx: float, ty: float) -> void:
+	var fig: Dictionary = p.get("fig", {})
+	if fig.is_empty():
+		return
+	var hm: Array = HERO_MODEL.get(p["key"], [])
+	if hm.is_empty():
+		return
+	var an: String = hm[1]
+	if float(fig.get("force", 0.0)) > 0.0 and not fig.get("auto", false):
+		return
+	var ap: AnimationPlayer = fig["anim"]
+	if ap == null or not ap.has_animation(an):
+		return
+	var interval: float = 1.0 / maxf(0.1, skills.h_as(p))
+	var length: float = ap.get_animation(an).length
+	var speed: float = clampf(length / (interval * 0.9), 1.0, 3.0)
+	cast_pose(p, tx, ty, an, minf(length / speed, interval * 0.95), speed)
+	fig["auto"] = true
+	fig["restart"] = true
+
+
 ## Zauberpose: Figur dreht sich zum Ziel und spielt die Angriffsanimation neu ab
 func cast_pose(p: Dictionary, tx: float, ty: float, anim: String = "", secs: float = 0.55, speed: float = 1.0) -> void:
 	var fig: Dictionary = p.get("fig", {})
@@ -1493,6 +1516,7 @@ func cast_pose(p: Dictionary, tx: float, ty: float, anim: String = "", secs: flo
 		return
 	fig["force"] = secs
 	fig["force_speed"] = speed
+	fig["auto"] = false
 	fig["force_anim"] = anim
 	fig["face"] = Vector2(tx, ty)
 	fig["cur"] = ""
@@ -1719,6 +1743,12 @@ func _make_figure(path: String, height: float) -> Dictionary:
 ## Spielt eine Animation, wenn sie sich ändert (weich übergeblendet).
 func _play_anim(fig: Dictionary, name: String) -> void:
 	var ap: AnimationPlayer = fig["anim"]
+	if ap != null and fig.get("restart", false) and ap.has_animation(name):     # Auto-Angriff: Animation bei jedem Schlag von vorn
+		fig["restart"] = false
+		fig["cur"] = name
+		ap.play(name, 0.06)
+		ap.seek(0.0, true)
+		return
 	if ap == null or fig["cur"] == name or not ap.has_animation(name):
 		return
 	fig["cur"] = name
@@ -2330,6 +2360,7 @@ func _step_hero(p: Dictionary, dt: float) -> void:
 		var dmg := skills.h_dmg(p)
 		var tx: float = tgt["x"]
 		var ty: float = tgt["y"]
+		_attack_anim(p, tx, ty)
 		var is_crit := false
 		if p["crit_ch"] > 0.0 and rand() < p["crit_ch"]:                  # kritischer Treffer (Crit-Mantel / Mächtige Klinge)
 			is_crit = true
@@ -2716,7 +2747,7 @@ func _animate(e: Dictionary, node: Node3D, side_idx: int, delta: float, attack_a
 		want_yaw = atan2(fc.y - vis.y, -(fc.x - vis.x))
 	fig["yaw"] = lerp_angle(fig["yaw"], want_yaw, 1.0 - exp(-delta * 30.0))
 	(fig["inner"] as Node3D).rotation.y = fig["yaw"]
-	var anim := move_anim if moving else (attack_anim if (tg != null or e.get("type") != null) else idle_anim)
+	var anim := move_anim if moving else (attack_anim if e.get("type") != null else idle_anim)     # Helden: Angriff wird je Schlag abgespielt (_attack_anim)
 	if force > 0.0:
 		anim = str(fig.get("force_anim", "")) if str(fig.get("force_anim", "")) != "" else attack_anim
 	_play_anim(fig, anim)
