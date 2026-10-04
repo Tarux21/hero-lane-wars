@@ -159,7 +159,7 @@ def skull(loc, s=1.0, horns=False):
             path([(x + sx * 0.2 * s, y, z + 0.2 * s), (x + sx * 0.38 * s, y, z + 0.38 * s), (x + sx * 0.42 * s, y, z + 0.65 * s)], 0.07 * s, 0.015 * s, "bonedark", 5)
 
 
-def export(name):
+def export(name, recenter=False):
     for o in bpy.context.selected_objects:
         o.select_set(False)
     for o in parts:
@@ -167,6 +167,9 @@ def export(name):
     bpy.context.view_layer.objects.active = parts[0]
     bpy.ops.object.join()
     obj = bpy.context.active_object
+    if recenter:                                                                                    # Ursprung auf (0, 0, 0): sonst sitzt das Modell versetzt (Ursprung = erstes Teil)
+        bpy.context.scene.cursor.location = (0.0, 0.0, 0.0)
+        bpy.ops.object.origin_set(type="ORIGIN_CURSOR")
     obj.name = name
     bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
     path_out = os.path.join(OUT, name + ".glb")
@@ -1367,7 +1370,7 @@ def spawn_tree():
 def thorn_wall(variant):
     """Dornenwand-Stück, 3 m breit: dichtes Geflecht aus verdorrten, dicken Dornenranken mit langen Stacheln und kleinen grünen Spitzen"""
     rnd = random.Random(60 + variant)
-    n = 11
+    n = 15
     stems = []
     for i in range(n):
         bx = -1.4 + 2.8 * i / (n - 1) + rnd.uniform(-0.1, 0.1)
@@ -1379,7 +1382,7 @@ def thorn_wall(variant):
         pts = [(bx, by, 0.0), p1, p2, p3]
         path(pts, 0.36, 0.1, "thorn", 6)
         stems.append(pts)
-        for k in range(8):                                                                          # lange Stacheln
+        for k in range(10):                                                                         # lange Stacheln
             f = rnd.uniform(0.1, 0.95)
             seg = min(2, int(f * 3))
             p = Vector(pts[seg]).lerp(Vector(pts[seg + 1]), f * 3 - seg)
@@ -1425,5 +1428,5 @@ for name, fn in make_all:
     bpy.ops.wm.read_factory_settings(use_empty=True)
     make_materials()
     fn()
-    export(name)
+    export(name, recenter=name in ("spawn_tree", "thorn_wall_0", "thorn_wall_1", "thorn_wall_2"))
 print("FERTIG")
