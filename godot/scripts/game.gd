@@ -2926,6 +2926,73 @@ func _ring_apply(u: Dictionary, n: Node3D, ring: Dictionary, delta: float) -> vo
 		(fig["inner"] as Node3D).rotation.y = fig["yaw"]
 
 
+## Weiche Körper-Abstoßung (nur Anzeige): Monster halten Abstand zueinander und zum Helden, auch im Laufen und beim Hinterherjagen.
+## Jedes Monster hat einen kleinen Versatz zu seiner Spielposition (höchstens SEP_MAX), der bei Gedränge wächst und sonst weich abklingt.
+## Für die Regeln stehen sie weiter wie im Prototyp: Niemand blockiert jemanden, alle in Reichweite greifen an (keine Warteschlange).
+const SEP_MAX := 1.6
+const SEP_CELL := 1.5
+
+
+func _separate_units(delta: float) -> void:
+	if test_mode or hero.is_empty() or delta <= 0.0:
+		return
+	var list: Array = []
+	for u in sides[int(hero["side"]["idx"])]["units"]:
+		var n: Node3D = u["node"]
+		if n != null and n.visible and not (map_theme == "nachtwald" and float(u["x"]) > float(cfg["spawnX"]) - 100.0):      # nicht in der Öffnung des Spawn-Baums
+			list.append(u)
+	var grid := {}
+	var pos: Array = []
+	for i in list.size():
+		var u: Dictionary = list[i]
+		var sep: Vector2 = u.get("sep", Vector2.ZERO)
+		var np: Vector3 = (u["node"] as Node3D).position
+		var p := Vector2(np.x, np.z) + sep
+		pos.append(p)
+		var key := Vector2i(int(floor(p.x / SEP_CELL)), int(floor(p.y / SEP_CELL)))
+		if not grid.has(key):
+			grid[key] = []
+		grid[key].append(i)
+	var heroes_xz: Array = []
+	for p in players:
+		if p["dead"] <= 0.0 and p["side"]["idx"] == hero["side"]["idx"]:
+			var hn: Vector3 = (p["node"] as Node3D).position
+			heroes_xz.append(Vector2(hn.x, hn.z))
+	var relax := exp(-delta * 1.2)                                        # ohne Gedränge wandert jedes Monster langsam zurück auf seine Spielposition
+	for i in list.size():
+		var u: Dictionary = list[i]
+		var ri: float = float(u["r"]) * S
+		var p: Vector2 = pos[i]
+		var push := Vector2.ZERO
+		var key := Vector2i(int(floor(p.x / SEP_CELL)), int(floor(p.y / SEP_CELL)))
+		for gx in range(key.x - 1, key.x + 2):
+			for gy in range(key.y - 1, key.y + 2):
+				var cell: Variant = grid.get(Vector2i(gx, gy))
+				if cell == null:
+					continue
+				for j in cell:
+					if j == i:
+						continue
+					var dmin: float = (ri + float(list[j]["r"]) * S) * 0.95
+					var d: Vector2 = p - (pos[j] as Vector2)
+					var dl := d.length()
+					if dl < dmin:
+						var dir: Vector2 = d / dl if dl > 0.001 else Vector2.RIGHT.rotated(float(i * 7 + j) * 0.9)
+						push += dir * (dmin - dl) * 0.5
+		for hp in heroes_xz:                                              # nicht in den Helden hineinlaufen
+			var dh: Vector2 = p - (hp as Vector2)
+			var dhl := dh.length()
+			var hmin: float = ri + 0.55
+			if dhl < hmin:
+				push += (dh / dhl if dhl > 0.001 else Vector2.UP) * (hmin - dhl)
+		var sep: Vector2 = u.get("sep", Vector2.ZERO) * relax + push * minf(1.0, delta * 12.0)
+		if sep.length() > SEP_MAX:
+			sep = sep.normalized() * SEP_MAX
+		u["sep"] = sep
+		var n: Node3D = u["node"]
+		n.position += Vector3(sep.x, 0.0, sep.y)
+
+
 ## Nachtwald: Monster stehen anfangs "im Baum" (Spielposition hinter der Startlinie) und sind erst sichtbar, wenn sie die Öffnung erreichen.
 ## Auf den ersten 7,5 m laufen sie aus der engen Öffnung heraus und fächern sich dann auf ihre Spielposition auf (nur Anzeige, die Spielregeln bleiben gleich).
 func _emerge_from_tree(u: Dictionary, n: Node3D) -> void:
@@ -2963,6 +3030,7 @@ func _sync_visuals(delta: float) -> void:
 			if n.visible:
 				_ring_apply(u, n, mob_ring, delta)
 			_set_bar(u["bar"], u["bar_w"], u["hp"] / u["max"], true)
+	_separate_units(delta)
 	var fog_x: float = lane_xs[lanes_per_team - 1] + lane_half_g * S + WALL
 	for fx in fx_list:                   # Effekte und Zahlen auf der Gegner-Seite ausblenden
 		var fnode: Node3D = fx["node"]
