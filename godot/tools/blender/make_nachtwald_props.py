@@ -352,8 +352,8 @@ def lava_rock():
         box((0.25, 0.55, 0.12), (0.45 * math.cos(a + 0.5), 0.45 * math.sin(a + 0.5), 0.12), (0, 0, a), "stone2")
     for k in range(4):
         a = k * 1.6
-        box((0.7, 0.07, 0.07), (0.3 * math.cos(a), 0.3 * math.sin(a), 0.34), (0, 0, a), "ember")
-    box((0.5, 0.5, 0.12), (0, 0, 0.3), m="ember")
+        box((0.7, 0.07, 0.07), (0.3 * math.cos(a), 0.3 * math.sin(a), 0.34), (0, 0, a), "poison")
+    box((0.5, 0.5, 0.12), (0, 0, 0.3), m="poison")
 
 
 # ---------------------------------------------------------------- Szenen am Wegrand (Vorderseite = Blender +Y)
@@ -1440,6 +1440,60 @@ def spawn_roots():
         sphere(rnd.uniform(0.25, 0.45), (rr * math.cos(a), abs(rr * math.sin(a)) + 0.4, 0.04), (1.5, 1.1, 0.2), "moss", 12, 5)
 
 
+def pool_island():
+    """Insel in der Gabelung des Giftflusses: ovaler Steinsockel mit bröckelndem Rand, großer Giftbrunnen (Becken), 6 gebrochene Säulen
+    mit Runenband und Ketten, die ins Becken hängen. Lange Achse = Blender Y (im Spiel entlang der Lane). Hier stehen die gesendeten Monster."""
+    rnd = random.Random(91)
+    RX, RY = 2.7, 5.9
+    bpy.ops.mesh.primitive_cylinder_add(vertices=28, radius=1.0, depth=0.4, location=(0, 0, 0.15))
+    o = bpy.context.active_object
+    o.scale = (RX, RY, 1.0)
+    finish(o, "stone")
+    n = 24
+    for k in range(n):                                                                              # Rand aus Steinblöcken, mit Lücken
+        if k in (4, 11, 15, 21):
+            continue
+        a = k * math.tau / n
+        x, y = (RX - 0.35) * math.cos(a), (RY - 0.45) * math.sin(a)
+        t = math.atan2((RY - 0.45) * math.cos(a), -(RX - 0.35) * math.sin(a))
+        box((0.75 + rnd.uniform(0, 0.25), 0.55, 0.3 + rnd.uniform(0, 0.3)), (x, y, 0.45), (0, rnd.uniform(-0.08, 0.08), t), "castle" if k % 2 else "castle3")
+    bpy.ops.mesh.primitive_cylinder_add(vertices=28, radius=1.0, depth=0.12, location=(0, 0, 0.3))
+    o = bpy.context.active_object
+    o.scale = (1.95, 4.65, 1.0)
+    finish(o, "hollow")                                                                             # dunkler Beckenrand
+    bpy.ops.mesh.primitive_cylinder_add(vertices=28, radius=1.0, depth=0.06, location=(0, 0, 0.36))
+    o = bpy.context.active_object
+    o.scale = (1.8, 4.45, 1.0)
+    finish(o, "poison")                                                                             # Giftoberfläche (wird im Spiel animiert)
+    for k in range(20):                                                                             # innerer Beckenrand
+        a = k * math.tau / 20
+        t = math.atan2(4.6 * math.cos(a), -1.92 * math.sin(a))
+        box((0.55, 0.22, 0.16), (1.92 * math.cos(a), 4.6 * math.sin(a), 0.42), (0, 0, t), "stone2")
+    for k, ang in enumerate((25, 90, 155, 205, 270, 335)):                                          # gebrochene Säulen mit Runenband und Ketten
+        a = math.radians(ang)
+        x, y = 2.2 * math.cos(a), 5.05 * math.sin(a)
+        h = rnd.uniform(1.5, 2.6)
+        box((0.8, 0.8, 0.3), (x, y, 0.5), (0, 0, rnd.uniform(0, 1)), "castle2")
+        cone(0.32, 0.27, h, (x, y, 0.6 + h / 2), m="statue2", verts=8)
+        limb((x, y, 0.6 + h - 0.05), (x + rnd.uniform(-0.15, 0.15), y + rnd.uniform(-0.15, 0.15), 0.6 + h + rnd.uniform(0.25, 0.5)), 0.24, 0.0, "statue2", 5)
+        cone(0.335, 0.335, 0.09, (x, y, 0.6 + h * 0.55), m="poison", verts=8)
+        tx, ty = x * 0.42, y * 0.6
+        top = Vector((x * 0.9, y * 0.95, 0.6 + h - 0.25))
+        end = Vector((tx, ty, 0.42))
+        pts = []
+        for i in range(6):
+            f = i / 5.0
+            pnt = top.lerp(end, f)
+            pnt.z -= 0.55 * math.sin(f * math.pi) * 0.6
+            pts.append(tuple(pnt))
+        path(pts, 0.035, 0.035, "iron", 4)
+        sphere(0.09, (tx, ty, 0.42), (1.4, 1.4, 0.6), "iron", 6, 4)                                 # Fessel im Becken
+    skull((1.9, -4.6, 0.62), 0.55)
+    skull((-2.0, 4.4, 0.6), 0.5)
+    bone((-1.4, -5.0, 0.45), (-0.6, -5.4, 0.48), 0.05, 0.08, "bonedark")
+    bone((1.2, 5.1, 0.45), (0.4, 5.5, 0.47), 0.05, 0.08, "bone")
+
+
 make_all = [("tree_dead", tree_dead), ("tree_pine", tree_pine), ("bone_pillar", bone_pillar), ("bone_arch", bone_arch),
             ("skull_pile", skull_pile), ("mushroom_glow", mushroom_glow), ("rock_dark", rock_dark), ("brazier", brazier), ("lava_rock", lava_rock),
             ("skel_sit", skel_sit), ("skel_impaled", skel_impaled), ("skel_hang", skel_hang), ("cage_skel", cage_skel), ("wagon", wagon), ("barrels", barrels),
@@ -1453,7 +1507,7 @@ make_all = [("tree_dead", tree_dead), ("tree_pine", tree_pine), ("bone_pillar", 
             ("castle_tower", castle_tower), ("castle_gate", castle_gate), ("siege_ram", siege_ram), ("horse_dead", horse_dead),
             ("corpse_0", lambda: corpse(0)), ("corpse_1", lambda: corpse(1)), ("corpse_2", lambda: corpse(2)),
             ("weapon_field", weapon_field), ("banner_torn", banner_torn), ("bone_heap", bone_heap),
-            ("spawn_tree", spawn_tree), ("thorn_wall_0", lambda: thorn_wall(0)), ("thorn_wall_1", lambda: thorn_wall(1)), ("thorn_wall_2", lambda: thorn_wall(2)), ("spawn_roots", spawn_roots)]
+            ("spawn_tree", spawn_tree), ("thorn_wall_0", lambda: thorn_wall(0)), ("thorn_wall_1", lambda: thorn_wall(1)), ("thorn_wall_2", lambda: thorn_wall(2)), ("spawn_roots", spawn_roots), ("pool_island", pool_island)]
 ONLY = sys.argv[sys.argv.index("--") + 2:] if "--" in sys.argv else []                              # optional: nur diese Modelle neu erzeugen
 for name, fn in make_all:
     if ONLY and name not in ONLY:
@@ -1461,5 +1515,5 @@ for name, fn in make_all:
     bpy.ops.wm.read_factory_settings(use_empty=True)
     make_materials()
     fn()
-    export(name, recenter=name in ("spawn_roots", "spawn_tree", "thorn_wall_0", "thorn_wall_1", "thorn_wall_2"))
+    export(name, recenter=name in ("pool_island", "spawn_roots", "spawn_tree", "thorn_wall_0", "thorn_wall_1", "thorn_wall_2"))
 print("FERTIG")

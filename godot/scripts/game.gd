@@ -131,6 +131,8 @@ var golden_eco_filter := ""
 var menu_shot := ""
 var menu_click := ""                  # Test: Menü per echten Mausklicks bedienen, z. B. --menuclick=options oder single,class_tank
 var shot_wait := 0.0                        # Test: Sekunden Echtzeit vor dem Bildschirmfoto, --shotwait=4
+var pool_test := 0                          # Test: so viele Monster zu Beginn senden, --pooltest=20
+var pool_release_test := false              # Test: nach 1 s startet die Gegner-Welle, --poolrelease
 var cam_test_dx := -9.0                    # Test: seitlicher Versatz der Testkamera in Metern, --camdx=0
 var cam_test_x := -99999.0                # Test: Kamera frei auf Lane-Position x (Spielwert), --camx=1500
 var lives_test := -1                       # Test: Team-Leben für das Bild setzen (Statuenstufen), --lives=4
@@ -176,6 +178,10 @@ func _ready() -> void:
 		elif a.begins_with("--team="):
 			team_size = int(a.substr(7))
 			direct = true
+		elif a == "--poolrelease":
+			pool_release_test = true
+		elif a.begins_with("--pooltest="):
+			pool_test = int(a.substr(11))
 		elif a.begins_with("--shotwait="):
 			shot_wait = float(a.substr(11))
 		elif a.begins_with("--pitch="):
@@ -555,12 +561,11 @@ func _build_map() -> void:
 				_box(Vector3(wall_x, 1.1, z_mid - 6.0), Vector3(WALL, 2.4, lane_len + 2.0), mc["wall"])   # Wand (Fels bzw. dunkles Unterholz)
 				_box(Vector3(wall_x, 2.45, z_mid - 6.0), Vector3(WALL - 1.0, 0.5, lane_len + 2.0), mc["wall_top"])
 	var river_x: float = (lane_xs[lanes_per_team - 1] + lane_xs[lanes_per_team]) / 2.0
-	var river_box := _box(Vector3(river_x, -0.06, z_mid - 6.0), Vector3(5.0, 0.2, lane_len + 2.0), mc["river"])           # Fluss (Wasser bzw. Lava) zwischen den Teams
 	if map_theme == "nachtwald":
-		var lm := river_box.material_override as StandardMaterial3D
-		lm.emission_enabled = true
-		lm.emission = Color("#ff4a14")
-		lm.emission_energy_multiplier = 1.8
+		if not test_mode:
+			decor.build_river(river_x, lane_len)                     # Giftfluss mit Gabelung und Insel (Pool der gesendeten Monster)
+	else:
+		_box(Vector3(river_x, -0.06, z_mid - 6.0), Vector3(5.0, 0.2, lane_len + 2.0), mc["river"])           # Fluss (Wasser bzw. Lava) zwischen den Teams
 	var spawn_z := -float(cfg["spawnX"]) * S
 	for i in n:
 		if map_theme != "nachtwald":                                  # im Nachtwald steht dort der Spawn-Baum (map_nachtwald.gd)
@@ -1959,7 +1964,7 @@ func _load_volume() -> float:
 ## Beim Start: gespeicherte Anzeige anwenden, aber nicht in Tests und Bild-Läufen (feste Auflösung)
 func _apply_saved_display() -> void:
 	for a in OS.get_cmdline_user_args():
-		for t in ["--sim", "--shot", "--selftest", "--golden", "--fxtest", "--menushot", "--menuclick", "--menu-test", "--shopshot", "--merchanttest", "--camx", "--camdx", "--pitch", "--shotwait", "--spawndbg", "--map", "--uiscale", "--colorblind", "--gfxlow", "--itemcatalog", "--dbgshot", "--uimenu", "--uitip", "--botplay", "--autoplay"]:
+		for t in ["--sim", "--shot", "--selftest", "--golden", "--fxtest", "--menushot", "--menuclick", "--menu-test", "--shopshot", "--merchanttest", "--camx", "--camdx", "--pitch", "--shotwait", "--pooltest", "--poolrelease", "--spawndbg", "--map", "--uiscale", "--colorblind", "--gfxlow", "--itemcatalog", "--dbgshot", "--uimenu", "--uitip", "--botplay", "--autoplay"]:
 			if a.begins_with(t):
 				return
 	var cf := ConfigFile.new()
@@ -2782,6 +2787,7 @@ func _sync_visuals(delta: float) -> void:
 	_update_statues(delta)
 	if map_theme == "nachtwald":
 		decor.update_spawns(delta)
+		decor.update_pool(delta)
 	_cam_input(delta)
 	var off := _cam_offset()
 	var want := (cam_focus if cam_free else hn.position) + off
@@ -3486,8 +3492,14 @@ func _run_simulation(secs: float, shot_path: String) -> void:
 	if cam_test_x > -99998.0:
 		cam_free = true
 		cam_focus = _wp(cam_test_x, 0.0, 0) + Vector3(cam_test_dx if cam_test_x >= 0.0 else 0.0, 0.0, 0.0)
+	if pool_test > 0:                                                  # Test: Monster senden, sie erscheinen im Giftbrunnen
+		hero["gold"] = 99999.0
+		for k in pool_test:
+			send(hero, ["grunt", "tank", "archer", "fast", "elite"][k % 5])
 	if shot_path != "":
 		for k in int(shot_wait * 30.0):                              # Test: in Echtzeit warten, damit Partikel (Nebel) sich füllen
+			if pool_release_test and k == 30:
+				_spawn_wave(sides[1 - int(hero["side"]["idx"])])            # Test: Gegner-Welle startet, der Pool taucht ab
 			_sync_visuals(1.0 / 30.0)
 			await get_tree().create_timer(1.0 / 30.0).timeout
 		_sync_visuals(1.0)

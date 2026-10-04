@@ -102,3 +102,9 @@ Alte Wiese zum Vergleichen: Start mit `--map=gras`. Eigene Modelle (z. B. aus Bl
 ### Lane-Boden im Nachtwald
 - Statt der eckigen Lane-Fläche liegt je Lane ein alter, verwilderter Pflasterweg (`godot/shaders/nachtwald_lane.gdshader`, aufgebaut in `build_lane_ground`): abgerundete, schiefe Platten mit Lücken, Moos, Wurzeln, weiche unregelmäßige Ränder.
 - Zum Lane-Ende (Spawn) löst sich das Pflaster in Erde, Moos und Wurzeln auf; es gibt keine sichtbare Kante, die Lichtung läuft unter den Spawn-Baum.
+
+### Giftfluss und Monster-Pool im Nachtwald
+- Zwischen den Teams fließt ein Giftfluss (`godot/shaders/nachtwald_river.gdshader`, `build_river`) statt Lava. Nah an der Basis gabelt er sich: ein Seitenarm biegt zur eigenen Seite aus.
+- In der Gabelung liegt eine Insel mit Giftbrunnen und sechs Säulen mit Ketten (`pool_island.glb`). Dort stehen die Monster, die dein Team gesendet hat (bis 18 sichtbar, darüber `+N`); die des Gegners bleiben geheim.
+- Startet die nächste Gegner-Welle, tauchen sie ab und eine Giftfontäne schießt hoch (`update_pool`, `_pool_release`).
+- Testflags: `--pooltest=20` (sendet zu Beginn 20 Monster), `--poolrelease` (nach 1 s startet die Gegner-Welle), z. B. `--sim=3 --shot=pfad.png --camx=500 --camdx=12 --zoom=26 --shotwait=2`.

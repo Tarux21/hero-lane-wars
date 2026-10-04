@@ -6,7 +6,7 @@ extends RefCounted
 
 const COLORS := {
 	"ground": Color("#14111e"), "lane": Color("#5c5750"), "strip": Color("#4a4640"), "wall": Color("#0b0912"), "wall_top": Color("#15101c"),
-	"river": Color("#e8421a"), "plaza": Color("#4a4640"), "fog": Color(0.10, 0.07, 0.16, 0.82),
+	"river": Color("#3aa83a"), "plaza": Color("#4a4640"), "fog": Color(0.10, 0.07, 0.16, 0.82),
 }
 
 var g: Node
@@ -522,6 +522,8 @@ func decorate(wall_xs: Array, river_x: float, lane_xs: Array, half: float, x_min
 		for sd in [-1.0, 1.0]:
 			var bank: float = river_x + sd * rng.randf_range(7.5, 11.0)
 			_place_tree(bank, zr, rng.randf_range(0.6, 1.0), rng.randf() < 0.6)
+	dead_xf = _fork_keep(dead_xf, river_x)
+	pine_xf = _fork_keep(pine_xf, river_x)
 	_scatter("tree_dead", dead_xf)
 	_scatter("tree_pine", pine_xf)
 
@@ -543,14 +545,14 @@ func decorate(wall_xs: Array, river_x: float, lane_xs: Array, half: float, x_min
 		lava_rocks.append(_t(river_x + (3.1 if rng.randf() < 0.5 else -3.1), zl, rng.randf_range(0.5, 0.9)))
 	_scatter("bone_pillar", pillars)
 	_scatter("mushroom_glow", shrooms, false)
-	_scatter("rock_dark", rocks, false)
+	_scatter("rock_dark", _fork_keep(rocks, river_x), false)
 	_scatter("skull_pile", skulls, false)
 	_scatter("brazier", braziers, false)
-	_scatter("lava_rock", lava_rocks, false)
+	_scatter("lava_rock", _fork_keep(lava_rocks, river_x), false)
 	for nm in scenes:
-		_scatter(nm, scenes[nm], false)
-	_scatter("torch", torches, false)
-	_scatter("eyes", eyes, false)
+		_scatter(nm, _fork_keep(scenes[nm], river_x), false)
+	_scatter("torch", _fork_keep(torches, river_x), false)
+	_scatter("eyes", _fork_keep(eyes, river_x), false)
 
 	# 5) Basis: Knochenbogen und Schädelhaufen rechts des Platzes (links steht das Händler-Camp)
 	var mid_x: float = (lane_xs[0] + lane_xs[lane_xs.size() - 1]) / 2.0
@@ -561,9 +563,9 @@ func decorate(wall_xs: Array, river_x: float, lane_xs: Array, half: float, x_min
 	var zc: float = (z_near + z_far) / 2.0
 	var zl2: float = z_near - 10.0
 	while zl2 > z_far:
-		_light(Vector3(river_x, 1.5, zl2), Color("#ff6a2a"), 2.0, 16.0)
+		_light(Vector3(river_x, 1.5, zl2), Color("#7aff4a"), 1.6, 16.0)
 		zl2 -= 28.0
-	_motes(Vector3(river_x, 0.6, zc), Vector3(2.4, 0.2, (z_near - z_far) / 2.0), 90, Color("#ff9a3a"), 0.28, 1.6, 4.0)
+	_motes(Vector3(river_x, 0.6, zc), Vector3(2.4, 0.2, (z_near - z_far) / 2.0), 90, Color("#9aff6a"), 0.28, 1.6, 4.0)
 	_motes(Vector3((x_min + x_max) / 2.0, 1.4, zc), Vector3((x_max - x_min) / 2.0 + 10.0, 1.2, (z_near - z_far) / 2.0), 150, Color("#7aff7a"), 0.22, 0.4, 7.0)
 	_motes(Vector3((x_min + x_max) / 2.0, 2.5, zc), Vector3((x_max - x_min) / 2.0 + 10.0, 1.5, (z_near - z_far) / 2.0), 70, Color("#7ad0ff"), 0.2, 0.3, 8.0)
 
@@ -753,3 +755,149 @@ func forest_floor(mi: MeshInstance3D) -> void:
 	var sm := ShaderMaterial.new()
 	sm.shader = sh
 	mi.material_override = sm
+
+
+# ---------------------------------------------------------------- Giftfluss mit Gabelung, Insel mit Giftbrunnen (Pool)
+const FORK_Z0 := -14.0                  # Gabelung nah an der Basis (Welt-z)
+const FORK_Z1 := -36.0
+const ARM_OFF := 9.5                    # Seitenarm biegt so weit zur eigenen Seite aus
+const POOL_SHOW := 18                   # so viele gesendete Monster stehen sichtbar im Brunnen, darüber zeigt eine Zahl den Rest
+var river_x_ := 0.0
+var pool_vis: Dictionary = {}
+
+
+## Giftfluss als Shader-Fläche (statt Lava-Quader), mit Seitenarm um die Insel
+func build_river(river_x: float, lane_len: float) -> void:
+	river_x_ = river_x
+	var sh := load("res://shaders/nachtwald_river.gdshader") as Shader
+	if sh == null:
+		return
+	var z0 := 22.0
+	var z1 := -(lane_len + 24.0)
+	var q := PlaneMesh.new()
+	q.size = Vector2(32.0, z0 - z1)
+	var sm := ShaderMaterial.new()
+	sm.shader = sh
+	sm.set_shader_parameter("river_x", river_x)
+	sm.set_shader_parameter("fork_z0", FORK_Z0)
+	sm.set_shader_parameter("fork_z1", FORK_Z1)
+	sm.set_shader_parameter("arm_off", ARM_OFF)
+	var mi := MeshInstance3D.new()
+	mi.mesh = q
+	mi.material_override = sm
+	mi.position = Vector3(river_x - 6.0, 0.03, (z0 + z1) / 2.0)
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	g.add_child(mi)
+	build_pool_island()
+
+
+func _island_center() -> Vector3:
+	return Vector3(river_x_ - 5.15, 0.0, (FORK_Z0 + FORK_Z1) / 2.0)
+
+
+## Insel mit Giftbrunnen; darin stehen die Monster, die dein Team gesendet hat (nur die eigenen, die des Gegners bleiben geheim)
+func build_pool_island() -> void:
+	var c := _island_center()
+	var mi := _put("pool_island", c, 0.0, 1.0)
+	if mi == null:
+		return
+	var pm: StandardMaterial3D = null
+	var base_e := 4.0
+	var mesh: Mesh = mi.mesh
+	for s in mesh.get_surface_count():
+		var m := mesh.surface_get_material(s)
+		if m is StandardMaterial3D and m.resource_name.to_lower().contains("gift"):
+			pm = (m as StandardMaterial3D).duplicate() as StandardMaterial3D
+			base_e = pm.emission_energy_multiplier
+			mi.set_surface_override_material(s, pm)
+	var l := _light(c + Vector3(0.0, 2.0, 0.0), Color("#8aff4a"), 1.2, 10.0)
+	var burst := _fog_particles(c + Vector3(0.0, 0.5, 0.0), 40, 2.6, 2.5, 6.0, true)
+	burst.direction = Vector3.UP
+	burst.spread = 25.0
+	burst.emission_box_extents = Vector3(1.6, 0.2, 4.0)
+	var lab := Label3D.new()
+	lab.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	lab.font_size = 64
+	lab.outline_size = 12
+	lab.modulate = Color("#c8ff9a")
+	lab.position = c + Vector3(0.0, 3.4, 0.0)
+	lab.no_depth_test = true
+	g.add_child(lab)
+	pool_vis = {"c": c, "mat": pm, "base_e": base_e, "light": l, "burst": burst, "label": lab, "figs": [], "flash": 0.0}
+
+
+func _pool_slot(k: int) -> Vector3:
+	var col := k % 3
+	var row := k / 3
+	var jx := sin(float(k) * 12.9898) * 0.18
+	var jz := cos(float(k) * 78.233) * 0.18
+	return Vector3((col - 1) * 0.95 + jx, 0.0, -3.2 + row * 1.28 + jz)
+
+
+## Jeden Frame: neue Pool-Monster erscheinen im Brunnen; startet die Gegner-Welle (Pool leer), tauchen alle ab und eine Giftfontäne schießt hoch.
+func update_pool(delta: float) -> void:
+	if pool_vis.is_empty() or g.hero.is_empty():
+		return
+	var own: int = int(g.hero["side"]["idx"])
+	var pool: Array = g.sides[1 - own]["pool"]
+	var figs: Array = pool_vis["figs"]
+	var c: Vector3 = pool_vis["c"]
+	if pool.is_empty() and not figs.is_empty():
+		_pool_release()
+	var want: int = mini(pool.size(), POOL_SHOW)
+	while figs.size() < want:
+		var k: int = figs.size()
+		var typ := str(pool[k]["type"])
+		var ud: Dictionary = Data.units[typ]
+		var mh: float = float(ud["r"]) * g.S * 2.8 * 0.75
+		var fig: Dictionary = g._make_figure("monsters/%s.gltf" % g.UNIT_MODEL[typ], mh)
+		if fig.is_empty():
+			figs.append({})
+			continue
+		var n: Node3D = fig["model"]
+		n.position = c + _pool_slot(k) + Vector3(0.0, 0.9 if typ == "fast" else 0.05, 0.0)
+		(fig["inner"] as Node3D).rotation.y = sin(float(k) * 3.7) * 0.6        # schauen grob zur Kamera
+		n.scale = Vector3.ONE * 0.05
+		g.add_child(n)
+		n.create_tween().tween_property(n, "scale", Vector3.ONE, 0.35).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		g._play_anim(fig, "Flying" if typ == "fast" else "Idle")
+		figs.append(fig)
+		pool_vis["flash"] = maxf(float(pool_vis["flash"]), 0.4)
+	var extra: int = pool.size() - POOL_SHOW
+	(pool_vis["label"] as Label3D).text = ("+%d" % extra) if extra > 0 else ""
+	var fl: float = maxf(0.0, float(pool_vis["flash"]) - delta * 1.2)
+	pool_vis["flash"] = fl
+	var fill: float = clampf(float(pool.size()) / float(POOL_SHOW), 0.0, 1.0)
+	var pm: StandardMaterial3D = pool_vis["mat"]
+	if pm != null:
+		pm.emission_energy_multiplier = float(pool_vis["base_e"]) * (0.18 + 0.22 * fill + 1.2 * fl)
+	(pool_vis["light"] as OmniLight3D).light_energy = (1.0 + 1.5 * fill + 4.0 * fl) * Data.user.light_factor()
+
+
+func _pool_release() -> void:
+	var figs: Array = pool_vis["figs"]
+	for i in figs.size():
+		var fig: Dictionary = figs[i]
+		if fig.is_empty():
+			continue
+		var n: Node3D = fig["model"]
+		var tw := n.create_tween()
+		tw.tween_interval(0.04 * i)
+		tw.tween_property(n, "position:y", n.position.y - 2.2, 0.7).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+		tw.tween_callback(n.queue_free)
+	figs.clear()
+	var b: CPUParticles3D = pool_vis["burst"]
+	b.restart()
+	b.emitting = true
+	pool_vis["flash"] = 1.0
+
+
+## Dekoration in der Gabelung weglassen (dort sind Fluss-Arm und Insel). Ändert nur Listen, keine Zufallszahlen.
+func _fork_keep(xf: Array, river_x: float) -> Array:
+	var out: Array = []
+	for t in xf:
+		var p: Vector3 = (t as Transform3D).origin
+		if p.z < FORK_Z0 + 3.0 and p.z > FORK_Z1 - 3.0 and p.x > river_x - 12.0 and p.x < river_x + 1.0:
+			continue
+		out.append(t)
+	return out
