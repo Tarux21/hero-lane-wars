@@ -779,9 +779,6 @@ func build_river(river_x: float, lane_len: float) -> void:
 	var sm := ShaderMaterial.new()
 	sm.shader = sh
 	sm.set_shader_parameter("river_x", river_x)
-	sm.set_shader_parameter("fork_z0", FORK_Z0)
-	sm.set_shader_parameter("fork_z1", FORK_Z1)
-	sm.set_shader_parameter("arm_off", ARM_OFF)
 	var mi := MeshInstance3D.new()
 	mi.mesh = q
 	mi.material_override = sm
@@ -810,8 +807,8 @@ func build_pool_island() -> void:
 			pm = (m as StandardMaterial3D).duplicate() as StandardMaterial3D
 			base_e = pm.emission_energy_multiplier
 			mi.set_surface_override_material(s, pm)
-	var l := _light(c + Vector3(0.0, 2.0, 0.0), Color("#8aff4a"), 1.2, 10.0)
-	var burst := _fog_particles(c + Vector3(0.0, 0.5, 0.0), 40, 2.6, 2.5, 6.0, true)
+	var l := _light(c + Vector3(0.0, 2.0, 0.0), Color("#8aff4a"), 0.6, 8.0)
+	var burst := _fog_particles(c + Vector3(0.0, 0.5, 0.0), 22, 2.2, 1.5, 3.5, true)
 	burst.direction = Vector3.UP
 	burst.spread = 25.0
 	burst.emission_box_extents = Vector3(1.6, 0.2, 4.0)
@@ -870,8 +867,8 @@ func update_pool(delta: float) -> void:
 	var fill: float = clampf(float(pool.size()) / float(POOL_SHOW), 0.0, 1.0)
 	var pm: StandardMaterial3D = pool_vis["mat"]
 	if pm != null:
-		pm.emission_energy_multiplier = float(pool_vis["base_e"]) * (0.18 + 0.22 * fill + 1.2 * fl)
-	(pool_vis["light"] as OmniLight3D).light_energy = (1.0 + 1.5 * fill + 4.0 * fl) * Data.user.light_factor()
+		pm.emission_energy_multiplier = float(pool_vis["base_e"]) * (0.07 + 0.08 * fill + 0.3 * fl)
+	(pool_vis["light"] as OmniLight3D).light_energy = (0.45 + 0.5 * fill + 1.0 * fl) * Data.user.light_factor()
 
 
 func _pool_release() -> void:
