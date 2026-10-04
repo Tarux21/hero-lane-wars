@@ -176,7 +176,7 @@
 'use strict';
 // ====== KONFIGURATION (hier Zahlen zum Balancen ändern) ======
 const CFG = {
-  laneLen: 3000, laneHalf: 90, baseX: 230, spawnX: 2950, leakX: 30,
+  laneLen: 3000, maxX: 2950, laneHalf: 90, baseX: 230, spawnX: 2950, leakX: 30,
   healX: -40, minX: -230,       // Heilfeld: nur hinter dem Kristall (x < healX), der Platz reicht bis minX (Basis vorn: Shop und Backport bleiben bei x < baseX)
   speedMul: 1.0,              // Lauftempo aller Monster (zum Anpassen an die Lanelänge)
   startGold: 300, baseIncome: 24, incomeTick: 10,   // Wirtschaft x3 (wegen der teureren Items)
@@ -972,7 +972,7 @@ function update(dt){
         if(d < 4){ if(!H.target) H.moveTo = null; }
         else { const step = Math.min(d, hSpd()*dt); H.x += dx/d*step; H.y += dy/d*step; }
       }
-      H.x = Math.max(CFG.minX, Math.min(CFG.laneLen, H.x));
+      H.x = Math.max(CFG.minX, Math.min(CFG.maxX, H.x));
       H.y = clampY(H.y);
       // Auto-Angriff: auch im Laufen, sobald ein Gegner in Reichweite ist
       H.atkT -= dt;

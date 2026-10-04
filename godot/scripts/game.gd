@@ -2289,7 +2289,7 @@ func _step_hero(p: Dictionary, dt: float) -> void:
 			var step_len := minf(d, skills.h_spd(p) * dt)
 			p["x"] += dv.x / d * step_len
 			p["y"] += dv.y / d * step_len
-	p["x"] = clampf(p["x"], float(cfg["minX"]), float(cfg["laneLen"]))
+	p["x"] = clampf(p["x"], float(cfg["minX"]), float(cfg["maxX"]))
 	p["y"] = _clamp_y(p["x"], p["y"], old_y)
 	for ob in obstacles:                    # Statue und Brunnen: der Held läuft darum herum, nicht hindurch
 		var ov: Vector2 = Vector2(p["x"] - ob.x, p["y"] - ob.y)

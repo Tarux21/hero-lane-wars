@@ -1407,6 +1407,39 @@ def thorn_wall(variant):
         limb((x, rnd.uniform(-0.3, 0.3), 0.15), (x + rnd.uniform(-0.3, 0.3), rnd.uniform(0.5, 0.9), 0.0), 0.14, 0.04, "dbark2", 4)
 
 
+def spawn_roots():
+    """Dicke tote Wurzeln, die vom Spawn-Baum (Ursprung) nach vorn (+Y) über den Boden laufen: teils Bögen, mit Dornen und Moos"""
+    rnd = random.Random(77)
+    for k in range(9):
+        ang = math.radians(90 + (k - 4) * 19 + rnd.uniform(-6, 6))
+        c, s = math.cos(ang), math.sin(ang)
+        px, py = -s, c
+        length = rnd.uniform(4.2, 6.6)
+        arch = k % 3 == 1
+        pts = []
+        ph = rnd.uniform(0, math.tau)
+        for i in range(9):
+            t = i / 8.0
+            r = 1.2 + length * t
+            wob = rnd.uniform(-0.4, 0.4) * t
+            z = 0.5 - 0.42 * t + 0.16 * math.sin(t * math.pi * 3.0 + ph) * t       # taucht in den Boden ein und wieder auf
+            if arch and 0.25 < t < 0.8:
+                z += 0.75 * math.sin((t - 0.25) / 0.55 * math.pi)
+            pts.append((r * c + wob * px, r * s + wob * py, z))
+        path(pts, 0.46, 0.08, "dbark2" if k % 2 else "dbark", 7)
+        for i in range(1, 8):
+            p = Vector(pts[i])
+            d = Vector((px * rnd.choice((-1, 1)), py * rnd.choice((-1, 1)), 0.9)).normalized()
+            if rnd.random() < 0.55:
+                limb(p, p + d * 0.5, 0.07, 0.0, "thorn", 4)
+            if rnd.random() < 0.3:
+                sphere(rnd.uniform(0.15, 0.26), (p.x, p.y, max(0.1, p.z + 0.1)), (1.4, 1.1, 0.35), "moss", 10, 5)
+    for k in range(5):                                                                              # Moospolster am Boden
+        a = rnd.uniform(0, math.tau)
+        rr = rnd.uniform(1.8, 5.0)
+        sphere(rnd.uniform(0.25, 0.45), (rr * math.cos(a), abs(rr * math.sin(a)) + 0.4, 0.04), (1.5, 1.1, 0.2), "moss", 12, 5)
+
+
 make_all = [("tree_dead", tree_dead), ("tree_pine", tree_pine), ("bone_pillar", bone_pillar), ("bone_arch", bone_arch),
             ("skull_pile", skull_pile), ("mushroom_glow", mushroom_glow), ("rock_dark", rock_dark), ("brazier", brazier), ("lava_rock", lava_rock),
             ("skel_sit", skel_sit), ("skel_impaled", skel_impaled), ("skel_hang", skel_hang), ("cage_skel", cage_skel), ("wagon", wagon), ("barrels", barrels),
@@ -1420,7 +1453,7 @@ make_all = [("tree_dead", tree_dead), ("tree_pine", tree_pine), ("bone_pillar", 
             ("castle_tower", castle_tower), ("castle_gate", castle_gate), ("siege_ram", siege_ram), ("horse_dead", horse_dead),
             ("corpse_0", lambda: corpse(0)), ("corpse_1", lambda: corpse(1)), ("corpse_2", lambda: corpse(2)),
             ("weapon_field", weapon_field), ("banner_torn", banner_torn), ("bone_heap", bone_heap),
-            ("spawn_tree", spawn_tree), ("thorn_wall_0", lambda: thorn_wall(0)), ("thorn_wall_1", lambda: thorn_wall(1)), ("thorn_wall_2", lambda: thorn_wall(2))]
+            ("spawn_tree", spawn_tree), ("thorn_wall_0", lambda: thorn_wall(0)), ("thorn_wall_1", lambda: thorn_wall(1)), ("thorn_wall_2", lambda: thorn_wall(2)), ("spawn_roots", spawn_roots)]
 ONLY = sys.argv[sys.argv.index("--") + 2:] if "--" in sys.argv else []                              # optional: nur diese Modelle neu erzeugen
 for name, fn in make_all:
     if ONLY and name not in ONLY:
@@ -1428,5 +1461,5 @@ for name, fn in make_all:
     bpy.ops.wm.read_factory_settings(use_empty=True)
     make_materials()
     fn()
-    export(name, recenter=name in ("spawn_tree", "thorn_wall_0", "thorn_wall_1", "thorn_wall_2"))
+    export(name, recenter=name in ("spawn_roots", "spawn_tree", "thorn_wall_0", "thorn_wall_1", "thorn_wall_2"))
 print("FERTIG")

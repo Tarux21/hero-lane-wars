@@ -9,7 +9,7 @@ uniform float half_w = 5.4;                     // halbe Lane-Breite in Metern
 uniform float s_end = 147.5;                    // Entfernung der Startlinie der Monster von der Basis (m)
 uniform vec3 slab_col : source_color = vec3(0.42, 0.40, 0.36);
 uniform vec3 moss_col : source_color = vec3(0.13, 0.30, 0.13);
-uniform vec3 dirt_col : source_color = vec3(0.13, 0.10, 0.08);
+uniform vec3 dirt_col : source_color = vec3(0.19, 0.16, 0.12);
 uniform vec3 root_col : source_color = vec3(0.09, 0.06, 0.05);
 
 varying vec3 wpos;
@@ -75,7 +75,7 @@ void fragment() {
 	vec2 q = abs((f - 0.5) * size) - (hs - 0.16);
 	float sd = length(max(q, vec2(0.0))) + min(max(q.x, q.y), 0.0) - 0.16;      // Abstand zur abgerundeten Plattenkante (innen < 0)
 	float joint = 1.0 - smoothstep(-0.10, -0.03, sd);
-	float missing = step(0.80, h);                          // fehlende Platte: Erde
+	float missing = step(0.74, h);                          // fehlende Platte: Erde
 	vec3 sc = slab_col * (0.72 + 0.55 * h) * (0.9 + 0.2 * vnoise(p * 7.0));
 	float crack = smoothstep(0.012, 0.0, abs(vnoise(p * vec2(3.1, 2.7) + cell) - 0.5)) * step(0.5, h);
 	sc *= 1.0 - 0.45 * crack;
@@ -83,12 +83,15 @@ void fragment() {
 	// Moos: an Fugen, am Rand und zum Ende hin stärker
 	float mn = fbm(p * 0.85 + 11.0);
 	float near_edge = smoothstep(-2.8, 0.0, d);
-	float moss = smoothstep(0.42, 0.68, mn + near_edge * 0.26 + (1.0 - joint) * 0.22 + endk * 0.35);
+	float moss = smoothstep(0.34, 0.60, mn + near_edge * 0.26 + (1.0 - joint) * 0.22 + endk * 0.35);
 	vec3 mc = moss_col * (0.7 + 0.6 * vnoise(p * 6.0));
-	float slabvis = joint * (1.0 - missing) * paved;
-	vec3 col = mix(sc, mc, moss * 0.88);
+	float plunder = fbm(p * 0.20 + 91.0) + (n2 - 0.5) * 0.25 + near_edge * 0.18;       // geplünderte Stellen: ganze Flächen ohne Platten
+	missing = max(missing, step(0.57, plunder));
+	float brk = step(0.55, hash21(cell + 5.0)) * step(0.55, vnoise(p * 2.5 + cell * 7.0));    // zerbrochene Platten: Ecken fehlen
+	float slabvis = joint * (1.0 - missing) * (1.0 - brk) * paved;
+	vec3 col = mix(sc, mc, moss * 0.92);
 	vec3 dirt = dirt_col * (0.75 + 0.5 * fbm(p * 2.2));
-	dirt = mix(dirt, mc * 0.8, smoothstep(0.55, 0.8, fbm(p * 0.7 + 3.0)) * (0.35 + 0.4 * near_edge));
+	dirt = mix(dirt, mc * 0.8, smoothstep(0.42, 0.72, fbm(p * 0.7 + 3.0)) * (0.6 + 0.35 * near_edge));
 	vec3 base = mix(dirt, col, slabvis);
 
 	// Wurzeln: dünne dunkle Linien, am Rand und zum Ende hin dichter

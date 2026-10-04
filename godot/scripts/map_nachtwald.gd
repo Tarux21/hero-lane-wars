@@ -592,6 +592,7 @@ func build_spawns(lane_xs: Array, half: float, x_min: float, x_max: float) -> vo
 		var mi := _put("spawn_tree", Vector3(cx, 0.0, tree_z), PI, 1.0)
 		if mi == null:
 			return
+		_put("spawn_roots", Vector3(cx, 0.0, tree_z), PI, 1.0)                 # dicke Wurzeln laufen vom Baum über den Boden
 		var side_w: float = half - 1.95                                        # vom Stamm bis zum Lane-Rand
 		var n_seg: int = maxi(1, int(ceil(side_w / 3.0)))
 		var seg_w: float = side_w / n_seg

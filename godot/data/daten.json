@@ -3,6 +3,7 @@
  "version": "0.3.0-test",
  "cfg": {
   "laneLen": 3000,
+  "maxX": 2950,
   "laneHalf": 90,
   "baseX": 230,
   "spawnX": 2950,
