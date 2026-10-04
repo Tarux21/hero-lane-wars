@@ -789,7 +789,7 @@ func build_river(river_x: float, lane_len: float) -> void:
 
 
 func _island_center() -> Vector3:
-	return Vector3(river_x_ - 5.15, 0.0, (FORK_Z0 + FORK_Z1) / 2.0)
+	return Vector3(river_x_ - 8.0, 0.0, (FORK_Z0 + FORK_Z1) / 2.0)            # runder Ritualkreis (Radius 5 m) am eigenen Ufer
 
 
 ## Insel mit Giftbrunnen; darin stehen die Monster, die dein Team gesendet hat (nur die eigenen, die des Gegners bleiben geheim)
@@ -811,7 +811,7 @@ func build_pool_island() -> void:
 	var burst := _fog_particles(c + Vector3(0.0, 0.5, 0.0), 22, 2.2, 1.5, 3.5, true)
 	burst.direction = Vector3.UP
 	burst.spread = 25.0
-	burst.emission_box_extents = Vector3(1.6, 0.2, 4.0)
+	burst.emission_box_extents = Vector3(1.8, 0.2, 1.8)
 	var lab := Label3D.new()
 	lab.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	lab.font_size = 64
@@ -824,11 +824,11 @@ func build_pool_island() -> void:
 
 
 func _pool_slot(k: int) -> Vector3:
-	var col := k % 3
-	var row := k / 3
-	var jx := sin(float(k) * 12.9898) * 0.18
-	var jz := cos(float(k) * 78.233) * 0.18
-	return Vector3((col - 1) * 0.95 + jx, 0.0, -3.2 + row * 1.28 + jz)
+	if k < 6:                                                               # innerer Kreis: 6 Plätze, äußerer Kreis: 12 Plätze
+		var a := float(k) * TAU / 6.0
+		return Vector3(cos(a), 0.0, sin(a)) * 0.95
+	var b := float(k - 6) * TAU / 12.0 + PI / 12.0
+	return Vector3(cos(b), 0.0, sin(b)) * 1.95
 
 
 ## Jeden Frame: neue Pool-Monster erscheinen im Brunnen; startet die Gegner-Welle (Pool leer), tauchen alle ab und eine Giftfontäne schießt hoch.
@@ -846,13 +846,13 @@ func update_pool(delta: float) -> void:
 		var k: int = figs.size()
 		var typ := str(pool[k]["type"])
 		var ud: Dictionary = Data.units[typ]
-		var mh: float = float(ud["r"]) * g.S * 2.8 * 0.75
+		var mh: float = float(ud["r"]) * g.S * 2.8 * 0.6
 		var fig: Dictionary = g._make_figure("monsters/%s.gltf" % g.UNIT_MODEL[typ], mh)
 		if fig.is_empty():
 			figs.append({})
 			continue
 		var n: Node3D = fig["model"]
-		n.position = c + _pool_slot(k) + Vector3(0.0, 0.9 if typ == "fast" else 0.05, 0.0)
+		n.position = c + _pool_slot(k) + Vector3(0.0, 1.0 if typ == "fast" else 0.06, 0.0)
 		(fig["inner"] as Node3D).rotation.y = sin(float(k) * 3.7) * 0.6        # schauen grob zur Kamera
 		n.scale = Vector3.ONE * 0.05
 		g.add_child(n)
@@ -889,12 +889,13 @@ func _pool_release() -> void:
 	pool_vis["flash"] = 1.0
 
 
-## Dekoration in der Gabelung weglassen (dort sind Fluss-Arm und Insel). Ändert nur Listen, keine Zufallszahlen.
+## Dekoration am Ritualkreis weglassen (Radius 7 m um die Mitte). Ändert nur Listen, keine Zufallszahlen.
 func _fork_keep(xf: Array, river_x: float) -> Array:
 	var out: Array = []
 	for t in xf:
 		var p: Vector3 = (t as Transform3D).origin
-		if p.z < FORK_Z0 + 3.0 and p.z > FORK_Z1 - 3.0 and p.x > river_x - 12.0 and p.x < river_x + 1.0:
+		var ic := Vector3(river_x - 8.0, 0.0, (FORK_Z0 + FORK_Z1) / 2.0)
+		if Vector2(p.x - ic.x, p.z - ic.z).length() < 7.0:
 			continue
 		out.append(t)
 	return out
