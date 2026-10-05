@@ -854,12 +854,12 @@ func update_pool(delta: float) -> void:
 			figs.append({})
 			continue
 		var n: Node3D = fig["model"]
-		n.position = c + _pool_slot(k) + Vector3(0.0, 1.0 if typ == "fast" else 0.06, 0.0)
+		n.position = c + _pool_slot(k) + Vector3(0.0, 0.06, 0.0)
 		(fig["inner"] as Node3D).rotation.y = sin(float(k) * 3.7) * 0.6        # schauen grob zur Kamera
 		n.scale = Vector3.ONE * 0.05
 		g.add_child(n)
 		n.create_tween().tween_property(n, "scale", Vector3.ONE, 0.35).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-		g._play_anim(fig, "Flying" if typ == "fast" else "Idle")
+		g._play_anim(fig, "Flying" if fig.get("anim") != null and (fig["anim"] as AnimationPlayer).has_animation("Flying") else "Idle")
 		figs.append(fig)
 		pool_vis["flash"] = maxf(float(pool_vis["flash"]), 0.4)
 	var extra: int = pool.size() - POOL_SHOW

@@ -133,6 +133,7 @@ var menu_click := ""                  # Test: Menü per echten Mausklicks bedien
 var shot_wait := 0.0                        # Test: Sekunden Echtzeit vor dem Bildschirmfoto, --shotwait=4
 var fx_base := 1000.0                        # Test: Lane-Position (Spielwert) des Helden im Effekt-Test, --fxx=2200
 var pool_test := 0                          # Test: so viele Monster zu Beginn senden, --pooltest=20
+var lineup_test := false                     # Test: alle Monstermodelle nebeneinander, --lineup
 var pool_release_test := false              # Test: nach 1 s startet die Gegner-Welle, --poolrelease
 var cam_test_dx := -9.0                    # Test: seitlicher Versatz der Testkamera in Metern, --camdx=0
 var cam_test_x := -99999.0                # Test: Kamera frei auf Lane-Position x (Spielwert), --camx=1500
@@ -181,6 +182,8 @@ func _ready() -> void:
 			direct = true
 		elif a == "--poolrelease":
 			pool_release_test = true
+		elif a == "--lineup":
+			lineup_test = true
 		elif a.begins_with("--pooltest="):
 			pool_test = int(a.substr(11))
 		elif a.begins_with("--fxx="):
@@ -1790,7 +1793,7 @@ func unit_model_path(type: String) -> String:
 const MODEL_DIR := "res://assets/quaternius/"
 ## Held-Modelle: [Datei, Angriffsanimation, Laufanimation, Ruheanimation, Höhe in m]
 const HERO_MODEL := {"tank": ["rpg/Warrior.gltf", "Sword_Attack", "Run_Weapon", "Idle_Weapon", 3.0], "damage": ["rpg/Rogue.gltf", "Dagger_Attack", "Run", "Idle", 2.8], "caster": ["rpg/Wizard.gltf", "Staff_Attack", "Run", "Idle", 2.8]}
-const UNIT_MODEL := {"grunt": "res://assets/monsters/Pilzling.glb", "tank": "Cyclops", "archer": "Skull", "fast": "Bat", "elite": "Demon", "boss": "YellowDragon"}
+const UNIT_MODEL := {"grunt": "res://assets/monsters/Pilzling.glb", "tank": "res://assets/monsters/Borkengolem.glb", "archer": "res://assets/monsters/Dornspinne.glb", "fast": "res://assets/monsters/Pestratte.glb", "elite": "res://assets/monsters/Sumpftroll.glb", "boss": "res://assets/monsters/Gifthydra.glb"}
 const LOOP_ANIMS := ["Idle", "Walk", "Run", "Flying", "Attacking_Idle", "Run_Weapon", "Idle_Weapon"]
 var model_cache: Dictionary = {}
 
@@ -1860,7 +1863,7 @@ func _spawn_unit(type: String, off_x: float, spd_mul: float, lane: int = 0, side
 			node.add_child(body)
 		else:
 			node.add_child(fig["model"])
-			fig["flies"] = type == "fast" or type == "boss"
+			fig["flies"] = fig["anim"] != null and (fig["anim"] as AnimationPlayer).has_animation("Flying")    # nur Modelle mit Fluganimation (Platzhalter)
 			bar["fig"] = fig
 		var bw := maxf(0.9, float(u["r"]) * S * 2.4)
 		var b2 := _make_bar(bw, 0.14 if type != "boss" else 0.28, mh + 0.3)
@@ -2080,7 +2083,7 @@ func _load_volume() -> float:
 ## Beim Start: gespeicherte Anzeige anwenden, aber nicht in Tests und Bild-Läufen (feste Auflösung)
 func _apply_saved_display() -> void:
 	for a in OS.get_cmdline_user_args():
-		for t in ["--sim", "--shot", "--selftest", "--golden", "--fxtest", "--menushot", "--menuclick", "--menu-test", "--shopshot", "--merchanttest", "--camx", "--camdx", "--pitch", "--shotwait", "--fxx", "--pooltest", "--poolrelease", "--spawndbg", "--map", "--uiscale", "--colorblind", "--gfxlow", "--itemcatalog", "--dbgshot", "--uimenu", "--uitip", "--botplay", "--autoplay"]:
+		for t in ["--sim", "--shot", "--selftest", "--golden", "--fxtest", "--menushot", "--menuclick", "--menu-test", "--shopshot", "--merchanttest", "--camx", "--camdx", "--pitch", "--shotwait", "--fxx", "--pooltest", "--lineup", "--poolrelease", "--spawndbg", "--map", "--uiscale", "--colorblind", "--gfxlow", "--itemcatalog", "--dbgshot", "--uimenu", "--uitip", "--botplay", "--autoplay"]:
 			if a.begins_with(t):
 				return
 	var cf := ConfigFile.new()
@@ -2642,6 +2645,7 @@ func _step_units(side: Dictionary, dt: float) -> void:
 					el = e
 					break
 		u["eng"] = target_hero                                               # nur Anzeige: Monster stellen sich im Kreis um den Helden (_ring_layout)
+		u["fighting"] = not target_hero.is_empty() or el != null           # nur Anzeige: Angriffs- statt Ruhepose
 		if not target_hero.is_empty() or el != null:
 			engaged = true
 			if u["atk_t"] <= 0.0:
@@ -2853,7 +2857,7 @@ func _animate(e: Dictionary, node: Node3D, side_idx: int, delta: float, attack_a
 			var tt: Vector2 = fig["twist_tgt"]
 			want_tw = clampf(wrapf(atan2(tt.y - vis.y, -(tt.x - vis.x)) - float(fig["yaw"]), -PI, PI), -1.22, 1.22)
 		tw.angle = lerpf(float(tw.angle), want_tw, 1.0 - exp(-delta * 14.0))
-	var anim := move_anim if moving else (attack_anim if e.get("type") != null else idle_anim)     # Helden: Angriff wird je Schlag abgespielt (_attack_anim)
+	var anim := move_anim if moving else (attack_anim if e.get("type") != null and e.get("fighting", false) else idle_anim)     # Helden: Angriff wird je Schlag abgespielt (_attack_anim)
 	if force > 0.0:
 		anim = str(fig.get("force_anim", "")) if str(fig.get("force_anim", "")) != "" else attack_anim
 	_play_anim(fig, anim)
@@ -3761,6 +3765,21 @@ func _run_simulation(secs: float, shot_path: String) -> void:
 	if cam_test_x > -99998.0:
 		cam_free = true
 		cam_focus = _wp(cam_test_x, 0.0, 0) + Vector3(cam_test_dx if cam_test_x >= 0.0 else 0.0, 0.0, 0.0)
+	if lineup_test:                                                    # Test: alle Monster nebeneinander, die Kamera schaut darauf
+		for s in sides:
+			s["wave_t"] = 1e9
+			s["units"].clear()
+		hero["x"] = 600.0
+		var types := ["grunt", "tank", "archer", "fast", "elite", "boss"]
+		for k in types.size():
+			_spawn_unit(types[k], 0.0, 1.0, 0)
+			var lu: Dictionary = units[units.size() - 1]
+			lu["x"] = 1000.0
+			lu["y"] = -100.0 + k * 42.0 - (20.0 if k == 5 else 0.0)
+			lu["stun"] = 1e6
+			lu["vis"] = Vector2(lu["x"], lu["y"])
+		cam_free = true
+		cam_focus = _wp(1000.0, 0.0, 0)
 	if pool_test > 0:                                                  # Test: Monster senden, sie erscheinen im Giftbrunnen
 		hero["gold"] = 99999.0
 		for k in pool_test:
