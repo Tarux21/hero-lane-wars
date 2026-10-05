@@ -739,6 +739,7 @@ func build_lane_ground(cx: float, half: float, court_x: float) -> void:
 	sm.set_shader_parameter("half_w", half)
 	sm.set_shader_parameter("s_end", s_end)
 	sm.set_shader_parameter("court_x", court_x)
+	sm.render_priority = -20                                              # zuerst zeichnen: Boden-Effekte (Fähigkeiten, Nebel) liegen immer darüber
 	var mi := MeshInstance3D.new()
 	mi.mesh = q
 	mi.material_override = sm
@@ -779,6 +780,7 @@ func build_river(river_x: float, lane_len: float) -> void:
 	var sm := ShaderMaterial.new()
 	sm.shader = sh
 	sm.set_shader_parameter("river_x", river_x)
+	sm.render_priority = -21                                              # zuerst zeichnen (wie der Pflasterweg)
 	var mi := MeshInstance3D.new()
 	mi.mesh = q
 	mi.material_override = sm

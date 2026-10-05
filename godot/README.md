@@ -60,7 +60,7 @@ Helden (Krieger, Schurke, Magier) und Monster (GreenDemon, Cyclops, Skull, Bat, 
 ## Fähigkeiten-Effekte (Caster, Stand Meilenstein 6)
 - `scripts/fx.gd`: Partikel, Licht, Blitze, Kristalle, Zauberkreise, alles im Code erzeugt (reine Optik, ändert keine Spielwerte, nutzt nicht den Spiel-Zufall). Aufgerufen aus `skills.gd` über `g.vfx`.
 - `scripts/sfx_caster.gd`: selbst berechnete Klänge (Feuer, Frost, Blitz, Elementare). Zum Anhören: Ordner `Caster-Sounds/` (WAV-Dateien, mit `godot --headless --path godot --script res://tools/sfxtest.gd -- --wav` neu erzeugbar).
-- Bildertest: `-- --hero=caster --team=1 --fxtest=q|w|e|rfire|rfrost|rlightning --rank=1..5 --shot=Prefix` (Skript `tools/fxrun.sh`), speichert Bilder in Zeitabständen.
+- Bildertest: `-- --hero=caster --team=1 --fxtest=q|w|e|rfire|rfrost|rlightning --rank=1..5 --shot=Prefix` (Skript `tools/fxrun.sh`), speichert Bilder in Zeitabständen. Mit `--fxx=2200` steht der Held weiter hinten auf der Lane (Standard 1000).
 - Tank und Damage haben noch die alten einfachen Effekte.
 - **Level-Aufstieg** (alle Helden): goldener Runenkreis mit Funkenspirale (`fx.gd`, `level_up`); solange Skillpunkte frei sind, pulsiert der Plus-Knopf golden (`hud_stein.gd`). Bildertest: `-- --hero=tank --team=1 --fxtest=levelup --shot=Prefix`.
 

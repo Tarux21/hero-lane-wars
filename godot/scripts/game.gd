@@ -131,6 +131,7 @@ var golden_eco_filter := ""
 var menu_shot := ""
 var menu_click := ""                  # Test: Menü per echten Mausklicks bedienen, z. B. --menuclick=options oder single,class_tank
 var shot_wait := 0.0                        # Test: Sekunden Echtzeit vor dem Bildschirmfoto, --shotwait=4
+var fx_base := 1000.0                        # Test: Lane-Position (Spielwert) des Helden im Effekt-Test, --fxx=2200
 var pool_test := 0                          # Test: so viele Monster zu Beginn senden, --pooltest=20
 var pool_release_test := false              # Test: nach 1 s startet die Gegner-Welle, --poolrelease
 var cam_test_dx := -9.0                    # Test: seitlicher Versatz der Testkamera in Metern, --camdx=0
@@ -182,6 +183,8 @@ func _ready() -> void:
 			pool_release_test = true
 		elif a.begins_with("--pooltest="):
 			pool_test = int(a.substr(11))
+		elif a.begins_with("--fxx="):
+			fx_base = float(a.substr(6))
 		elif a.begins_with("--shotwait="):
 			shot_wait = float(a.substr(11))
 		elif a.begins_with("--pitch="):
@@ -2077,7 +2080,7 @@ func _load_volume() -> float:
 ## Beim Start: gespeicherte Anzeige anwenden, aber nicht in Tests und Bild-Läufen (feste Auflösung)
 func _apply_saved_display() -> void:
 	for a in OS.get_cmdline_user_args():
-		for t in ["--sim", "--shot", "--selftest", "--golden", "--fxtest", "--menushot", "--menuclick", "--menu-test", "--shopshot", "--merchanttest", "--camx", "--camdx", "--pitch", "--shotwait", "--pooltest", "--poolrelease", "--spawndbg", "--map", "--uiscale", "--colorblind", "--gfxlow", "--itemcatalog", "--dbgshot", "--uimenu", "--uitip", "--botplay", "--autoplay"]:
+		for t in ["--sim", "--shot", "--selftest", "--golden", "--fxtest", "--menushot", "--menuclick", "--menu-test", "--shopshot", "--merchanttest", "--camx", "--camdx", "--pitch", "--shotwait", "--fxx", "--pooltest", "--poolrelease", "--spawndbg", "--map", "--uiscale", "--colorblind", "--gfxlow", "--itemcatalog", "--dbgshot", "--uimenu", "--uitip", "--botplay", "--autoplay"]:
 			if a.begins_with(t):
 				return
 	var cf := ConfigFile.new()
@@ -3625,45 +3628,45 @@ func _fxtest(which: String, prefix: String) -> void:
 	hero["hp"] = skills.h_max_hp(hero)
 	hero["lvl"] = 12
 	hero["ranks"] = [fx_rank, fx_rank, fx_rank, 1]
-	hero["x"] = 1000.0
+	hero["x"] = fx_base
 	hero["y"] = 0.0
 	for i in 9:
 		_spawn_unit("grunt", 0.0, 1.0, 0)
 		var u: Dictionary = units[units.size() - 1]
-		u["x"] = 1000.0 + 170.0 + (i % 3) * 55.0 + (i / 3) * 40.0
+		u["x"] = fx_base + 170.0 + (i % 3) * 55.0 + (i / 3) * 40.0
 		u["y"] = -90.0 + (i / 3) * 70.0 + (i % 3) * 20.0
 		u["stun"] = 1e6
 	cam_dist = 26.0
 	cam_free = true
-	cam_focus = _wp(1130.0, 0.0, 0)
+	cam_focus = _wp(fx_base + 130.0, 0.0, 0)
 	if which.begins_with("look"):                       # Figur aus der Nähe: Kamera folgt dem Helden, der losläuft
 		cam_free = false
 		cam_dist = 9.0
 		cam_pitch = 18.0
 	if which == "levelup":                              # Level-Aufstieg: Kamera auf den Helden
-		cam_focus = _wp(1000.0, 0.0, 0)
+		cam_focus = _wp(fx_base, 0.0, 0)
 		cam_dist = 16.0
 	for i in 40:
 		await get_tree().process_frame
-	var m := {"dx": 300.0, "dy": 0.0, "dist": 300.0, "ang": 0.0, "wx": 1250.0, "wy": 0.0}
+	var m := {"dx": 300.0, "dy": 0.0, "dist": 300.0, "ang": 0.0, "wx": fx_base + 250.0, "wy": 0.0}
 	if which.begins_with("r"):
 		hero["last_elem"] = which.substr(1)
-		m["wx"] = 1000.0
+		m["wx"] = fx_base
 	var slot: int = {"q": 0, "w": 1, "e": 2}.get(which, 3)
 	if which == "q" and fx_rank >= 5:
-		m["wx"] = 1280.0
+		m["wx"] = fx_base + 280.0
 	if which == "lookside" and not hero["fig"].is_empty():
 		hero["fig"]["yaw"] = -PI / 2.0
 	if which == "wauto":                              # Kampfrausch Rang 5: Angriff mit Flächenschaden zeigen
 		skills.cast_slot(hero, 1, m)
 		for i in 6:
-			units[i]["x"] = 1060.0 + (i % 3) * 38.0
+			units[i]["x"] = fx_base + 60.0 + (i % 3) * 38.0
 			units[i]["y"] = -30.0 + (i / 3) * 45.0
 			units[i]["hp"] = 1e9
 			units[i]["max"] = 1e9
 		hero["target"] = units[0]
 	if which == "auto":                               # Normalangriff zeigen
-		units[0]["x"] = 1220.0
+		units[0]["x"] = fx_base + 220.0
 		units[0]["y"] = 0.0
 		hero["target"] = units[0]
 		units[0]["hp"] = 1e9
