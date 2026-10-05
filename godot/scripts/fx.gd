@@ -283,6 +283,46 @@ func _hand(p: Dictionary) -> Vector3:
 	return base + Vector3(sin(yaw), 0.0, cos(yaw)) * 0.7 + Vector3(0, HAND, 0)
 
 
+# ---------------------------------------------------------------- Level-Aufstieg (alle Helden)
+## Goldener Runenkreis unter dem Helden, Funken spiralen hoch (ca. 2 s). Folgt dem Helden (Kind von p["node"]).
+func level_up(p: Dictionary) -> void:
+	if g.test_mode:
+		return
+	var node: Node3D = p["node"]
+	var gold := Color(1.0, 0.82, 0.35)
+	var holder := Node3D.new()
+	holder.name = "LevelUpFx"
+	node.add_child(holder)
+	var pos := _w(p["x"], p["y"], p["side"]["idx"])
+	var circle := MeshInstance3D.new()
+	var qm := QuadMesh.new()
+	qm.size = Vector2(1.0, 1.0)
+	qm.orientation = PlaneMesh.FACE_Y
+	circle.mesh = qm
+	var cm := _flat_mat(tex_rune, Color(gold.r, gold.g, gold.b, 0.0), true)
+	circle.material_override = cm
+	circle.scale = Vector3(3.6, 1.0, 3.6)
+	circle.position.y = 0.12
+	holder.add_child(circle)
+	var tw := circle.create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(cm, "albedo_color:a", 0.95, 0.2)
+	tw.tween_property(circle, "rotation:y", 2.6, 1.5)
+	tw.chain().tween_property(cm, "albedo_color:a", 0.0, 0.5).set_delay(0.7)
+	var spiral := _ps({"amount": 40, "life": 1.0, "local": true, "shape": "ring", "radius": 1.6, "inner": 1.3, "height": 0.1,
+		"dir": Vector3.UP, "spread": 4.0, "vmin": 2.0, "vmax": 4.5, "smin": 0.08, "smax": 0.2,
+		"ramp": _ramp([[0.0, Color(gold.r, gold.g, gold.b, 0.0)], [0.2, Color(1, 1, 1, 0.9)], [0.7, gold], [1.0, Color(gold.r, gold.g, gold.b, 0.0)]])})
+	holder.add_child(spiral)
+	var tw2 := spiral.create_tween()
+	tw2.tween_interval(0.9)
+	tw2.tween_callback(func(): spiral.emitting = false)
+	_glow_sprite(Color(1.0, 0.9, 0.6, 0.8), 2.4, 0.3, pos + Vector3(0, 1.2, 0), 1.3)
+	_light(gold, 2.0, 7.0, 1.4, pos + Vector3(0, 1.5, 0))
+	var tw_end := holder.create_tween()
+	tw_end.tween_interval(2.0)
+	tw_end.tween_callback(holder.queue_free)
+
+
 # ---------------------------------------------------------------- Zauberpose und Funken am Stab
 func cast_burst(p: Dictionary, col: Color, tx: float, ty: float) -> void:
 	if g.test_mode:

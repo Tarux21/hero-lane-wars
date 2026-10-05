@@ -62,6 +62,7 @@ Helden (Krieger, Schurke, Magier) und Monster (GreenDemon, Cyclops, Skull, Bat, 
 - `scripts/sfx_caster.gd`: selbst berechnete Klänge (Feuer, Frost, Blitz, Elementare). Zum Anhören: Ordner `Caster-Sounds/` (WAV-Dateien, mit `godot --headless --path godot --script res://tools/sfxtest.gd -- --wav` neu erzeugbar).
 - Bildertest: `-- --hero=caster --team=1 --fxtest=q|w|e|rfire|rfrost|rlightning --rank=1..5 --shot=Prefix` (Skript `tools/fxrun.sh`), speichert Bilder in Zeitabständen.
 - Tank und Damage haben noch die alten einfachen Effekte.
+- **Level-Aufstieg** (alle Helden): goldener Runenkreis mit Funkenspirale (`fx.gd`, `level_up`); solange Skillpunkte frei sind, pulsiert der Plus-Knopf golden (`hud_stein.gd`). Bildertest: `-- --hero=tank --team=1 --fxtest=levelup --shot=Prefix`.
 
 ## Tank (Stand Meilenstein 6)
 - Modell: Quaternius-Krieger, etwas breiter, mit Turmschild (hoch, dunkles Eisen, violette Einfassung, Spikes vorne) am linken Unterarm. Läuft mit `Run_Weapon`, steht mit `Idle_Weapon`.

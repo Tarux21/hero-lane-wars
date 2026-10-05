@@ -1957,6 +1957,7 @@ func _gain_xp(n: float, p: Dictionary = {}) -> void:
 			ui_alert("LEVEL %d! Skillpunkte frei: %d" % [pl["lvl"], pl["sp"]], "good")
 		pl["hp"] += float(pl["d"]["hpl"])
 		_float_text("LEVEL %d" % pl["lvl"], _wp(pl["x"], pl["y"], pl["side"]["idx"]) + Vector3(0, 3.2, 0), Color("#ffd166"), 48, 1.2)
+		vfx.level_up(pl)                                                  # reine Optik, für alle Helden
 
 
 func _float_text(text: String, pos: Vector3, col: Color, size: int, life: float) -> void:
@@ -3639,6 +3640,9 @@ func _fxtest(which: String, prefix: String) -> void:
 		cam_free = false
 		cam_dist = 9.0
 		cam_pitch = 18.0
+	if which == "levelup":                              # Level-Aufstieg: Kamera auf den Helden
+		cam_focus = _wp(1000.0, 0.0, 0)
+		cam_dist = 16.0
 	for i in 40:
 		await get_tree().process_frame
 	var m := {"dx": 300.0, "dy": 0.0, "dist": 300.0, "ang": 0.0, "wx": 1250.0, "wy": 0.0}
@@ -3664,6 +3668,8 @@ func _fxtest(which: String, prefix: String) -> void:
 		hero["target"] = units[0]
 		units[0]["hp"] = 1e9
 		units[0]["max"] = 1e9
+	elif which == "levelup":
+		_gain_xp(_xp_need(hero["lvl"]), hero)
 	elif not which.begins_with("look") and which != "wauto":
 		skills.cast_slot(hero, slot, m)
 	var t0 := Time.get_ticks_msec()

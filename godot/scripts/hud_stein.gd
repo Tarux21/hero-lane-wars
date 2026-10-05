@@ -341,6 +341,14 @@ func update() -> void:
 		var unlock := int(g.cfg["unlock"][i])
 		var passive: bool = def.get("passive", false)
 		s["plus"].modulate.a = 1.0 if sk.can_learn(h, i) else 0.0
+		if sk.can_learn(h, i):                                                           # Skillpunkt frei: Knopf pulsiert golden (1x pro Sekunde)
+			var pulse := 0.5 + 0.5 * sin(Time.get_ticks_msec() / 1000.0 * TAU)
+			var gold := Color("#e8c46a")
+			var sb := box(pal["inset"].lerp(gold.darkened(0.35), 0.25 + 0.6 * pulse), pal["border"].lerp(gold, pulse), 2, 3, 6)
+			sb.shadow_color = Color(gold.r, gold.g, gold.b, 0.6 * pulse)
+			sb.shadow_size = int(2 + 5 * pulse)
+			s["plus"].add_theme_stylebox_override("normal", sb)
+			s["plus"].add_theme_stylebox_override("hover", sb)
 		s["plus"].mouse_filter = Control.MOUSE_FILTER_STOP if sk.can_learn(h, i) else Control.MOUSE_FILTER_IGNORE
 		s["pips"].text = "●".repeat(r) + "○".repeat(rmax - r)
 		var locked: bool = h["lvl"] < unlock and r == 0
