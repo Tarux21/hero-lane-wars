@@ -1,0 +1,94 @@
+{
+   "cfg" : {
+      "bossGrow" : 1.6,
+      "bossPause" : 35,
+      "bossWaves" : [
+         20,
+         40
+      ],
+      "eliteCount" : 1,
+      "endlessFactor" : 0.85,
+      "endlessMin" : 8,
+      "hpScalePerMin" : 0.05,
+      "maxWaves" : 50,
+      "startLives" : 30,
+      "waveEveryEnd" : 50,
+      "waveEveryRamp" : 50,
+      "waveEveryStart" : 25,
+      "waveMix" : [
+         [
+            4,
+            {
+               "tank" : 1
+            }
+         ],
+         [
+            7,
+            {
+               "archer" : 1,
+               "tank" : 1
+            }
+         ],
+         [
+            10,
+            {
+               "archer" : 1,
+               "fast" : 1,
+               "tank" : 1
+            }
+         ],
+         [
+            14,
+            {
+               "archer" : 1,
+               "fast" : 1,
+               "tank" : 2
+            }
+         ],
+         [
+            18,
+            {
+               "archer" : 2,
+               "fast" : 2,
+               "tank" : 2
+            }
+         ]
+      ],
+      "waveMixGrowEvery" : 4,
+      "waveMixGrowFrom" : 22,
+      "wavePer" : 0.5
+   },
+   "diff" : {
+      "easy" : {
+         "goldMul" : 0.75,
+         "heroMul" : 0.6,
+         "miss" : 0.45,
+         "react" : [
+            0.9,
+            1.4
+         ]
+      },
+      "expert" : {
+         "goldMul" : 1.8,
+         "heroMul" : 1.8,
+         "react" : [
+            0.06,
+            0.12
+         ]
+      },
+      "hard" : {
+         "goldMul" : 1.5,
+         "heroMul" : 1.5,
+         "react" : [
+            0.1,
+            0.18
+         ]
+      }
+   },
+   "units" : {
+      "boss" : {
+         "hp" : 900,
+         "lives" : 5
+      }
+   }
+}
