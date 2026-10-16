@@ -215,6 +215,10 @@ const CFG = {
   whirlHeal: [0,.004,.006,.008,.010], // Wirbel-Heilung je Rang (Anteil des max. Lebens pro getroffenem Gegner)
   whirlHealCap: 5,          // Damage-Wirbel: Heilung zählt höchstens so viele getroffene Gegner
   waveBase: 3, wavePer: 1.2,    // Wellengröße = waveBase + wavePer × Wellennummer
+  // Gemischte Wellen: ab Welle w kommen zusätzlich zu den Grunts diese Monster mit (gilt für beide Teams gleich).
+  // Ab waveMixGrowFrom kommt alle waveMixGrowEvery Wellen von jeder Sorte (Brocken, Schütze, Läufer) eins dazu.
+  waveMix: [[3, {tank:2}], [6, {tank:1, archer:2}], [9, {tank:1, archer:1, fast:2}], [12, {tank:2, archer:2, fast:2}]],
+  waveMixGrowFrom: 15, waveMixGrowEvery: 3,
   waveSpeedMul: 0.85,          // Wellenmonster laufen langsamer als gesendete
   backportCast: 4.5,         // Sekunden Cast-Zeit
   backportCd: 75,
@@ -446,6 +450,16 @@ function waveInfoHtml(){
   const boss = (!G.bossSpawned && CFG.bossWave > G.wave) ? ` · Boss: Welle ${CFG.bossWave}` : '';
   return `Welle ${G.wave} · nächste (Welle ${nxt}) in ${Math.ceil(G.waveT)} s: <b style="color:${WAVE_COL[k]}">${WAVE_NAME[k]}</b> <small>(Elite: Welle ${nextElite}${boss})</small>`;
 }
+// Zusatzmonster der Welle n (Reihenfolge: Brocken, Schütze, Läufer)
+function waveMix(n){
+  let m = null;
+  for(const [w, mix] of CFG.waveMix) if(n >= w) m = mix;
+  if(!m) return [];
+  const k = n >= CFG.waveMixGrowFrom ? Math.floor((n - CFG.waveMixGrowFrom) / CFG.waveMixGrowEvery) + 1 : 0;
+  const out = [];
+  for(const t of ['tank', 'archer', 'fast']) for(let i = 0; i < (m[t] || 0) + k; i++) out.push(t);
+  return out;
+}
 function spawnWave(){
   G.wave++;
   const n = G.wave;
@@ -454,6 +468,7 @@ function spawnWave(){
   // Die ersten Wellen spawnen näher an deiner Basis, damit am Anfang keine Leerlaufzeit entsteht
   const from = Math.min(CFG.spawnX, CFG.rampStart + CFG.rampStep*(n-1));
   list.forEach((t,i)=>spawn(t, 0, (from-CFG.spawnX)+i*4, CFG.waveSpeedMul));
+  waveMix(n).forEach((t,i)=>spawn(t, 0, (from-CFG.spawnX)+list.length*4+12+i*10, CFG.waveSpeedMul));   // gemischte Welle: Zusatzmonster hinter den Grunts
   const isElite = n % CFG.eliteEvery === 0;   // Elite-Welle: normale Welle + Elite-Gegner (mehr Leben/Schaden, bringen deutlich mehr XP und Gold)
   if(isElite) for(let k=0;k<CFG.eliteCount;k++) spawn('elite', 0, (from-CFG.spawnX)+list.length*4+30+k*40, CFG.waveSpeedMul);
   if(G.bossIncome){ G.gold += G.bossIncome; G.stats.gold += G.bossIncome; }   // Boss-Einkommen: dauerhaft pro Welle für den Killer

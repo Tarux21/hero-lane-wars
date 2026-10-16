@@ -85,6 +85,39 @@
   "whirlHealCap": 5,
   "waveBase": 3,
   "wavePer": 1.2,
+  "waveMix": [
+   [
+    3,
+    {
+     "tank": 2
+    }
+   ],
+   [
+    6,
+    {
+     "tank": 1,
+     "archer": 2
+    }
+   ],
+   [
+    9,
+    {
+     "tank": 1,
+     "archer": 1,
+     "fast": 2
+    }
+   ],
+   [
+    12,
+    {
+     "tank": 2,
+     "archer": 2,
+     "fast": 2
+    }
+   ]
+  ],
+  "waveMixGrowFrom": 15,
+  "waveMixGrowEvery": 3,
   "waveSpeedMul": 0.85,
   "backportCast": 4.5,
   "backportCd": 75,

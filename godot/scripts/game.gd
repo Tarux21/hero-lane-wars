@@ -1889,6 +1889,26 @@ func rand_pos() -> float:
 	return 0.5 if deterministic else randf()
 
 
+## Zusatzmonster der Welle n (Reihenfolge: Brocken, Schütze, Läufer), siehe waveMix im Prototyp
+func wave_mix(n: int) -> Array:
+	var m: Dictionary = {}
+	var found := false
+	for e in cfg["waveMix"]:
+		if n >= int(e[0]):
+			m = e[1]
+			found = true
+	if not found:
+		return []
+	var k := 0
+	if n >= int(cfg["waveMixGrowFrom"]):
+		k = int(floor(float(n - int(cfg["waveMixGrowFrom"])) / float(cfg["waveMixGrowEvery"]))) + 1
+	var out: Array = []
+	for t in ["tank", "archer", "fast"]:
+		for i in int(m.get(t, 0)) + k:
+			out.append(t)
+	return out
+
+
 func _spawn_wave(side: Dictionary) -> void:
 	side["wave"] += 1
 	var n: int = side["wave"]
@@ -1903,6 +1923,9 @@ func _spawn_wave(side: Dictionary) -> void:
 	for lane in lanes_per_team:          # jede Lane des Teams bekommt die Welle (gleich groß, egal wie viele Spieler)
 		for i in count:
 			_spawn_unit("grunt", base_off + i * 4.0, float(cfg["waveSpeedMul"]), lane, si)
+		var mix := wave_mix(n)
+		for i in mix.size():                                               # gemischte Welle: Zusatzmonster hinter den Grunts (wie im Prototyp)
+			_spawn_unit(str(mix[i]), base_off + count * 4.0 + 12.0 + i * 10.0, float(cfg["waveSpeedMul"]), lane, si)
 		if n % int(cfg["eliteEvery"]) == 0:
 			for k in int(cfg["eliteCount"]):
 				_spawn_unit("elite", base_off + count * 4.0 + 30.0 + k * 40.0, float(cfg["waveSpeedMul"]), lane, si)
@@ -3615,6 +3638,25 @@ func _selftest() -> void:
 		if int(u["from_side"]) == 0 and u["type"] == "tank":
 			tank_ok = absf(float(u["spd"]) - float(Data.units["tank"]["spd"]) * float(cfg["waveSpeedMul"]) * float(cfg["speedMul"])) < 0.001
 	check.call("Gesendete Monster laufen im Wellentempo", tank_ok)
+	# 8b. Gemischte Wellen wie im Prototyp (waveMix)
+	check.call("Welle 2 nur Grunts", wave_mix(2).is_empty())
+	check.call("Welle 3: 2 Brocken", wave_mix(3) == ["tank", "tank"])
+	check.call("Welle 6: 1 Brocken, 2 Schützen", wave_mix(6) == ["tank", "archer", "archer"])
+	check.call("Welle 9: 1 Brocken, 1 Schütze, 2 Läufer", wave_mix(9) == ["tank", "archer", "fast", "fast"])
+	check.call("Welle 15: je 3", wave_mix(15).count("tank") == 3 and wave_mix(15).count("archer") == 3 and wave_mix(15).count("fast") == 3)
+	var ws: Dictionary = sides[1]
+	ws["units"].clear()
+	ws["pool"] = []
+	ws["wave"] = 5
+	_spawn_wave(ws)
+	var tanks := 0
+	var archers := 0
+	for u in ws["units"]:
+		if u["type"] == "tank":
+			tanks += 1
+		elif u["type"] == "archer":
+			archers += 1
+	check.call("Welle 6 im Spiel: Brocken %d, Schützen %d (je Lane 1 und 2)" % [tanks, archers], tanks == lanes_per_team and archers == 2 * lanes_per_team)
 	# 9. Held kommt nicht hinter den Spawn
 	hero["dead"] = 0.0
 	hero["x"] = float(cfg["laneLen"])

@@ -52,6 +52,7 @@ Items selbst: `items.md`, Skills: `skills.md`.
 ## 5. Wellen (`spawnWave`, Zeile 449–467; `update`, Zeile 923–924)
 
 - Erste Welle bei `t = firstWave = 1`. `waveT` danach: `earlyWaveEvery 16 s` solange `wave <= earlyWaves (4)` (nach Welle 1–4 je 16 s), sonst `waveEvery 30 s`. Golden: Wellen bei t = 1, 17, 33, 49, 65, 95, 125, …
+- Gemischte Wellen (`waveMix`, `waveMix(n)`): hinter den Grunts kommen zusätzlich Brocken, Schützen und Läufer: ab Welle 3 +2 Brocken; ab 6 +1 Brocken, 2 Schützen; ab 9 +1 Brocken, 1 Schütze, 2 Läufer; ab 12 je 2; ab Welle 15 alle 3 Wellen von jeder Sorte +1. Reihenfolge Brocken, Schützen, Läufer, Position `(from − spawnX) + Wellengröße*4 + 12 + i*10`, Tempo `waveSpeedMul`. Gleich für beide Teams.
 - Wellengröße: `round(waveBase 3 + wavePer 1.2 * n)` Grunts; Position `from = min(spawnX, rampStart 2950 + rampStep 250*(n−1))` (rampStart = spawnX: jede Welle startet am Lane-Ende), `x = spawnX + (from − spawnX) + i*4 + Math.random()*30`.
 - Elite-Welle (`n % 10 == 0`): zusätzlich 2 Elites (`eliteCount`) bei `from + count*4 + 30 + k*40`.
 - Boss (Welle 20, einmalig): 1 Boss bei `from + count*4 + 160`. Die Welle 20 hat auch die 2 Elites.
