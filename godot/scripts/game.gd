@@ -249,6 +249,8 @@ func _ready() -> void:
 			no_bots = true
 			golden_filter = a.substr(9)
 			direct = true
+		elif a.begins_with("--tune="):
+			_apply_tune(a.substr(7))
 		elif a.begins_with("--enemy="):
 			enemy_key = a.substr(8)
 		elif a.begins_with("--ediff="):
@@ -1956,18 +1958,25 @@ func _spawn_wave(side: Dictionary) -> void:
 		if n % int(cfg["eliteEvery"]) == 0:
 			for k in int(cfg["eliteCount"]):
 				_spawn_unit("elite", base_off + count * 4.0 + 30.0 + k * 40.0, float(cfg["waveSpeedMul"]), lane, si)
-		if n == int(cfg["bossWave"]) and not boss_due_done:                     # ein Boss je Lane (einmalig pro Spiel)
+		if _is_boss_wave(n) and (not boss_due_done or cfg.has("bossWaves")):   # ein Boss je Lane (Standard: einmalig; mit bossWaves mehrere, jeder stärker)
 			_spawn_unit("boss", base_off + count * 4.0 + 160.0, float(cfg["waveSpeedMul"]), lane, si)
+			if cfg.has("bossWaves"):
+				var bi: int = (cfg["bossWaves"] as Array).find(float(n)) if (cfg["bossWaves"] as Array).has(float(n)) else (cfg["bossWaves"] as Array).find(n)
+				var bg: float = pow(float(cfg.get("bossGrow", 1.0)), maxi(0, bi))
+				var bu: Dictionary = side["units"][side["units"].size() - 1]
+				bu["hp"] *= bg
+				bu["max"] *= bg
+				bu["dmg"] *= bg
 		var pool: Array = side["pool"]
 		for j in pool.size():                                              # Pool: alle gesendeten Monster laufen gesammelt mit der Welle los
 			_spawn_unit(str(pool[j]["type"]), base_off + count * 4.0 + 60.0 + j * 6.0, 1.0 if str(pool[j]["type"]) == "fast" else float(cfg["waveSpeedMul"]), lane, si, int(pool[j]["from"]))   # Wellentempo, Läufer bleibt schneller
 	side["pool"] = []
-	if n == int(cfg["bossWave"]):
+	if _is_boss_wave(n):
 		side["boss_spawned"] = true
 	if si == 0:
 		var wk := _wave_kind_after(n, side)
 		_flash_msg(("BOSSWELLE %d" if wk == "boss" else ("ELITE-WELLE %d" if wk == "elite" else "Welle %d")) % n, Color("#ff7a7a") if wk == "boss" else (Color("#d9b3ff") if wk == "elite" else Color("#ffd166")))
-		sfx("boss" if n == int(cfg["bossWave"]) else "wave")
+		sfx("boss" if _is_boss_wave(n) else "wave")
 
 
 func _flash_msg(text: String, col: Color = Color.WHITE) -> void:
@@ -2262,7 +2271,7 @@ func _ui_tick(dt: float) -> void:
 
 
 func _wave_kind(side: Dictionary, n: int) -> String:
-	if n == int(cfg["bossWave"]) and not side["boss_spawned"]:
+	if _is_boss_wave(n) and (not side["boss_spawned"] or cfg.has("bossWaves")):
 		return "boss"
 	return "elite" if n % int(cfg["eliteEvery"]) == 0 else "normal"
 
@@ -2296,7 +2305,7 @@ func step(dt: float) -> void:
 		if side["wave_t"] <= 0.0:
 			cur_side = side["idx"]
 			_spawn_wave(side)
-			side["wave_t"] = float(cfg["earlyWaveEvery"]) if side["wave"] <= int(cfg["earlyWaves"]) else float(cfg["waveEvery"])
+			side["wave_t"] = _wave_interval(int(side["wave"]))
 	# Zeitverzögerte Skill-Effekte
 	for tm in timers.duplicate():
 		tm["t"] -= dt
@@ -3908,9 +3917,53 @@ func _run_simulation(secs: float, shot_path: String) -> void:
 	get_tree().quit()
 
 
+## Bosswelle? Standard: nur bossWave (einmalig). Mit cfg.bossWaves (Liste) mehrere Bosswellen (Balancing-Messung).
+func _is_boss_wave(n: int) -> bool:
+	if cfg.has("bossWaves"):
+		for w in cfg["bossWaves"]:
+			if int(w) == n:
+				return true
+		return false
+	return n == int(cfg["bossWave"])
+
+
+## Zeit bis zur nächsten Welle nach Welle n. Standard wie im Prototyp (earlyWaves/earlyWaveEvery, dann waveEvery).
+## Optional (Balancing-Messung): waveEveryStart -> waveEveryEnd über waveEveryRamp Wellen, bossPause nach Bosswellen,
+## maxWaves mit Endlos-Phase (danach jede Welle um endlessFactor schneller, höchstens bis endlessMin).
+func _wave_interval(n: int) -> float:
+	var iv: float = float(cfg["earlyWaveEvery"]) if n <= int(cfg["earlyWaves"]) else float(cfg["waveEvery"])
+	if cfg.has("waveEveryStart"):
+		var k: float = clampf(float(n - 1) / maxf(1.0, float(cfg.get("waveEveryRamp", 30))), 0.0, 1.0)
+		iv = lerpf(float(cfg["waveEveryStart"]), float(cfg.get("waveEveryEnd", cfg["waveEveryStart"])), k)
+	if int(cfg.get("maxWaves", 0)) > 0 and n >= int(cfg["maxWaves"]):
+		iv = maxf(float(cfg.get("endlessMin", 8.0)), iv * pow(float(cfg.get("endlessFactor", 0.9)), n - int(cfg["maxWaves"]) + 1))
+	elif _is_boss_wave(n):
+		iv += float(cfg.get("bossPause", 0.0))
+	return iv
+
+
+## Balancing-Messung: Werte aus einer JSON-Datei über das Regelwerk legen (z. B. {"cfg": {"startLives": 30}, "units": {"grunt": {"hp": 60}}})
+func _apply_tune(path: String) -> void:
+	var txt := FileAccess.get_file_as_string(path)
+	var d: Variant = JSON.parse_string(txt)
+	if d is Dictionary:
+		_merge_into(Data.raw, d)
+		print("TUNE ", path)
+	else:
+		push_error("--tune: keine gültige JSON-Datei: " + path)
+
+
+func _merge_into(dst: Dictionary, src: Dictionary) -> void:
+	for k in src:
+		if src[k] is Dictionary and dst.get(k) is Dictionary:
+			_merge_into(dst[k], src[k])
+		else:
+			dst[k] = src[k]
+
+
 ## Art der gerade gespawnten Welle (für die Anzeige)
 func _wave_kind_after(n: int, side: Dictionary) -> String:
-	if n == int(cfg["bossWave"]):
+	if _is_boss_wave(n):
 		return "boss"
 	return "elite" if n % int(cfg["eliteEvery"]) == 0 else "normal"
 
