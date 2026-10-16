@@ -772,6 +772,66 @@ func projectile(from: Vector3, to: Vector3, col: Color, life: float, size: float
 		_put(hit, to, 0.6))
 
 
+## Giftklumpen der Dornspinne: zähflüssiger grüner Batzen fliegt im Bogen, tropft unterwegs und platscht beim Aufprall auseinander.
+## Nur Anzeige: der Schaden fällt wie im Prototyp sofort beim Schuss.
+func poison_glob(from: Vector3, to: Vector3) -> void:
+	if g.test_mode:
+		return
+	var life := clampf(from.distance_to(to) / 14.0, 0.18, 0.45)
+	var col := Color("#7aff3a")
+	var node := Node3D.new()
+	_put(node, from, life + 0.7)
+	var blob := MeshInstance3D.new()
+	var sm := SphereMesh.new()
+	sm.radius = 0.24
+	sm.height = 0.44
+	sm.radial_segments = 10
+	sm.rings = 6
+	blob.mesh = sm
+	var m := StandardMaterial3D.new()
+	m.albedo_color = Color("#3a9a1a")
+	m.emission_enabled = true
+	m.emission = Color("#6aff2a")
+	m.emission_energy_multiplier = 1.6
+	m.roughness = 0.25
+	blob.material_override = m
+	node.add_child(blob)
+	_glow_on(node, Color(0.45, 1.0, 0.2, 0.55), 1.0)
+	var drips := _ps({"amount": 18, "life": 0.45, "local": false, "shape": "sphere", "radius": 0.08, "vmin": 0.0, "vmax": 0.4, "spread": 180.0,
+		"smin": 0.08, "smax": 0.16, "grav": Vector3(0, -6.0, 0), "curve": _curve([1.0, 0.3]),
+		"ramp": _ramp([[0.0, Color(0.7, 1.0, 0.4, 0.9)], [0.5, col], [1.0, Color(col.r, col.g, col.b, 0.0)]])})
+	node.add_child(drips)
+	var arc := 0.6 + from.distance_to(to) * 0.04
+	var tw := node.create_tween()
+	tw.tween_method(func(f: float):
+		node.position = from.lerp(to, f) + Vector3(0, sin(f * PI) * arc, 0)
+		blob.scale = Vector3(1.0 + 0.15 * sin(f * 18.0), 1.0 - 0.12 * sin(f * 18.0), 1.0 + 0.15 * sin(f * 18.0)), 0.0, 1.0, life)
+	tw.tween_callback(func():
+		blob.visible = false
+		drips.emitting = false
+		for c in node.get_children():
+			if c is MeshInstance3D and c != blob:
+				(c as MeshInstance3D).visible = false
+		var hit := _ps({"amount": 16, "life": 0.5, "once": true, "explo": 1.0, "shape": "sphere", "radius": 0.12, "dir": Vector3.UP, "spread": 120.0,
+			"vmin": 1.5, "vmax": 3.5, "smin": 0.1, "smax": 0.22, "grav": Vector3(0, -9.0, 0),
+			"ramp": _ramp([[0.0, Color(0.8, 1.0, 0.5, 1.0)], [0.4, col], [1.0, Color(col.r, col.g, col.b, 0.0)]])})
+		_put(hit, to, 0.8)
+		var splat := MeshInstance3D.new()                              # Giftfleck am Boden, blendet aus
+		var q := QuadMesh.new()
+		q.size = Vector2(1.0, 1.0)
+		q.orientation = PlaneMesh.FACE_Y
+		splat.mesh = q
+		var sm2 := StandardMaterial3D.new()
+		sm2.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		sm2.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		sm2.albedo_texture = tex_glow
+		sm2.albedo_color = Color(0.35, 0.9, 0.15, 0.75)
+		splat.material_override = sm2
+		_put(splat, Vector3(to.x, 0.06, to.z), 1.3)
+		var tw2 := splat.create_tween()
+		tw2.tween_property(sm2, "albedo_color:a", 0.0, 1.2))
+
+
 ## Flammenstrahl (Feuer-Elementar): Flammen schießen im Kegel nach vorn
 func flame_jet(x: float, y: float, side: int, ang: float, range_: float, half: float) -> void:
 	if g.test_mode:

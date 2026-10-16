@@ -2653,6 +2653,9 @@ func _step_units(side: Dictionary, dt: float) -> void:
 				if not u["fig"].is_empty():                       # Angriffsanimation bei jedem Schlag von vorn
 					u["fig"]["restart"] = true
 					u["fig"]["cur"] = ""
+				if float(u["range"]) > 60.0 and u["node"] != null and (u["node"] as Node3D).visible:      # Fernkampf (Dornspinne): Giftklumpen fliegt zum Ziel (nur Anzeige)
+					var to3: Vector3 = (target_hero["node"] as Node3D).position + Vector3(0, 1.0, 0) if not target_hero.is_empty() else _wp(el["x"], el["y"], int(side["idx"])) + Vector3(0, 0.8, 0)
+					vfx.poison_glob((u["node"] as Node3D).position + Vector3(0, 0.6, 0) + ((u["node"] as Node3D).position.direction_to(to3) * 0.4), to3)
 				if not target_hero.is_empty():
 					_damage_hero(target_hero, u["dmg"], u)
 				else:
@@ -3669,6 +3672,19 @@ func _fxtest(which: String, prefix: String) -> void:
 			units[i]["hp"] = 1e9
 			units[i]["max"] = 1e9
 		hero["target"] = units[0]
+	if which == "spit":                               # Dornspinnen spucken Giftklumpen auf den Helden
+		for u0 in units.duplicate():
+			_free(u0["node"])
+		units.clear()
+		for i in 3:
+			_spawn_unit("archer", 0.0, 1.0, 0)
+			var sp: Dictionary = units[units.size() - 1]
+			sp["x"] = fx_base + 120.0
+			sp["y"] = -60.0 + i * 60.0
+			sp["vis"] = Vector2(sp["x"], sp["y"])
+			sp["atk_t"] = 0.1 * i
+		cam_focus = _wp(fx_base + 60.0, 0.0, 0)
+		cam_dist = 13.0
 	if which == "auto":                               # Normalangriff zeigen
 		units[0]["x"] = fx_base + 220.0
 		units[0]["y"] = 0.0
@@ -3677,13 +3693,15 @@ func _fxtest(which: String, prefix: String) -> void:
 		units[0]["max"] = 1e9
 	elif which == "levelup":
 		_gain_xp(_xp_need(hero["lvl"]), hero)
-	elif not which.begins_with("look") and which != "wauto":
+	elif not which.begins_with("look") and which != "wauto" and which != "spit":
 		skills.cast_slot(hero, slot, m)
 	var t0 := Time.get_ticks_msec()
 	var k := 0
 	var marks := [0.12, 0.3, 0.55, 0.9, 1.4, 2.2, 3.2]
 	if which == "wauto" or which == "auto":
 		marks = [0.1, 0.25, 0.4, 0.55, 0.7, 0.85, 1.0]
+	if which == "spit":
+		marks = [0.15, 0.25, 0.35, 0.5, 1.15, 1.25, 1.4]
 	while k < marks.size():
 		await get_tree().process_frame
 		if (Time.get_ticks_msec() - t0) / 1000.0 >= marks[k]:

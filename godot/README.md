@@ -114,3 +114,4 @@ Alte Wiese zum Vergleichen: Start mit `--map=gras`. Eigene Modelle (z. B. aus Bl
 - Eigene Modelle aus Blender (`godot/tools/blender/make_monsters.py` → `godot/assets/monsters/*.glb`), je mit Skelett und den Animationen `Idle`, `Walk`, `Attack`: Pilzling (Grunt), Borkengolem (Brocken), Dornspinne (Schütze), Pestratte (Läufer), Sumpftroll (Elite), Gifthydra (Boss). Zuordnung in `UNIT_MODEL` (`game.gd`).
 - Neu erzeugen: `tools-extern/blender-4.2.9-windows-x64/blender.exe --background --python godot/tools/blender/make_monsters.py -- godot/assets/monsters [Name ...]`.
 - Testbild aller Monster nebeneinander: `--sim=1 --lineup --shot=pfad.png --zoom=12 --pitch=40 --shotwait=1.5`.
+- Giftklumpen der Dornspinne (`fx.gd`, `poison_glob`, nur Anzeige): Bildertest `-- --hero=tank --team=1 --fxtest=spit --shot=Prefix`.
