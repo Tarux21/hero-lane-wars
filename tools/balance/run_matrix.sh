@@ -18,7 +18,7 @@ BLOCKS="${BLOCKS:-klassen stile stufen}"
   echo "klassen_${h}_${e}_$s --hero=$h --enemy=$e --diff=normal --style=random --estyle=random --seed=$s" >> "$JOBS"
 done; done; done
 [[ " $BLOCKS " == *" stile "* ]] && for a in balanced rush eco; do for b in balanced rush eco; do for s in $(seq 1 "$REP"); do
-  h=${CL[$((s % 3))]}; e=${CL[$(((s / 3) % 3))]}
+  h=${CL[$((s % 3))]}; e=$h                      # gleiche Klasse auf beiden Seiten: nur der Stil soll entscheiden
   echo "stile_${a}_${b}_$s --hero=$h --enemy=$e --diff=normal --style=$a --estyle=$b --seed=$((100 + s))" >> "$JOBS"
 done; done; done
 [[ " $BLOCKS " == *" stufen "* ]] && for pair in "hard normal" "normal easy" "expert hard" "easy easy" "hard hard"; do set -- $pair; for s in $(seq 1 $((REP * 2))); do
