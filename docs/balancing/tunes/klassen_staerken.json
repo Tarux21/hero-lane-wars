@@ -1,0 +1,79 @@
+{
+   "cfg" : {
+      "bossGrow" : 1.6,
+      "bossPause" : 35,
+      "bossWaves" : [
+         20,
+         40
+      ],
+      "eliteCount" : 1,
+      "endlessFactor" : 0.85,
+      "endlessMin" : 8,
+      "hpScalePerMin" : 0.05,
+      "maxWaves" : 50,
+      "power" : {
+         "caster" : 1.2,
+         "damage" : 1.45,
+         "tank" : 0.93
+      },
+      "reflectMul" : 0.7,
+      "startLives" : 30,
+      "waveEveryEnd" : 50,
+      "waveEveryRamp" : 50,
+      "waveEveryStart" : 25,
+      "waveMix" : [
+         [
+            4,
+            {
+               "tank" : 1
+            }
+         ],
+         [
+            7,
+            {
+               "archer" : 1,
+               "tank" : 1
+            }
+         ],
+         [
+            10,
+            {
+               "archer" : 1,
+               "fast" : 1,
+               "tank" : 1
+            }
+         ],
+         [
+            14,
+            {
+               "archer" : 1,
+               "fast" : 1,
+               "tank" : 2
+            }
+         ],
+         [
+            18,
+            {
+               "archer" : 2,
+               "fast" : 2,
+               "tank" : 2
+            }
+         ]
+      ],
+      "waveMixGrowEvery" : 4,
+      "waveMixGrowFrom" : 22,
+      "wavePer" : 0.5
+   },
+   "heroes" : {
+      "caster" : {
+         "hp" : 320,
+         "hpl" : 45
+      }
+   },
+   "units" : {
+      "boss" : {
+         "hp" : 900,
+         "lives" : 5
+      }
+   }
+}
