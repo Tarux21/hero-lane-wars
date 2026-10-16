@@ -83,6 +83,11 @@ var no_bots := false                   # Tests: keine Computer-Spieler
 var bot_diff: Dictionary = {}          # gewählte Schwierigkeit der Gegner
 var bot_style := "random"              # gewählter Spielstil der Gegner
 var diff_key := "normal"               # gewählte Schwierigkeit (leicht/normal/schwer/experte)
+var enemy_key := ""                    # Messung: Klasse des Gegners (--enemy=tank|damage|caster), sonst zufällig
+var enemy_diff_key := ""               # Messung: Schwierigkeit des Gegners (--ediff=), sonst wie --diff
+var enemy_style := ""                  # Messung: Bot-Stil des Gegners (--estyle=), sonst wie --style
+var result_path := ""                  # Messung: Ergebnis der Partie als JSON (--result=pfad)
+var match_log: Array = []               # Messung: Verlauf je Welle (beide Seiten)
 var winner := -1                       # nach Spielende: 0 = dein Team, 1 = Gegner
 var shop: ShopLib                       # Shop-Fenster (shop_stein.gd)
 var shop_btn: Button
@@ -244,6 +249,16 @@ func _ready() -> void:
 			no_bots = true
 			golden_filter = a.substr(9)
 			direct = true
+		elif a.begins_with("--enemy="):
+			enemy_key = a.substr(8)
+		elif a.begins_with("--ediff="):
+			enemy_diff_key = a.substr(8)
+		elif a.begins_with("--estyle="):
+			enemy_style = a.substr(9)
+		elif a.begins_with("--result="):
+			result_path = a.substr(9)
+		elif a.begins_with("--seed="):
+			seed(int(a.substr(7)))                                        # Messung: wiederholbarer Zufall
 		elif a.begins_with("--diff="):
 			diff_key = a.substr(7)
 		elif a.begins_with("--map="):
@@ -415,13 +430,17 @@ func _spawn_others() -> void:
 			if s == 0 and slot == 0:
 				continue                 # das bist du
 			var key: String = keys[randi() % keys.size()]
+			if s == 1 and slot == 0 and enemy_key != "":
+				key = enemy_key
 			var p := _make_player(key, s, slot, true)
 			var diff: Dictionary = bot_diff if s == 1 else Data.raw["diff"]["normal"]
+			if s == 1 and enemy_diff_key != "":
+				diff = Data.raw["diff"][enemy_diff_key]
 			p["gold_mul"] = float(diff["goldMul"]) if s == 1 else 1.0
 			p["mul"] = float(diff["heroMul"]) if s == 1 else 1.0
 			players.append(p)
 			sides[s]["players"].append(p)
-			bot.setup(p, diff, bot_style)
+			bot.setup(p, diff, enemy_style if (s == 1 and enemy_style != "") else bot_style)
 
 
 ## Startmenü: Spielmodus (1v1, 2v2, 4v4) und Held wählen.
@@ -1911,6 +1930,14 @@ func wave_mix(n: int) -> Array:
 
 func _spawn_wave(side: Dictionary) -> void:
 	side["wave"] += 1
+	if result_path != "":                                               # Messung: Stand beim Start jeder Welle
+		var pls: Array = []
+		for p in side["players"]:
+			var sn := 0
+			for k in p["sent"].keys():
+				sn += int(p["sent"][k])
+			pls.append({"lvl": p["lvl"], "gold": int(p["gold"]), "income": p["income"], "sent": sn, "kills": p["kills"], "deaths": p["deaths"], "items": (p["bag"] as Array).size()})
+		match_log.append({"side": int(side["idx"]), "wave": int(side["wave"]), "t": snappedf(t, 0.1), "lives": team_lives[int(side["idx"])], "units": (side["units"] as Array).size(), "pool": (side["pool"] as Array).size(), "players": pls})
 	var n: int = side["wave"]
 	var count := int(round(float(cfg["waveBase"]) + float(cfg["wavePer"]) * n))
 	var from_x: float = minf(float(cfg["spawnX"]), float(cfg["rampStart"]) + float(cfg["rampStep"]) * (n - 1))
@@ -3765,16 +3792,38 @@ func _fxtest(which: String, prefix: String) -> void:
 
 
 # ---------------------------------------------------------------- Test-Simulation (Kommandozeile)
+## Messung: Ergebnis einer Partie als JSON (für das Balancing, siehe tools/balance/)
+func _write_result() -> void:
+	var pls: Array = []
+	for p in players:
+		var sent: Dictionary = {}
+		for k in p["sent"].keys():
+			sent[k] = int(p["sent"][k])
+		pls.append({"side": int(p["side"]["idx"]), "key": p["key"], "lvl": p["lvl"], "kills": p["kills"], "deaths": p["deaths"], "gold": int(p["gold"]),
+			"income": p["income"], "sent": sent, "bag": p["bag"], "style": str(p["bot_state"]["style"]) if p.has("bot_state") else ""})
+	var res := {"winner": winner, "t_end": snappedf(t, 0.1), "over": over, "waves": [sides[0]["wave"], sides[1]["wave"]], "lives": team_lives,
+		"leak": [sides[0]["leak"], sides[1]["leak"]], "diff": diff_key, "ediff": enemy_diff_key if enemy_diff_key != "" else diff_key,
+		"style": bot_style, "estyle": enemy_style if enemy_style != "" else bot_style, "hero": hero_key, "team": team_size, "players": pls, "log": match_log}
+	var f := FileAccess.open(result_path, FileAccess.WRITE)
+	if f != null:
+		f.store_string(JSON.stringify(res))
+		f.close()
+
+
 func _run_simulation(secs: float, shot_path: String) -> void:
 	var steps := int(secs / 0.05)
 	for i in steps:
 		step(0.05)
+		if result_path != "" and over:
+			break
 		if shot_path != "":
 			_ui_tick(0.05)               # fürs Bild: Meldungen und Tipps mitlaufen lassen
 		if trace and i % 100 == 0:   # alle 5 Sekunden: Position des Helden und Ziel (für Fehlersuche)
 			var tg: Variant = hero["target"]
 			print("t=%.0f Held x=%.0f y=%.0f | Ziel: %s | Einheiten %d" % [t, hero["x"], hero["y"],
 				"-" if tg == null else "x=%.0f y=%.0f lane=%d" % [tg["x"], tg["y"], tg["lane"]], units.size()])
+	if result_path != "":
+		_write_result()
 	print("SIM %.0f s (Ende bei %.0f s, Sieger %s) | Welle %d | Team-Leben %d : %d | Gold %d | Level %d | Kills %d | Tode %d | Einheiten %d" % [
 		secs, t, ("keiner" if winner < 0 else ("A" if winner == 0 else "B")), sides[0]["wave"], team_lives[0], team_lives[1], int(hero["gold"]), hero["lvl"], kills, hero["deaths"], units.size()])
 	for p in players:                    # je Spieler: Seite, Held, Level, Kills, Tode, gesendet, Einkommen, Rucksack

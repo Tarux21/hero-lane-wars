@@ -1,0 +1,238 @@
+<title>Balancing-Iststand Giftwald</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Source+Sans+3:wght@400;600&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Layout: Bericht in einer Spalte (max. 1040px), oben die Ziel-gegen-Ist-Tabelle, darunter je Befund ein Diagramm mit kurzer Deutung */
+:root {
+  --bg: #f3f5f0; --panel: #ffffff; --fg: #1c231f; --muted: #5d6a62; --line: #d9e0d8;
+  --accent: #2e7a3c; --accent-soft: #d8ecd6; --warn: #b7791f; --crit: #b23b2a; --ok: #2e7a3c;
+  --band: rgba(46,122,60,.12); --bar: #5a8f63; --bar2: #8b6bb0;
+  --display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --body: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #121815; --panel: #19211d; --fg: #e2ebe4; --muted: #9aaca0; --line: #2b3830;
+  --accent: #7fcf72; --accent-soft: #23402a; --warn: #e0a84a; --crit: #ef7a63; --ok: #7fcf72;
+  --band: rgba(127,207,114,.13); --bar: #6fb575; --bar2: #b597dc; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #121815; --panel: #19211d; --fg: #e2ebe4; --muted: #9aaca0; --line: #2b3830;
+  --accent: #7fcf72; --accent-soft: #23402a; --warn: #e0a84a; --crit: #ef7a63; --ok: #7fcf72;
+  --band: rgba(127,207,114,.13); --bar: #6fb575; --bar2: #b597dc; color-scheme: dark }
+* { box-sizing: border-box }
+body { background: var(--bg); color: var(--fg); font: 16px/1.55 var(--body); margin: 0 }
+.wrap { max-width: 1040px; margin: 0 auto; padding-inline: 20px; padding-block: 32px 64px; display: grid; gap: 28px }
+h1 { font: 800 clamp(28px, 4vw, 40px)/1.1 var(--display); margin: 0; text-wrap: balance }
+h2 { font: 600 22px/1.2 var(--display); margin: 0 0 4px; text-wrap: balance }
+.eyebrow { font: 500 12px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted) }
+.lead { max-width: 68ch; color: var(--muted); margin: 6px 0 0 }
+section.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 20px; display: grid; gap: 12px; min-width: 0 }
+.note { max-width: 70ch; margin: 0 }
+.note b { color: var(--fg) }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums }
+.tbl { overflow-x: auto }
+th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line); vertical-align: top }
+th { font: 600 12px var(--mono); letter-spacing: .05em; text-transform: uppercase; color: var(--muted) }
+td.num { font-family: var(--mono); white-space: nowrap }
+.pill { display: inline-block; font: 600 12px var(--mono); padding: 2px 8px; border-radius: 999px; white-space: nowrap }
+.pill.ok { background: var(--accent-soft); color: var(--ok) }
+.pill.warn { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn) }
+.pill.crit { background: color-mix(in srgb, var(--crit) 16%, transparent); color: var(--crit) }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px }
+.grid2 > div { min-width: 0 }
+svg { width: 100%; height: auto; display: block }
+svg text { fill: var(--muted); font: 12px var(--mono) }
+svg .axis { stroke: var(--line) }
+.heat { display: grid; grid-template-columns: auto repeat(3, 1fr); gap: 4px; font-variant-numeric: tabular-nums }
+.heat div { padding: 10px 6px; text-align: center; border-radius: 6px; font: 500 14px var(--mono) }
+.heat .h { background: none; color: var(--muted); font-size: 12px; padding: 6px }
+.legend { display: flex; gap: 16px; flex-wrap: wrap; font: 12px var(--mono); color: var(--muted) }
+.legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -2px; margin-right: 6px }
+ol.next { margin: 0; padding-left: 22px; display: grid; gap: 6px; max-width: 72ch }
+footer { color: var(--muted); font-size: 13px }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Hero Lane Wars · Balancing Phase 1</div>
+    <h1>Iststand: 336 Bot-Partien gegen die Zielwerte</h1>
+    <p class="lead">Gemessen mit Bot gegen Bot im Godot-Spiel (1 gegen 1, ohne Fenster). Je Block 12 bzw. 24 Partien pro Paarung. Grundlage: <span id="meta"></span>.</p>
+  </header>
+
+  <section class="card">
+    <h2>Ziel gegen Ist</h2>
+    <div class="tbl"><table id="targets"><thead><tr><th>Bereich</th><th>Ziel</th><th>Gemessen</th><th>Stand</th></tr></thead><tbody></tbody></table></div>
+  </section>
+
+  <section class="card">
+    <h2>Partiedauer</h2>
+    <p class="note">Fast jede Partie ist nach 2 bis 5 Minuten vorbei. Das Zielband (grün) liegt bei 25 bis 40 Minuten.</p>
+    <div id="dur"></div>
+  </section>
+
+  <section class="card">
+    <h2>Was in Welle 4 bis 8 passiert</h2>
+    <p class="note">Die Wellen kommen anfangs alle 16 Sekunden und starten am Lane-Ende. Ab Welle 4 schafft der Held sie nicht mehr weg, bevor die nächste kommt: Beim Start von Welle 5 und 6 stehen im Schnitt 10 bis 12 Monster auf der Lane, in vielen Partien über 20. Dann stirbt der Held einmal, und das Team verliert 7 und mehr Leben pro Welle. Das ist kein langsamer Lebensverlust, sondern ein Zusammenbruch.</p>
+    <div class="grid2">
+      <div><div class="eyebrow">Monster auf der Lane beim Wellenstart</div><div id="units"></div></div>
+      <div><div class="eyebrow">Verlorene Leben je Welle (Durchschnitt)</div><div id="lost"></div></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Klassen</h2>
+    <p class="note">Siegquote der Zeilenklasse gegen die Spaltenklasse (Normal gegen Normal). Der Schurke gewinnt gegen beide anderen Klassen deutlich, Ziel sind 45 bis 55 Prozent.</p>
+    <div class="heat" id="klassen"></div>
+  </section>
+
+  <div class="grid2">
+    <section class="card">
+      <h2>Bot-Stile beim Senden</h2>
+      <p class="note">Wer viel sendet (Ansturm), verliert gegen beide anderen Stile in etwa 4 von 5 Partien. Senden lohnt sich bei so kurzen Partien kaum.</p>
+      <div class="heat" id="stile"></div>
+    </section>
+    <section class="card">
+      <h2>Schwierigkeitsstufen</h2>
+      <p class="note">Siegquote der stärkeren Stufe. Ziel für Schwer gegen Normal sind etwa 90 Prozent, gemessen 58.</p>
+      <div id="stufen"></div>
+    </section>
+  </div>
+
+  <section class="card">
+    <h2>Wer kostet die Leben?</h2>
+    <p class="note">Verlorene Leben pro Partie nach Monstertyp, beide Teams zusammen. Fast alle Leben gehen durch Pilzlinge verloren, also durch die Masse, nicht durch einzelne starke Monster.</p>
+    <div id="leak"></div>
+  </section>
+
+  <section class="card">
+    <h2>Was Phase 2 untersucht</h2>
+    <ol class="next">
+      <li><b>Wellen und Monster:</b> Takt und Größe der frühen Wellen, damit sich die Lane zwischen zwei Wellen leeren kann; die neuen Regeln aus Phase 0 (30 Leben, 50 Wellen, Endlos-Phase, mehrere Bosse, Pausen nach Bossen).</li>
+      <li><b>Wirtschaft und Senden:</b> Senden muss sich in längeren Partien lohnen; Ziel 40 bis 60 Prozent je Bot-Stil.</li>
+      <li><b>Klassen und Fähigkeiten:</b> Schurke abschwächen oder Tank und Magier stärken, bis jedes Duell bei 45 bis 55 Prozent liegt.</li>
+      <li><b>Items und Schwierigkeit:</b> Item-Preise und Stärke; die Bot-Stufen weiter spreizen.</li>
+      <li><b>Gegenprüfung:</b> Das Gesamtpaket auf Nebenwirkungen prüfen, bevor es zur Wahl steht.</li>
+    </ol>
+  </section>
+
+  <footer>Bots spielen anders als Menschen (zum Beispiel ohne gezieltes Kiten). Die Messung zeigt Trends und Ausreißer, das Feingefühl kommt aus euren Spieltests.</footer>
+</div>
+
+<script>
+const D = /*DATA*/;
+const S = D.summary, U = D.units;
+document.getElementById("meta").textContent = S.count + " Partien, Regelstand " + D.stand;
+const pct = v => Math.round(v * 100) + " %";
+
+// Ziel gegen Ist
+const kl = S.klassen, st = S.stile, su = S.stufen;
+const rows = [
+  ["Partiedauer", "25–40 Min.", S.dauer.median_min.toFixed(1) + " Min. (Median)", "crit"],
+  ["Erreichte Welle", "50 + Endlos-Phase", "Welle " + S.dauer.median_wave + " (Median)", "crit"],
+  ["Lebensverlust", "ab Welle 1, gleichmäßig", "erst ab Welle " + S.leben.erstes_leben_median_welle + ", dann Zusammenbruch", "crit"],
+  ["Klassen", "jedes Duell 45–55 %", "Schurke " + pct(kl["damage|tank"].quote) + " gegen Tank, " + pct(kl["damage|caster"].quote) + " gegen Magier", "crit"],
+  ["Senden (Bot-Stile)", "je Stil 40–60 %", "Ansturm " + pct(st["rush|balanced"].quote) + " / " + pct(st["rush|eco"].quote), "crit"],
+  ["Schwierigkeit", "Schwer schlägt Normal ~90 %", pct(su["hard|normal"].quote_a) + "; Normal gegen Leicht " + pct(su["normal|easy"].quote_a), "warn"],
+  ["Comeback", "20–30 % holen auf", pct(S.comeback.quote) + " (" + S.comeback.aufgeholt + " von " + S.comeback.partien + ")", "ok"],
+];
+const tb = document.querySelector("#targets tbody");
+for (const [a, b, c, s] of rows) {
+  const tr = document.createElement("tr");
+  tr.innerHTML = `<td>${a}</td><td>${b}</td><td class="num">${c}</td><td><span class="pill ${s}">${s === "ok" ? "im Ziel" : s === "warn" ? "knapp daneben" : "weit daneben"}</span></td>`;
+  tb.appendChild(tr);
+}
+
+// SVG-Helfer
+function svg(w, h, inner) { return `<svg viewBox="0 0 ${w} ${h}" role="img">${inner}</svg>`; }
+function css(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+
+// Partiedauer: Balken je 5 Minuten, Zielband 25–40
+(function () {
+  const bins = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45];
+  const vals = bins.map(b => S.dauer.bins[String(b)] || 0);
+  const W = 640, H = 230, L = 44, B = 36, T = 14, R = 10, cw = (W - L - R) / bins.length, max = Math.max(...vals);
+  const y = v => T + (H - T - B) * (1 - v / max);
+  let g = `<rect x="${L + cw * 5}" y="${T}" width="${cw * 3}" height="${H - T - B}" fill="var(--band)"></rect>`;
+  g += `<text x="${L + cw * 6.5}" y="${T + 14}" text-anchor="middle" fill="var(--accent)">Ziel</text>`;
+  for (const t of [0, 100, 200, 300]) if (t <= max) g += `<line class="axis" x1="${L}" x2="${W - R}" y1="${y(t)}" y2="${y(t)}"></line><text x="${L - 6}" y="${y(t) + 4}" text-anchor="end">${t}</text>`;
+  vals.forEach((v, i) => {
+    g += `<rect x="${L + i * cw + 4}" y="${y(v)}" width="${cw - 8}" height="${H - B - y(v)}" rx="3" fill="var(--bar)"></rect>`;
+    if (v) g += `<text x="${L + i * cw + cw / 2}" y="${y(v) - 5}" text-anchor="middle">${v}</text>`;
+    g += `<text x="${L + i * cw + cw / 2}" y="${H - B + 16}" text-anchor="middle">${bins[i]}${i === bins.length - 1 ? "+" : "–" + (bins[i] + 5)}</text>`;
+  });
+  g += `<text x="${(L + W) / 2}" y="${H - 4}" text-anchor="middle">Minuten (Anzahl Partien)</text>`;
+  document.getElementById("dur").innerHTML = svg(W, H, g);
+})();
+
+// Linien je Welle
+function lineChart(id, key, color, ymaxFix) {
+  const ws = Object.keys(U).map(Number).filter(w => w <= 20 && U[w][key] !== null && U[w][key] !== undefined).sort((a, b) => a - b);
+  const W = 460, H = 210, L = 36, B = 32, T = 12, R = 12;
+  const vals = ws.map(w => U[w][key]);
+  const max = ymaxFix || Math.ceil(Math.max(...vals) / 5) * 5;
+  const x = w => L + (W - L - R) * (w - 1) / 19, y = v => T + (H - T - B) * (1 - v / max);
+  let g = "";
+  for (let t = 0; t <= max; t += max / 4) g += `<line class="axis" x1="${L}" x2="${W - R}" y1="${y(t)}" y2="${y(t)}"></line><text x="${L - 6}" y="${y(t) + 4}" text-anchor="end">${Math.round(t)}</text>`;
+  for (const w of [1, 5, 10, 15, 20]) g += `<text x="${x(w)}" y="${H - B + 16}" text-anchor="middle">${w}</text>`;
+  g += `<text x="${(L + W) / 2}" y="${H - 2}" text-anchor="middle">Welle</text>`;
+  const pts = ws.map(w => `${x(w)},${y(U[w][key])}`).join(" ");
+  g += `<polygon points="${x(ws[0])},${y(0)} ${pts} ${x(ws[ws.length - 1])},${y(0)}" fill="${color}" opacity=".14"></polygon>`;
+  g += `<polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2.5" stroke-linejoin="round"></polyline>`;
+  const peak = ws.reduce((a, b) => U[b][key] > U[a][key] ? b : a, ws[0]);
+  g += `<circle cx="${x(peak)}" cy="${y(U[peak][key])}" r="4.5" fill="${color}"></circle><text x="${x(peak) + 8}" y="${y(U[peak][key]) - 6}">${U[peak][key].toFixed(1)}</text>`;
+  document.getElementById(id).innerHTML = svg(W, H, g);
+}
+lineChart("units", "units", "var(--bar2)");
+lineChart("lost", "lost", "var(--crit)");
+
+// Heatmaps
+function heat(id, data, names, labels) {
+  const el = document.getElementById(id);
+  let h = `<div class="h"></div>` + names.map(n => `<div class="h">${labels[n]}</div>`).join("");
+  for (const a of names) {
+    h += `<div class="h" style="text-align:right">${labels[a]}</div>`;
+    for (const b of names) {
+      const q = data[a + "|" + b].quote;
+      const dev = Math.abs(q - 0.5);
+      const col = dev <= 0.05 ? "var(--accent-soft)" : dev <= 0.15 ? "color-mix(in srgb, var(--warn) 22%, transparent)" : "color-mix(in srgb, var(--crit) 24%, transparent)";
+      h += `<div style="background:${col}">${a === b ? "–" : pct(q)}</div>`;
+    }
+  }
+  el.innerHTML = h;
+}
+heat("klassen", kl, ["tank", "damage", "caster"], {tank: "Tank", damage: "Schurke", caster: "Magier"});
+heat("stile", st, ["balanced", "rush", "eco"], {balanced: "Ausgewogen", rush: "Ansturm", eco: "Sparsam"});
+
+// Schwierigkeit
+(function () {
+  const pairs = [["hard|normal", "Schwer – Normal", 0.9], ["normal|easy", "Normal – Leicht", 0.9], ["expert|hard", "Experte – Schwer", 0.9]];
+  const W = 460, H = 150, L = 130, R = 40, row = 40;
+  let g = "";
+  const x = v => L + (W - L - R) * v;
+  pairs.forEach(([k, lab, tgt], i) => {
+    const q = su[k].quote_a, yy = 14 + i * row;
+    g += `<text x="${L - 8}" y="${yy + 15}" text-anchor="end">${lab}</text>`;
+    g += `<rect x="${L}" y="${yy}" width="${W - L - R}" height="22" rx="4" fill="var(--line)" opacity=".5"></rect>`;
+    g += `<rect x="${L}" y="${yy}" width="${x(q) - L}" height="22" rx="4" fill="var(--bar)"></rect>`;
+    g += `<line x1="${x(tgt)}" x2="${x(tgt)}" y1="${yy - 3}" y2="${yy + 25}" stroke="var(--accent)" stroke-width="2"></line>`;
+    g += `<text x="${x(q) + 6}" y="${yy + 15}">${pct(q)}</text>`;
+  });
+  g += `<text x="${x(0.9)}" y="${H - 8}" text-anchor="middle" fill="var(--accent)">Ziel 90 %</text>`;
+  document.getElementById("stufen").innerHTML = svg(W, H, g);
+})();
+
+// Leben nach Monstertyp
+(function () {
+  const names = {grunt: "Pilzling", tank: "Borkengolem", fast: "Pestratte", elite: "Sumpftroll", archer: "Dornspinne"};
+  const ks = Object.keys(S.leak).sort((a, b) => S.leak[b] - S.leak[a]);
+  const W = 640, row = 30, H = ks.length * row + 10, L = 120, R = 50, max = Math.max(...ks.map(k => S.leak[k]));
+  let g = "";
+  ks.forEach((k, i) => {
+    const v = S.leak[k], w = (W - L - R) * v / max, yy = 6 + i * row;
+    g += `<text x="${L - 8}" y="${yy + 14}" text-anchor="end">${names[k] || k}</text>`;
+    g += `<rect x="${L}" y="${yy}" width="${Math.max(2, w)}" height="18" rx="3" fill="${k === "grunt" ? "var(--crit)" : "var(--bar)"}"></rect>`;
+    g += `<text x="${L + w + 6}" y="${yy + 14}">${v.toFixed(1)}</text>`;
+  });
+  document.getElementById("leak").innerHTML = svg(W, H, g);
+})();
+</script>

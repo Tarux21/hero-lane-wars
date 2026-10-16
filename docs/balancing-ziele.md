@@ -31,3 +31,10 @@ Die genauen Zahlen (Takt je Welle, Boss-Wellen, Stärke-Zuwachs) werden in Phase
 4. Phase 3: Paket auswählen, im Prototyp umsetzen, Godot neu abgleichen, Spieltest mit kurzem Fragebogen; wiederholen
 
 Hinweis: Bots spielen anders als Menschen (z. B. kein gezieltes Kiten). Die Simulation findet Ausreißer und Trends, das Feingefühl kommt aus den Spieltests.
+
+## Messwerkzeug (Phase 1)
+
+- Viele Partien: `bash tools/balance/run_matrix.sh <Ausgabeordner> [Wiederholungen=12] [parallel=10]` (336 Partien in ca. 5 Min.).
+- Auswertung: `<Godot-Konsole> --headless --path godot -s res://tools/balance_summary.gd -- <Ordner> <Ausgabe.json>`.
+- Godot-Flags dafür: `--botplay --sim=5400 --hero= --enemy= --diff= --ediff= --style= --estyle= --seed= --result=pfad.json`.
+- Iststand: `docs/balancing/iststand.html` (Übersicht), Zahlen in `docs/balancing/iststand-messung.json`.

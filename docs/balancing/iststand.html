@@ -1,0 +1,670 @@
+<title>Balancing-Iststand Giftwald</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Source+Sans+3:wght@400;600&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Layout: Bericht in einer Spalte (max. 1040px), oben die Ziel-gegen-Ist-Tabelle, darunter je Befund ein Diagramm mit kurzer Deutung */
+:root {
+  --bg: #f3f5f0; --panel: #ffffff; --fg: #1c231f; --muted: #5d6a62; --line: #d9e0d8;
+  --accent: #2e7a3c; --accent-soft: #d8ecd6; --warn: #b7791f; --crit: #b23b2a; --ok: #2e7a3c;
+  --band: rgba(46,122,60,.12); --bar: #5a8f63; --bar2: #8b6bb0;
+  --display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --body: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #121815; --panel: #19211d; --fg: #e2ebe4; --muted: #9aaca0; --line: #2b3830;
+  --accent: #7fcf72; --accent-soft: #23402a; --warn: #e0a84a; --crit: #ef7a63; --ok: #7fcf72;
+  --band: rgba(127,207,114,.13); --bar: #6fb575; --bar2: #b597dc; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #121815; --panel: #19211d; --fg: #e2ebe4; --muted: #9aaca0; --line: #2b3830;
+  --accent: #7fcf72; --accent-soft: #23402a; --warn: #e0a84a; --crit: #ef7a63; --ok: #7fcf72;
+  --band: rgba(127,207,114,.13); --bar: #6fb575; --bar2: #b597dc; color-scheme: dark }
+* { box-sizing: border-box }
+body { background: var(--bg); color: var(--fg); font: 16px/1.55 var(--body); margin: 0 }
+.wrap { max-width: 1040px; margin: 0 auto; padding-inline: 20px; padding-block: 32px 64px; display: grid; gap: 28px }
+h1 { font: 800 clamp(28px, 4vw, 40px)/1.1 var(--display); margin: 0; text-wrap: balance }
+h2 { font: 600 22px/1.2 var(--display); margin: 0 0 4px; text-wrap: balance }
+.eyebrow { font: 500 12px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted) }
+.lead { max-width: 68ch; color: var(--muted); margin: 6px 0 0 }
+section.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 20px; display: grid; gap: 12px; min-width: 0 }
+.note { max-width: 70ch; margin: 0 }
+.note b { color: var(--fg) }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums }
+.tbl { overflow-x: auto }
+th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line); vertical-align: top }
+th { font: 600 12px var(--mono); letter-spacing: .05em; text-transform: uppercase; color: var(--muted) }
+td.num { font-family: var(--mono); white-space: nowrap }
+.pill { display: inline-block; font: 600 12px var(--mono); padding: 2px 8px; border-radius: 999px; white-space: nowrap }
+.pill.ok { background: var(--accent-soft); color: var(--ok) }
+.pill.warn { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn) }
+.pill.crit { background: color-mix(in srgb, var(--crit) 16%, transparent); color: var(--crit) }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px }
+.grid2 > div { min-width: 0 }
+svg { width: 100%; height: auto; display: block }
+svg text { fill: var(--muted); font: 12px var(--mono) }
+svg .axis { stroke: var(--line) }
+.heat { display: grid; grid-template-columns: auto repeat(3, 1fr); gap: 4px; font-variant-numeric: tabular-nums }
+.heat div { padding: 10px 6px; text-align: center; border-radius: 6px; font: 500 14px var(--mono) }
+.heat .h { background: none; color: var(--muted); font-size: 12px; padding: 6px }
+.legend { display: flex; gap: 16px; flex-wrap: wrap; font: 12px var(--mono); color: var(--muted) }
+.legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -2px; margin-right: 6px }
+ol.next { margin: 0; padding-left: 22px; display: grid; gap: 6px; max-width: 72ch }
+footer { color: var(--muted); font-size: 13px }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Hero Lane Wars · Balancing Phase 1</div>
+    <h1>Iststand: 336 Bot-Partien gegen die Zielwerte</h1>
+    <p class="lead">Gemessen mit Bot gegen Bot im Godot-Spiel (1 gegen 1, ohne Fenster). Je Block 12 bzw. 24 Partien pro Paarung. Grundlage: <span id="meta"></span>.</p>
+  </header>
+
+  <section class="card">
+    <h2>Ziel gegen Ist</h2>
+    <div class="tbl"><table id="targets"><thead><tr><th>Bereich</th><th>Ziel</th><th>Gemessen</th><th>Stand</th></tr></thead><tbody></tbody></table></div>
+  </section>
+
+  <section class="card">
+    <h2>Partiedauer</h2>
+    <p class="note">Fast jede Partie ist nach 2 bis 5 Minuten vorbei. Das Zielband (grün) liegt bei 25 bis 40 Minuten.</p>
+    <div id="dur"></div>
+  </section>
+
+  <section class="card">
+    <h2>Was in Welle 4 bis 8 passiert</h2>
+    <p class="note">Die Wellen kommen anfangs alle 16 Sekunden und starten am Lane-Ende. Ab Welle 4 schafft der Held sie nicht mehr weg, bevor die nächste kommt: Beim Start von Welle 5 und 6 stehen im Schnitt 10 bis 12 Monster auf der Lane, in vielen Partien über 20. Dann stirbt der Held einmal, und das Team verliert 7 und mehr Leben pro Welle. Das ist kein langsamer Lebensverlust, sondern ein Zusammenbruch.</p>
+    <div class="grid2">
+      <div><div class="eyebrow">Monster auf der Lane beim Wellenstart</div><div id="units"></div></div>
+      <div><div class="eyebrow">Verlorene Leben je Welle (Durchschnitt)</div><div id="lost"></div></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Klassen</h2>
+    <p class="note">Siegquote der Zeilenklasse gegen die Spaltenklasse (Normal gegen Normal). Der Schurke gewinnt gegen beide anderen Klassen deutlich, Ziel sind 45 bis 55 Prozent.</p>
+    <div class="heat" id="klassen"></div>
+  </section>
+
+  <div class="grid2">
+    <section class="card">
+      <h2>Bot-Stile beim Senden</h2>
+      <p class="note">Wer viel sendet (Ansturm), verliert gegen beide anderen Stile in etwa 4 von 5 Partien. Senden lohnt sich bei so kurzen Partien kaum.</p>
+      <div class="heat" id="stile"></div>
+    </section>
+    <section class="card">
+      <h2>Schwierigkeitsstufen</h2>
+      <p class="note">Siegquote der stärkeren Stufe. Ziel für Schwer gegen Normal sind etwa 90 Prozent, gemessen 58.</p>
+      <div id="stufen"></div>
+    </section>
+  </div>
+
+  <section class="card">
+    <h2>Wer kostet die Leben?</h2>
+    <p class="note">Verlorene Leben pro Partie nach Monstertyp, beide Teams zusammen. Fast alle Leben gehen durch Pilzlinge verloren, also durch die Masse, nicht durch einzelne starke Monster.</p>
+    <div id="leak"></div>
+  </section>
+
+  <section class="card">
+    <h2>Was Phase 2 untersucht</h2>
+    <ol class="next">
+      <li><b>Wellen und Monster:</b> Takt und Größe der frühen Wellen, damit sich die Lane zwischen zwei Wellen leeren kann; die neuen Regeln aus Phase 0 (30 Leben, 50 Wellen, Endlos-Phase, mehrere Bosse, Pausen nach Bossen).</li>
+      <li><b>Wirtschaft und Senden:</b> Senden muss sich in längeren Partien lohnen; Ziel 40 bis 60 Prozent je Bot-Stil.</li>
+      <li><b>Klassen und Fähigkeiten:</b> Schurke abschwächen oder Tank und Magier stärken, bis jedes Duell bei 45 bis 55 Prozent liegt.</li>
+      <li><b>Items und Schwierigkeit:</b> Item-Preise und Stärke; die Bot-Stufen weiter spreizen.</li>
+      <li><b>Gegenprüfung:</b> Das Gesamtpaket auf Nebenwirkungen prüfen, bevor es zur Wahl steht.</li>
+    </ol>
+  </section>
+
+  <footer>Bots spielen anders als Menschen (zum Beispiel ohne gezieltes Kiten). Die Messung zeigt Trends und Ausreißer, das Feingefühl kommt aus euren Spieltests.</footer>
+</div>
+
+<script>
+const D = {"summary": {
+  "comeback": {
+    "aufgeholt": 9,
+    "partien": 29,
+    "quote": 0.310344827586207
+  },
+  "count": 336,
+  "dauer": {
+    "bins": {
+      "0": 281,
+      "10": 6,
+      "5": 49
+    },
+    "max_min": 13.065,
+    "mean_min": 3.87702876984127,
+    "median_min": 3.05833333333333,
+    "median_wave": 8,
+    "min_min": 1.91166666666667,
+    "ohne_sieger": 0
+  },
+  "klassen": {
+    "caster|caster": {
+      "n": 24,
+      "quote": 0.5
+    },
+    "caster|damage": {
+      "n": 24,
+      "quote": 0.125
+    },
+    "caster|tank": {
+      "n": 24,
+      "quote": 0.583333333333333
+    },
+    "damage|caster": {
+      "n": 24,
+      "quote": 0.875
+    },
+    "damage|damage": {
+      "n": 24,
+      "quote": 0.5
+    },
+    "damage|tank": {
+      "n": 24,
+      "quote": 0.833333333333333
+    },
+    "tank|caster": {
+      "n": 24,
+      "quote": 0.416666666666667
+    },
+    "tank|damage": {
+      "n": 24,
+      "quote": 0.166666666666667
+    },
+    "tank|tank": {
+      "n": 24,
+      "quote": 0.5
+    }
+  },
+  "leak": {
+    "archer": 0.321428571428571,
+    "elite": 0.625,
+    "fast": 0.895833333333333,
+    "grunt": 21.7232142857143,
+    "tank": 1.8125
+  },
+  "leben": {
+    "erstes_leben_median_welle": 6,
+    "kurve": {
+      "1": {
+        "leben": 20.0,
+        "n": 672
+      },
+      "10": {
+        "leben": 16.4847328244275,
+        "n": 262
+      },
+      "11": {
+        "leben": 16.8026315789474,
+        "n": 228
+      },
+      "12": {
+        "leben": 16.0208333333333,
+        "n": 192
+      },
+      "13": {
+        "leben": 15.8617021276596,
+        "n": 94
+      },
+      "14": {
+        "leben": 15.0238095238095,
+        "n": 84
+      },
+      "15": {
+        "leben": 14.5972222222222,
+        "n": 72
+      },
+      "16": {
+        "leben": 15.0161290322581,
+        "n": 62
+      },
+      "17": {
+        "leben": 14.5714285714286,
+        "n": 42
+      },
+      "18": {
+        "leben": 15.5,
+        "n": 30
+      },
+      "19": {
+        "leben": 15.1428571428571,
+        "n": 28
+      },
+      "2": {
+        "leben": 20.0,
+        "n": 672
+      },
+      "20": {
+        "leben": 16.0909090909091,
+        "n": 22
+      },
+      "21": {
+        "leben": 15.375,
+        "n": 16
+      },
+      "22": {
+        "leben": 13.9285714285714,
+        "n": 14
+      },
+      "23": {
+        "leben": 13.4,
+        "n": 10
+      },
+      "24": {
+        "leben": 14.6666666666667,
+        "n": 6
+      },
+      "25": {
+        "leben": 11.0,
+        "n": 2
+      },
+      "26": {
+        "leben": 10.0,
+        "n": 2
+      },
+      "27": {
+        "leben": 9.0,
+        "n": 2
+      },
+      "28": {
+        "leben": 8.0,
+        "n": 2
+      },
+      "3": {
+        "leben": 20.0,
+        "n": 672
+      },
+      "4": {
+        "leben": 20.0,
+        "n": 672
+      },
+      "5": {
+        "leben": 20.0,
+        "n": 672
+      },
+      "6": {
+        "leben": 19.1488095238095,
+        "n": 672
+      },
+      "7": {
+        "leben": 16.2284345047923,
+        "n": 626
+      },
+      "8": {
+        "leben": 15.9594594594595,
+        "n": 444
+      },
+      "9": {
+        "leben": 15.9024390243902,
+        "n": 328
+      }
+    }
+  },
+  "senden": {
+    "balanced": {
+      "einkommen": 41.9680555555556,
+      "gesendet": 8.97222222222222,
+      "n": 72
+    },
+    "eco": {
+      "einkommen": 36.7125,
+      "gesendet": 6.27777777777778,
+      "n": 72
+    },
+    "rush": {
+      "einkommen": 44.0472222222222,
+      "gesendet": 10.2638888888889,
+      "n": 72
+    }
+  },
+  "stile": {
+    "balanced|balanced": {
+      "n": 24,
+      "quote": 0.5
+    },
+    "balanced|eco": {
+      "n": 24,
+      "quote": 0.333333333333333
+    },
+    "balanced|rush": {
+      "n": 24,
+      "quote": 0.791666666666667
+    },
+    "eco|balanced": {
+      "n": 24,
+      "quote": 0.666666666666667
+    },
+    "eco|eco": {
+      "n": 24,
+      "quote": 0.5
+    },
+    "eco|rush": {
+      "n": 24,
+      "quote": 0.791666666666667
+    },
+    "rush|balanced": {
+      "n": 24,
+      "quote": 0.208333333333333
+    },
+    "rush|eco": {
+      "n": 24,
+      "quote": 0.208333333333333
+    },
+    "rush|rush": {
+      "n": 24,
+      "quote": 0.5
+    }
+  },
+  "stufen": {
+    "easy|easy": {
+      "dauer_min": 2.84416666666667,
+      "n": 24,
+      "quote_a": 0.583333333333333,
+      "siege_a": 14
+    },
+    "expert|hard": {
+      "dauer_min": 6.12409722222222,
+      "n": 24,
+      "quote_a": 0.5,
+      "siege_a": 12
+    },
+    "hard|hard": {
+      "dauer_min": 4.42465277777778,
+      "n": 24,
+      "quote_a": 0.541666666666667,
+      "siege_a": 13
+    },
+    "hard|normal": {
+      "dauer_min": 3.89326388888889,
+      "n": 24,
+      "quote_a": 0.583333333333333,
+      "siege_a": 14
+    },
+    "normal|easy": {
+      "dauer_min": 2.97569444444445,
+      "n": 24,
+      "quote_a": 0.75,
+      "siege_a": 18
+    }
+  },
+  "wirtschaft": {
+    "1": {
+      "gold": 105.277777777778,
+      "income": 24.0,
+      "items": 0.833333333333333,
+      "lvl": 1.0,
+      "n": 216
+    },
+    "10": {
+      "gold": 222.011627906977,
+      "income": 39.2220930232558,
+      "items": 1.7093023255814,
+      "lvl": 6.86046511627907,
+      "n": 86
+    },
+    "11": {
+      "gold": 203.77027027027,
+      "income": 42.4878378378378,
+      "items": 1.64864864864865,
+      "lvl": 7.68918918918919,
+      "n": 74
+    },
+    "12": {
+      "gold": 252.45,
+      "income": 44.9516666666667,
+      "items": 1.88333333333333,
+      "lvl": 8.38333333333333,
+      "n": 60
+    },
+    "13": {
+      "gold": 268.583333333333,
+      "income": 48.9916666666667,
+      "items": 2.0,
+      "lvl": 9.54166666666667,
+      "n": 24
+    },
+    "14": {
+      "gold": 295.125,
+      "income": 52.6333333333333,
+      "items": 2.125,
+      "lvl": 10.2083333333333,
+      "n": 24
+    },
+    "15": {
+      "gold": 261.166666666667,
+      "income": 56.0166666666667,
+      "items": 2.22222222222222,
+      "lvl": 10.8333333333333,
+      "n": 18
+    },
+    "16": {
+      "gold": 282.714285714286,
+      "income": 63.9428571428572,
+      "items": 2.42857142857143,
+      "lvl": 11.7142857142857,
+      "n": 14
+    },
+    "17": {
+      "gold": 176.5,
+      "income": 67.19,
+      "items": 2.9,
+      "lvl": 12.6,
+      "n": 10
+    },
+    "18": {
+      "gold": 216.666666666667,
+      "income": 62.9,
+      "items": 3.5,
+      "lvl": 13.3333333333333,
+      "n": 6
+    },
+    "19": {
+      "gold": 258.75,
+      "income": 69.325,
+      "items": 3.75,
+      "lvl": 14.25,
+      "n": 4
+    },
+    "2": {
+      "gold": 146.777777777778,
+      "income": 24.0,
+      "items": 0.833333333333333,
+      "lvl": 1.0,
+      "n": 216
+    },
+    "20": {
+      "gold": 192.5,
+      "income": 83.75,
+      "items": 4.0,
+      "lvl": 15.0,
+      "n": 2
+    },
+    "21": {
+      "gold": 169.5,
+      "income": 91.75,
+      "items": 4.5,
+      "lvl": 15.0,
+      "n": 2
+    },
+    "22": {
+      "gold": 258.5,
+      "income": 103.6,
+      "items": 4.5,
+      "lvl": 15.0,
+      "n": 2
+    },
+    "23": {
+      "gold": 525.5,
+      "income": 112.6,
+      "items": 4.5,
+      "lvl": 15.0,
+      "n": 2
+    },
+    "3": {
+      "gold": 206.194444444444,
+      "income": 24.0,
+      "items": 0.939814814814815,
+      "lvl": 1.79166666666667,
+      "n": 216
+    },
+    "4": {
+      "gold": 173.898148148148,
+      "income": 25.2430555555556,
+      "items": 1.08333333333333,
+      "lvl": 2.11574074074074,
+      "n": 216
+    },
+    "5": {
+      "gold": 163.384259259259,
+      "income": 26.2587962962963,
+      "items": 1.31018518518519,
+      "lvl": 2.68981481481481,
+      "n": 216
+    },
+    "6": {
+      "gold": 183.231481481482,
+      "income": 27.5560185185185,
+      "items": 1.51851851851852,
+      "lvl": 3.16666666666667,
+      "n": 216
+    },
+    "7": {
+      "gold": 183.881188118812,
+      "income": 29.9034653465347,
+      "items": 1.72772277227723,
+      "lvl": 4.2029702970297,
+      "n": 202
+    },
+    "8": {
+      "gold": 188.210144927536,
+      "income": 32.1992753623188,
+      "items": 1.89855072463768,
+      "lvl": 5.23188405797101,
+      "n": 138
+    },
+    "9": {
+      "gold": 234.471153846154,
+      "income": 34.7788461538461,
+      "items": 1.75,
+      "lvl": 6.10576923076923,
+      "n": 104
+    }
+  }
+}, "units": {"1":{"deaths":0,"lost":0,"n":672,"units":0},"10":{"deaths":0.114503816793893,"lost":0.447368421052632,"n":262,"units":6.95801526717557},"11":{"deaths":0.171052631578947,"lost":1.296875,"n":228,"units":11.8684210526316},"12":{"deaths":0.25,"lost":1.40425531914894,"n":192,"units":16.2864583333333},"13":{"deaths":0.25531914893617,"lost":1.23809523809524,"n":94,"units":10.4787234042553},"14":{"deaths":0.333333333333333,"lost":0.444444444444444,"n":84,"units":15.4880952380952},"15":{"deaths":0.375,"lost":0.0645161290322581,"n":72,"units":11.1805555555556},"16":{"deaths":0.370967741935484,"lost":1.28571428571429,"n":62,"units":14.3709677419355},"17":{"deaths":0.357142857142857,"lost":0.0666666666666667,"n":42,"units":17.1666666666667},"18":{"deaths":0.266666666666667,"lost":0.571428571428571,"n":30,"units":11.7},"19":{"deaths":0.392857142857143,"lost":0,"n":28,"units":17.9642857142857},"2":{"deaths":0,"lost":0,"n":672,"units":1.47172619047619},"20":{"deaths":0.272727272727273,"lost":0,"n":22,"units":8.81818181818182},"3":{"deaths":0,"lost":0,"n":672,"units":0.855654761904762},"4":{"deaths":0,"lost":0,"n":672,"units":5.06845238095238},"5":{"deaths":0.0148809523809524,"lost":0.851190476190476,"n":672,"units":10.1696428571429},"6":{"deaths":0.104166666666667,"lost":3.07188498402556,"n":672,"units":11.8407738095238},"7":{"deaths":0.210862619808307,"lost":2.24324324324324,"n":626,"units":9.60862619808307},"8":{"deaths":0.162162162162162,"lost":1.66463414634146,"n":444,"units":9.2545045045045},"9":{"deaths":0.140243902439024,"lost":0.564885496183206,"n":328,"units":8.16768292682927}}, "stand": "9b6f6e7"};
+const S = D.summary, U = D.units;
+document.getElementById("meta").textContent = S.count + " Partien, Regelstand " + D.stand;
+const pct = v => Math.round(v * 100) + " %";
+
+// Ziel gegen Ist
+const kl = S.klassen, st = S.stile, su = S.stufen;
+const rows = [
+  ["Partiedauer", "25–40 Min.", S.dauer.median_min.toFixed(1) + " Min. (Median)", "crit"],
+  ["Erreichte Welle", "50 + Endlos-Phase", "Welle " + S.dauer.median_wave + " (Median)", "crit"],
+  ["Lebensverlust", "ab Welle 1, gleichmäßig", "erst ab Welle " + S.leben.erstes_leben_median_welle + ", dann Zusammenbruch", "crit"],
+  ["Klassen", "jedes Duell 45–55 %", "Schurke " + pct(kl["damage|tank"].quote) + " gegen Tank, " + pct(kl["damage|caster"].quote) + " gegen Magier", "crit"],
+  ["Senden (Bot-Stile)", "je Stil 40–60 %", "Ansturm " + pct(st["rush|balanced"].quote) + " / " + pct(st["rush|eco"].quote), "crit"],
+  ["Schwierigkeit", "Schwer schlägt Normal ~90 %", pct(su["hard|normal"].quote_a) + "; Normal gegen Leicht " + pct(su["normal|easy"].quote_a), "warn"],
+  ["Comeback", "20–30 % holen auf", pct(S.comeback.quote) + " (" + S.comeback.aufgeholt + " von " + S.comeback.partien + ")", "ok"],
+];
+const tb = document.querySelector("#targets tbody");
+for (const [a, b, c, s] of rows) {
+  const tr = document.createElement("tr");
+  tr.innerHTML = `<td>${a}</td><td>${b}</td><td class="num">${c}</td><td><span class="pill ${s}">${s === "ok" ? "im Ziel" : s === "warn" ? "knapp daneben" : "weit daneben"}</span></td>`;
+  tb.appendChild(tr);
+}
+
+// SVG-Helfer
+function svg(w, h, inner) { return `<svg viewBox="0 0 ${w} ${h}" role="img">${inner}</svg>`; }
+function css(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+
+// Partiedauer: Balken je 5 Minuten, Zielband 25–40
+(function () {
+  const bins = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45];
+  const vals = bins.map(b => S.dauer.bins[String(b)] || 0);
+  const W = 640, H = 230, L = 44, B = 36, T = 14, R = 10, cw = (W - L - R) / bins.length, max = Math.max(...vals);
+  const y = v => T + (H - T - B) * (1 - v / max);
+  let g = `<rect x="${L + cw * 5}" y="${T}" width="${cw * 3}" height="${H - T - B}" fill="var(--band)"></rect>`;
+  g += `<text x="${L + cw * 6.5}" y="${T + 14}" text-anchor="middle" fill="var(--accent)">Ziel</text>`;
+  for (const t of [0, 100, 200, 300]) if (t <= max) g += `<line class="axis" x1="${L}" x2="${W - R}" y1="${y(t)}" y2="${y(t)}"></line><text x="${L - 6}" y="${y(t) + 4}" text-anchor="end">${t}</text>`;
+  vals.forEach((v, i) => {
+    g += `<rect x="${L + i * cw + 4}" y="${y(v)}" width="${cw - 8}" height="${H - B - y(v)}" rx="3" fill="var(--bar)"></rect>`;
+    if (v) g += `<text x="${L + i * cw + cw / 2}" y="${y(v) - 5}" text-anchor="middle">${v}</text>`;
+    g += `<text x="${L + i * cw + cw / 2}" y="${H - B + 16}" text-anchor="middle">${bins[i]}${i === bins.length - 1 ? "+" : "–" + (bins[i] + 5)}</text>`;
+  });
+  g += `<text x="${(L + W) / 2}" y="${H - 4}" text-anchor="middle">Minuten (Anzahl Partien)</text>`;
+  document.getElementById("dur").innerHTML = svg(W, H, g);
+})();
+
+// Linien je Welle
+function lineChart(id, key, color, ymaxFix) {
+  const ws = Object.keys(U).map(Number).filter(w => w <= 20 && U[w][key] !== null && U[w][key] !== undefined).sort((a, b) => a - b);
+  const W = 460, H = 210, L = 36, B = 32, T = 12, R = 12;
+  const vals = ws.map(w => U[w][key]);
+  const max = ymaxFix || Math.ceil(Math.max(...vals) / 5) * 5;
+  const x = w => L + (W - L - R) * (w - 1) / 19, y = v => T + (H - T - B) * (1 - v / max);
+  let g = "";
+  for (let t = 0; t <= max; t += max / 4) g += `<line class="axis" x1="${L}" x2="${W - R}" y1="${y(t)}" y2="${y(t)}"></line><text x="${L - 6}" y="${y(t) + 4}" text-anchor="end">${Math.round(t)}</text>`;
+  for (const w of [1, 5, 10, 15, 20]) g += `<text x="${x(w)}" y="${H - B + 16}" text-anchor="middle">${w}</text>`;
+  g += `<text x="${(L + W) / 2}" y="${H - 2}" text-anchor="middle">Welle</text>`;
+  const pts = ws.map(w => `${x(w)},${y(U[w][key])}`).join(" ");
+  g += `<polygon points="${x(ws[0])},${y(0)} ${pts} ${x(ws[ws.length - 1])},${y(0)}" fill="${color}" opacity=".14"></polygon>`;
+  g += `<polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2.5" stroke-linejoin="round"></polyline>`;
+  const peak = ws.reduce((a, b) => U[b][key] > U[a][key] ? b : a, ws[0]);
+  g += `<circle cx="${x(peak)}" cy="${y(U[peak][key])}" r="4.5" fill="${color}"></circle><text x="${x(peak) + 8}" y="${y(U[peak][key]) - 6}">${U[peak][key].toFixed(1)}</text>`;
+  document.getElementById(id).innerHTML = svg(W, H, g);
+}
+lineChart("units", "units", "var(--bar2)");
+lineChart("lost", "lost", "var(--crit)");
+
+// Heatmaps
+function heat(id, data, names, labels) {
+  const el = document.getElementById(id);
+  let h = `<div class="h"></div>` + names.map(n => `<div class="h">${labels[n]}</div>`).join("");
+  for (const a of names) {
+    h += `<div class="h" style="text-align:right">${labels[a]}</div>`;
+    for (const b of names) {
+      const q = data[a + "|" + b].quote;
+      const dev = Math.abs(q - 0.5);
+      const col = dev <= 0.05 ? "var(--accent-soft)" : dev <= 0.15 ? "color-mix(in srgb, var(--warn) 22%, transparent)" : "color-mix(in srgb, var(--crit) 24%, transparent)";
+      h += `<div style="background:${col}">${a === b ? "–" : pct(q)}</div>`;
+    }
+  }
+  el.innerHTML = h;
+}
+heat("klassen", kl, ["tank", "damage", "caster"], {tank: "Tank", damage: "Schurke", caster: "Magier"});
+heat("stile", st, ["balanced", "rush", "eco"], {balanced: "Ausgewogen", rush: "Ansturm", eco: "Sparsam"});
+
+// Schwierigkeit
+(function () {
+  const pairs = [["hard|normal", "Schwer – Normal", 0.9], ["normal|easy", "Normal – Leicht", 0.9], ["expert|hard", "Experte – Schwer", 0.9]];
+  const W = 460, H = 150, L = 130, R = 40, row = 40;
+  let g = "";
+  const x = v => L + (W - L - R) * v;
+  pairs.forEach(([k, lab, tgt], i) => {
+    const q = su[k].quote_a, yy = 14 + i * row;
+    g += `<text x="${L - 8}" y="${yy + 15}" text-anchor="end">${lab}</text>`;
+    g += `<rect x="${L}" y="${yy}" width="${W - L - R}" height="22" rx="4" fill="var(--line)" opacity=".5"></rect>`;
+    g += `<rect x="${L}" y="${yy}" width="${x(q) - L}" height="22" rx="4" fill="var(--bar)"></rect>`;
+    g += `<line x1="${x(tgt)}" x2="${x(tgt)}" y1="${yy - 3}" y2="${yy + 25}" stroke="var(--accent)" stroke-width="2"></line>`;
+    g += `<text x="${x(q) + 6}" y="${yy + 15}">${pct(q)}</text>`;
+  });
+  g += `<text x="${x(0.9)}" y="${H - 8}" text-anchor="middle" fill="var(--accent)">Ziel 90 %</text>`;
+  document.getElementById("stufen").innerHTML = svg(W, H, g);
+})();
+
+// Leben nach Monstertyp
+(function () {
+  const names = {grunt: "Pilzling", tank: "Borkengolem", fast: "Pestratte", elite: "Sumpftroll", archer: "Dornspinne"};
+  const ks = Object.keys(S.leak).sort((a, b) => S.leak[b] - S.leak[a]);
+  const W = 640, row = 30, H = ks.length * row + 10, L = 120, R = 50, max = Math.max(...ks.map(k => S.leak[k]));
+  let g = "";
+  ks.forEach((k, i) => {
+    const v = S.leak[k], w = (W - L - R) * v / max, yy = 6 + i * row;
+    g += `<text x="${L - 8}" y="${yy + 14}" text-anchor="end">${names[k] || k}</text>`;
+    g += `<rect x="${L}" y="${yy}" width="${Math.max(2, w)}" height="18" rx="3" fill="${k === "grunt" ? "var(--crit)" : "var(--bar)"}"></rect>`;
+    g += `<text x="${L + w + 6}" y="${yy + 14}">${v.toFixed(1)}</text>`;
+  });
+  document.getElementById("leak").innerHTML = svg(W, H, g);
+})();
+</script>
