@@ -28,7 +28,7 @@ done; done
 echo "Partien: $(wc -l < "$JOBS")"
 run_one() {
   name="$1"; shift
-  "$G" --headless --path godot -- --botplay --sim=5400 --team=1 ${TUNE:+--tune=$TUNE} "$@" "--result=$OUT/$name.json" > /dev/null 2>&1
+  "$G" --headless --path godot -- --botplay --sim=5400 --team=1 "${TUNE:+--tune=$TUNE}" "$@" "--result=$OUT/$name.json" > /dev/null 2>&1
 }
 export -f run_one
 export G OUT TUNE
