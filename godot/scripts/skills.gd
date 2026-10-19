@@ -72,7 +72,8 @@ func dmg_of(p: Dictionary, base: float, per: float, r: int, sc: float, k: float)
 	var power: float = float(cfg["power"].get(p["key"], 1.0))
 	var early: float = float(cfg["earlyBoost"].get(p["key"], 0.0)) * maxf(0.0, 1.0 - (p["lvl"] - 1) / (float(cfg["maxLevel"]) - 1.0))
 	var amp: float = (1.0 + float(cfg["comboAmp"])) if p["amp_now"] else 1.0
-	return (base + per * (r - 1) + sc * h_sp(p) + k * h_dmg(p)) * power * p["mul"] * amp * (1.0 + early)
+	var ramp: float = float(cfg["skillRampStart"]) + (1.0 - float(cfg["skillRampStart"])) * minf(1.0, float(p["lvl"] - 1) / (float(cfg["skillRampLvl"]) - 1.0))   # Fähigkeiten wachsen mit dem Level
+	return (base + per * (r - 1) + sc * h_sp(p) + k * h_dmg(p)) * power * p["mul"] * amp * (1.0 + early) * ramp
 
 
 # ---------------------------------------------------------------- Treffer und Statuseffekte

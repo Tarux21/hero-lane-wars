@@ -57,3 +57,9 @@ Messung mit Monsterstrom (72 Partien, Klassen): Median 37 Min., Entscheidung mei
 Entscheidung A des Projektleiters. Schockwelle (Tank) und Kettenblitz (Magier) treffen ab Rang 4 zusätzlich mit 3 % / 6 % (Rang 4 / 5) der maximalen Lebenspunkte jedes getroffenen Monsters, gegen Bosse halb so viel (`tankQPct`, `casterEPct`, `pctBossMul`).
 
 Messung (je 72 Partien, nur Klassen): Tank gegen Magier vorher 13 %, mit 2/4 % 38 %, **mit 3/6 % 44 %** ✓. Der Schurke gewinnt weiter 75–88 % gegen beide; seinen Fähigkeitsschaden zu senken (1,3 → 1,15 / 1,0) ändert daran nichts (75–81 %), seine Stärke in der Elite-Phase kommt aus dem Normalangriff mit kritischen Treffern. Offen: Schurke im späten Spiel (Normalangriff/Krit) – Entscheidung des Projektleiters nötig.
+
+## Nachtrag: Fähigkeiten wachsen mit dem Level, Krit schwächer (19.10.2026)
+
+Beobachtung des Projektleiters: Auf Level 1 tötet jede Fähigkeit die ersten 3–4 Wellen auf einmal (z. B. Kettenblitz ~75 Schaden je Ziel, Pilzling 60 Leben). Entscheidung V1: `skillRampStart 0.5`, `skillRampLvl 6` – Fähigkeiten machen auf Level 1 50 % Schaden, ab Level 6 voll; Caster-Frühbonus `earlyBoost.caster` 0,7 → 0,3. Krit allgemein schwächer: `critDmgBase` 2,0 → 1,75.
+
+Messung (je 72 Partien, Klassen, V1 mit Krit ×2,0 / ×1,75 / ×1,5): früher Lebensverlust steigt (bis Welle 10 im Mittel 3,4–3,9 Leben, 42 % der Seiten; vorher 2,1), Magier scheidet öfter früh aus (15 % vor Welle 20). Der Krit-Wert ändert die Klassen-Quoten nicht: Schurke 75–88 % gegen beide. Auswertung je Klasse (216 Partien): Der Schurke stirbt halb so oft (0,40 Tode je Partie gegen 0,74–0,88) und tötet am meisten; seine Bots bauen fast immer Seelentrinker (Lebensraub), Splitteraxt (Flächenschaden mit Normalangriffen), Schneide des gefallenen Monarchen (% Leben) und Sturmbrecher. Offen: Entscheidung, wie der Schurke gebremst wird.

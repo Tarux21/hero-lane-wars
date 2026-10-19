@@ -184,7 +184,7 @@ const CFG = {
   comebackDiff: 4, comebackPerLife: 0.01, comebackCap: 0.03,   // Aufholhilfe: ab 4 Leben Rückstand +1 % Einkommen je weiterem Leben (max. +3 %)
   bagSize: 6, consMax: 5, sellRatio: 0.7,           // Rucksack-Plätze / max. Verbrauchsgegenstände je Sorte / Verkaufserlös
   potionHeal: 0.40, potionCd: 15,                   // Heiltrank
-  critDmgBase: 2.0, critDmgBonus: 0.25,             // Kritischer Schaden: Grundfaktor / Bonus der Mächtigen Klinge
+  critDmgBase: 1.75, critDmgBonus: 0.25,            // Kritischer Schaden: Grundfaktor / Bonus der Mächtigen Klinge
   spMulBonus: 0.30,                                 // Zauberkrone: Zauberkraft +30 %
   stormCritAs: 0.40, stormCritTime: 3,              // Sturmbrecher: +40 % Angriffstempo für 3 s nach einem Krit
   cdrCap: 0.40, comboAmp: 0.30, comboWindow: 5,     // Abklingzeit-Obergrenze / Zeitzauberstab: +30 % Schaden innerhalb von 5 s
@@ -233,7 +233,8 @@ const CFG = {
   incMul: 0.7, itemMul: 1,   // Balance-Regler: Einkommen pro gesendetem Monster / Stärke aller Items
   power: {tank:1.25, damage:1.3, caster:1.1},
   adEff: {tank:0.8, damage:1, caster:1},
-  earlyBoost: {tank:0, damage:0, caster:0.7},   // Balance-Regler: Skillschaden-Bonus in der Frühphase je Klasse (Level 1 voll, Level 15 null)   // Wirkung von Angriffsschaden-Items je Klasse (Balance-Regler)   // Skillschaden-Faktor je Held (nur zum Balancen)
+  skillRampStart: 0.5, skillRampLvl: 6,   // Fähigkeiten wachsen mit dem Level: Level 1 macht 50 % Schaden, ab Level 6 voll
+  earlyBoost: {tank:0, damage:0, caster:0.3},   // Balance-Regler: Skillschaden-Bonus in der Frühphase je Klasse (Level 1 voll, Level 15 null)   // Wirkung von Angriffsschaden-Items je Klasse (Balance-Regler)   // Skillschaden-Faktor je Held (nur zum Balancen)
   unitDmgScale: 0.5,         // wie stark der Schaden der Monster mit der Zeit mitwächst (relativ zu ihrem Leben)
   hpScalePerMin: 0.10,   // Monster werden mit der Zeit stärker
   killGold: 6,                // Gold pro besiegtem normalem Gegner (Elite: eigener Wert in UNITS.gold)
@@ -659,7 +660,7 @@ function hitUnit(u, dmg, o){   // o.crit: kritischer Treffer (größere gelbe Za
 // ====== SKILLS ======
 const enemies = ()=>G.units.filter(u=>u.lane===0);
 const later = (t,fn)=>{ if(t<=0) fn(); else G.timers.push({t, fn}); };
-const dmgOf = (base, per, r, sc, k)=> (base + per*(r-1) + sc*hSp() + k*hDmg()) * (CFG.power[H.key]||1) * (H.mul||1) * (H.ampNow ? 1+CFG.comboAmp : 1) * (1 + (CFG.earlyBoost[H.key]||0) * Math.max(0, 1-(H.lvl-1)/(CFG.maxLevel-1)));   // earlyBoost: Skillschaden-Bonus am Anfang, läuft bis Level 15 aus   // CFG.power: Balance-Regler je Held; H.mul: Gegner-Schwierigkeit
+const dmgOf = (base, per, r, sc, k)=> (base + per*(r-1) + sc*hSp() + k*hDmg()) * (CFG.power[H.key]||1) * (H.mul||1) * (H.ampNow ? 1+CFG.comboAmp : 1) * (1 + (CFG.earlyBoost[H.key]||0) * Math.max(0, 1-(H.lvl-1)/(CFG.maxLevel-1))) * (CFG.skillRampStart + (1-CFG.skillRampStart) * Math.min(1, (H.lvl-1)/(CFG.skillRampLvl-1)));   // skillRamp: Fähigkeiten auf niedrigem Level schwächer   // earlyBoost: Skillschaden-Bonus am Anfang, läuft bis Level 15 aus   // CFG.power: Balance-Regler je Held; H.mul: Gegner-Schwierigkeit
 function knock(u, d){ u.x = Math.min(CFG.spawnX+80, u.x+d); }
 // Quälende Maske: Fähigkeitstreffer starten einen Schaden-über-Zeit-Effekt (pro Ziel mit Abklingzeit)
 function applyTorment(u){

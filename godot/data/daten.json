@@ -23,7 +23,7 @@
   "sellRatio": 0.7,
   "potionHeal": 0.4,
   "potionCd": 15,
-  "critDmgBase": 2,
+  "critDmgBase": 1.75,
   "critDmgBonus": 0.25,
   "spMulBonus": 0.3,
   "stormCritAs": 0.4,
@@ -237,10 +237,12 @@
    "damage": 1,
    "caster": 1
   },
+  "skillRampStart": 0.5,
+  "skillRampLvl": 6,
   "earlyBoost": {
    "tank": 0,
    "damage": 0,
-   "caster": 0.7
+   "caster": 0.3
   },
   "unitDmgScale": 0.5,
   "hpScalePerMin": 0.1,
