@@ -50,6 +50,7 @@ var zones: Array = []                 # Schadensfelder am Boden
 var timers: Array = []                # zeitverzögerte Skill-Effekte
 var elems: Array = []                 # Caster-Elementare
 var fx_list: Array = []               # Skill-Effekte (Ringe, Kegel, Linien), blenden aus
+var corpses: Array = []               # Sterbe-Animationen (nur Anzeige): {node, fig, t, big, y0, s0, h}
 var fx_nodes: Array = []              # Partikel-/Licht-Effekte (fx.gd): {node, t}
 var vfx: FxLib                        # Fähigkeiten-Effekte
 var skillbar: Array = []              # Oberfläche: die 4 Skill-Plätze
@@ -138,6 +139,7 @@ var menu_click := ""                  # Test: Menü per echten Mausklicks bedien
 var shot_wait := 0.0                        # Test: Sekunden Echtzeit vor dem Bildschirmfoto, --shotwait=4
 var fx_base := 1000.0                        # Test: Lane-Position (Spielwert) des Helden im Effekt-Test, --fxx=2200
 var pool_test := 0                          # Test: so viele Monster zu Beginn senden, --pooltest=20
+var death_test := -1.0                      # Test: Monster-Reihe, nach 1 s sterben alle; Bild N s danach, --deathtest=0.5
 var lineup_test := false                     # Test: alle Monstermodelle nebeneinander, --lineup
 var pool_release_test := false              # Test: nach 1 s startet die Gegner-Welle, --poolrelease
 var cam_test_dx := -9.0                    # Test: seitlicher Versatz der Testkamera in Metern, --camdx=0
@@ -188,6 +190,10 @@ func _ready() -> void:
 			direct = true
 		elif a == "--poolrelease":
 			pool_release_test = true
+		elif a.begins_with("--deathtest="):
+			death_test = float(a.substr(12))
+			lineup_test = true
+			shot_wait = 1.0 + death_test
 		elif a == "--lineup":
 			lineup_test = true
 		elif a.begins_with("--pooltest="):
@@ -1877,6 +1883,7 @@ func _update_fx(delta: float) -> void:
 			c.a = f["a0"] * f["t"] / f["t0"]
 			f["mat"].albedo_color = c
 	var fog_x: float = lane_xs[lanes_per_team - 1] + lane_half_g * S + WALL
+	_tick_corpses(delta)
 	for n in fx_nodes.duplicate():       # Partikel und Lichter: nach Ablauf entfernen, auf der Gegner-Seite ausblenden
 		if not is_instance_valid(n["node"]):
 			fx_nodes.erase(n)
@@ -2084,10 +2091,63 @@ func _flash_msg(text: String, col: Color = Color.WHITE) -> void:
 	get_tree().create_timer(1.5).timeout.connect(func(): if msg.text == text: msg.text = "")
 
 
+## Sterbe-Animation (nur Anzeige): kleine Monster zerfallen zu Sporen, große (Borkengolem, Sumpftroll, Gifthydra) kippen um
+## und versinken in einer Giftpfütze. Ohne Figur (Testmodus) wird der Knoten sofort entfernt.
+const BIG_DEATH := ["tank", "elite", "boss"]
+func _death_anim(u: Dictionary) -> void:
+	var node: Node3D = u["node"]
+	var fig: Dictionary = u.get("fig", {})
+	if node == null or not is_instance_valid(node) or fig.is_empty():
+		_free(node)
+		return
+	for c in node.get_children():                                          # Lebensbalken weg, nur die Figur bleibt
+		if c != fig["model"]:
+			c.visible = false
+	var big: bool = BIG_DEATH.has(str(u["type"]))
+	var ap: AnimationPlayer = fig["anim"]
+	if ap != null and big:
+		ap.pause()                                                         # Pose einfrieren, dann umkippen
+	var h := float(u["r"]) * S * 2.8
+	corpses.append({"node": node, "fig": fig, "t": 0.0, "big": big, "y0": node.position.y, "s0": node.scale, "h": h, "puddle": false})
+	if not big:
+		vfx.death_spores(node.global_position + Vector3(0, h * 0.5, 0), h)
+
+
+func _tick_corpses(delta: float) -> void:
+	for c in corpses.duplicate():
+		var node: Node3D = c["node"]
+		if not is_instance_valid(node):
+			corpses.erase(c)
+			continue
+		c["t"] += delta
+		var tt: float = c["t"]
+		if not c["big"]:                                                     # Zerfall: schrumpft, sinkt ein (0,6 s)
+			var k := clampf(tt / 0.6, 0.0, 1.0)
+			var s0: Vector3 = c["s0"]
+			node.scale = Vector3(s0.x * (1.0 - 0.5 * k), s0.y * (1.0 - 0.9 * k), s0.z * (1.0 - 0.5 * k))
+			node.position.y = c["y0"] - 0.25 * c["h"] * k
+			if tt >= 0.6:
+				node.queue_free()
+				corpses.erase(c)
+			continue
+		var holder: Node3D = c["fig"]["model"]                          # Umkippen (0,45 s), liegen, versinken (bis 1,9 s)
+		var yaw: float = c["fig"]["yaw"]
+		var tip := ease(clampf(tt / 0.45, 0.0, 1.0), 0.4) * 1.45
+		holder.basis = Basis(Vector3(cos(yaw), 0.0, -sin(yaw)), tip)
+		if tt >= 0.45 and not c["puddle"]:
+			c["puddle"] = true
+			vfx.poison_puddle(node.global_position, c["h"] * 0.9)
+		var sink := clampf((tt - 1.0) / 0.9, 0.0, 1.0)
+		node.position.y = c["y0"] - c["h"] * 0.6 * sink
+		if tt >= 1.9:
+			node.queue_free()
+			corpses.erase(c)
+
+
 func _kill_unit(u: Dictionary, p: Dictionary = {}) -> void:
 	var side: Dictionary = sides[u["side_idx"]]
 	side["units"].erase(u)
-	_free(u["node"])
+	_death_anim(u)
 	var killer: Dictionary = p
 	if killer.is_empty():
 		killer = side["players"][0] if not side["players"].is_empty() else hero
@@ -2239,7 +2299,7 @@ func _load_volume() -> float:
 ## Beim Start: gespeicherte Anzeige anwenden, aber nicht in Tests und Bild-Läufen (feste Auflösung)
 func _apply_saved_display() -> void:
 	for a in OS.get_cmdline_user_args():
-		for t in ["--sim", "--shot", "--selftest", "--golden", "--fxtest", "--menushot", "--menuclick", "--menu-test", "--shopshot", "--merchanttest", "--camx", "--camdx", "--pitch", "--shotwait", "--fxx", "--pooltest", "--lineup", "--poolrelease", "--spawndbg", "--map", "--uiscale", "--colorblind", "--gfxlow", "--itemcatalog", "--dbgshot", "--uimenu", "--uitip", "--botplay", "--autoplay"]:
+		for t in ["--sim", "--shot", "--selftest", "--golden", "--fxtest", "--menushot", "--menuclick", "--menu-test", "--shopshot", "--merchanttest", "--camx", "--camdx", "--pitch", "--shotwait", "--fxx", "--pooltest", "--lineup", "--deathtest", "--poolrelease", "--spawndbg", "--map", "--uiscale", "--colorblind", "--gfxlow", "--itemcatalog", "--dbgshot", "--uimenu", "--uitip", "--botplay", "--autoplay"]:
 			if a.begins_with(t):
 				return
 	var cf := ConfigFile.new()
@@ -4040,6 +4100,9 @@ func _run_simulation(secs: float, shot_path: String) -> void:
 			send(hero, ["grunt", "tank", "archer", "fast", "elite"][k % 5])
 	if shot_path != "":
 		for k in int(shot_wait * 30.0):                              # Test: in Echtzeit warten, damit Partikel (Nebel) sich füllen
+			if death_test >= 0.0 and k == 30:
+				for du in units.duplicate():
+					_kill_unit(du)
 			if pool_release_test and k == 30:
 				_spawn_wave(sides[1 - int(hero["side"]["idx"])])            # Test: Gegner-Welle startet, der Pool taucht ab
 			_sync_visuals(1.0 / 30.0)

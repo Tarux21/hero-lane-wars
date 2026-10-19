@@ -1441,6 +1441,34 @@ func _arc_wave(origin: Vector3, ang: float, half: float, r_end: float, life: flo
 	tw.tween_property(m, "albedo_color:a", 0.0, life).set_ease(Tween.EASE_IN)
 
 
+## Sterben, kleine Monster: grüne Sporen steigen auf (nur Anzeige)
+func death_spores(pos: Vector3, h: float) -> void:
+	var d := _ps({"amount": 18, "life": 0.9, "once": true, "explo": 0.8, "shape": "sphere", "radius": h * 0.35, "dir": Vector3.UP, "spread": 60.0,
+		"vmin": 0.4, "vmax": 1.4, "dmin": 0.8, "dmax": 1.6, "smin": 0.08, "smax": 0.2, "grav": Vector3(0, 0.5, 0), "curve": _curve([1.0, 0.3]),
+		"ramp": _ramp([[0.0, Color(0.6, 0.95, 0.35, 0.0)], [0.15, Color(0.62, 0.95, 0.4, 0.9)], [1.0, Color(0.4, 0.75, 0.25, 0.0)]])})
+	_put(d, pos, 1.2)
+
+
+## Sterben, große Monster: Giftpfütze am Boden, wächst kurz und blendet langsam aus (nur Anzeige)
+func poison_puddle(pos: Vector3, r: float) -> void:
+	var node := MeshInstance3D.new()
+	var qm := QuadMesh.new()
+	qm.size = Vector2(2.0, 2.0)
+	qm.orientation = PlaneMesh.FACE_Y
+	node.mesh = qm
+	var m := _flat_mat(tex_glow, Color(0.35, 0.75, 0.2, 0.75), false)
+	node.material_override = m
+	node.scale = Vector3.ONE * 0.2
+	_put(node, Vector3(pos.x, 0.06, pos.z), 2.8)
+	var tw := node.create_tween()
+	tw.tween_property(node, "scale", Vector3.ONE * r, 0.5).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
+	tw.tween_interval(1.2)
+	tw.tween_property(m, "albedo_color:a", 0.0, 1.0)
+	var b := _ps({"amount": 10, "life": 1.4, "shape": "sphere", "radius": r * 0.6, "dir": Vector3.UP, "spread": 15.0, "vmin": 0.2, "vmax": 0.6,
+		"smin": 0.06, "smax": 0.14, "ramp": _ramp([[0.0, Color(0.7, 1.0, 0.4, 0.0)], [0.3, Color(0.7, 1.0, 0.4, 0.8)], [1.0, Color(0.5, 0.9, 0.3, 0.0)]])})
+	_put(b, Vector3(pos.x, 0.1, pos.z), 1.8)
+
+
 func _dust(pos: Vector3, dir: Vector3, spread: float, speed: float, amount: int, size: float, life: float = 0.9) -> void:
 	var d := _ps({"amount": amount, "life": life, "once": true, "explo": 0.9, "add": false, "shape": "sphere", "radius": 0.3, "dir": dir, "spread": spread,
 		"vmin": speed * 0.3, "vmax": speed, "dmin": 1.5, "dmax": 3.0, "smin": size * 0.6, "smax": size, "grav": Vector3(0, 0.3, 0), "curve": _curve([0.4, 1.0]),

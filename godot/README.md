@@ -110,6 +110,7 @@ Alte Wiese zum Vergleichen: Start mit `--map=gras`. Eigene Modelle (z. B. aus Bl
 - Startet die nächste Gegner-Welle, tauchen sie ab und eine Giftfontäne schießt hoch (`update_pool`, `_pool_release`).
 - Testflags: `--pooltest=20` (sendet zu Beginn 20 Monster), `--poolrelease` (nach 1 s startet die Gegner-Welle), z. B. `--sim=3 --shot=pfad.png --camx=500 --camdx=12 --zoom=26 --shotwait=2`.
 - Endlos-Phase (Monsterstrom nach Welle 50): `--startwave=50` startet direkt mit Welle 50 (Spielzeit wie in einer Partie, alle Helden Level 15 mit allen Rängen), z. B. `--botplay --startwave=50 --sim=45 --team=1 --shot=pfad.png`. Lange Bild-Simulationen (über ~30 Min.) laufen in Grafik-Speichergrenzen, weil ohne gezeichnete Bilder gelöschte Figuren nicht freigegeben werden; dafür `--startwave` nutzen.
+- Sterbe-Animationen: `--deathtest=0.5` stellt alle Monster nebeneinander, nach 1 s sterben alle, Bild 0,5 s danach (kleine zerfallen zu Sporen, Borkengolem/Sumpftroll/Gifthydra kippen um und versinken in einer Giftpfütze), z. B. `--team=1 --deathtest=0.45 --sim=0.1 --pitch=35 --shot=pfad.png`.
 
 ### Monster: Giftwald-Brut
 - Eigene Modelle aus Blender (`godot/tools/blender/make_monsters.py` → `godot/assets/monsters/*.glb`), je mit Skelett und den Animationen `Idle`, `Walk`, `Attack`: Pilzling (Grunt), Borkengolem (Brocken), Dornspinne (Schütze), Pestratte (Läufer), Sumpftroll (Elite), Gifthydra (Boss). Zuordnung in `UNIT_MODEL` (`game.gd`).
