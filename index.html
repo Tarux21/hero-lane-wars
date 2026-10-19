@@ -121,7 +121,7 @@
       <li>Dein Held hält die Monsterwellen auf deiner Lane auf (Rechtsklick = laufen/angreifen, Q W E R = Skills).</li>
       <li>Besiegte Monster geben Gold und XP. Kaufe Items im Shop – in der Basis, links.</li>
       <li>Schicke Monster zum Gegner (Z X C V): das kostet Gold, erhöht aber dein Einkommen.</li>
-      <li>Wer zuerst alle Leben verliert, verliert. Alle 10 Wellen kommen Elite-Monster, in Welle 20 und 40 ein Boss. Ab Welle 50 beginnt die Endlos-Phase: Die Wellen kommen immer schneller und werden stärker.</li>
+      <li>Wer zuerst alle Leben verliert, verliert. Alle 10 Wellen kommen Elite-Monster, in Welle 20 und 40 ein Boss. Ab Welle 50 beginnt die Endlos-Phase: ein ununterbrochener Monsterstrom, der immer stärker wird – am Ende kommen nur noch Elites.</li>
     </ol></div>
   <div class="row" style="margin-bottom:12px;align-items:center">
     <label>Schwierigkeit&nbsp;<select id="diffSel"><option value="easy">Leicht</option><option value="normal" selected>Normal</option><option value="hard">Schwer</option><option value="expert">Experte</option></select></label>
@@ -203,8 +203,12 @@ const CFG = {
   infiniteEnemyLives: false,  // Testmodus: Gegner kann nicht verlieren (auch im Testfenster umschaltbar)
   firstWave: 1,
   waveEveryStart: 25, waveEveryEnd: 50, waveEveryRamp: 50,   // Wellenabstand: 25 s nach Welle 1, wächst gleichmäßig auf 50 s bis Welle 50
-  maxWaves: 50, endlessFactor: 0.85, endlessMin: 8,          // Endlos-Phase nach Welle 50: jeder Abstand ×0,85 kürzer, mindestens 8 s
-  endlessGrow: 1.15,                                         // Endlos-Phase: Monster jeder weiteren Welle ×1,15 Leben (Schaden wächst wie mit der Zeit mit)
+  maxWaves: 50,                // nach Welle 50: Endlos-Phase – keine Wellen mehr, sondern ein ununterbrochener Monsterstrom
+  endlessBudget: 150, endlessBudgetGrow: 1.35,   // Strom: Bedrohung pro Sekunde (Summe der Sende-Kosten), wächst ×1,35 pro Minute
+  endlessGrow: 1.10,           // Strom: jedes Monster wird ×1,10 pro Minute stärker (Leben; Schaden wächst wie mit der Zeit mit)
+  // Zusammensetzung des Stroms ab Minute m der Endlos-Phase (Anteile am Budget in %): schwache Monster verschwinden, am Ende nur noch Elites
+  endlessMix: [[0, {grunt:50, fast:20, archer:15, tank:15}], [1, {grunt:40, fast:20, archer:20, tank:20}], [2, {grunt:25, fast:25, archer:25, tank:25}],
+               [3, {fast:25, archer:30, tank:35, elite:10}], [4, {fast:10, archer:25, tank:40, elite:25}], [5, {archer:15, tank:35, elite:50}], [6, {elite:100}]],
   rampStart: 2950, rampStep: 250,           // jede Welle startet am Lane-Ende (spawnX); früher rückten die Wellen von x=850 aus Welle für Welle nach hinten
   tankQBase: 25, tankQcd: 10,   // Tank Schockwelle: Grundschaden / Abklingzeit
   tankRRange: 310, tankRHalf: .68,   // Tank Titanenstoß: Kegel nach vorn (Reichweite / Halbwinkel in rad)
@@ -390,7 +394,7 @@ function makeState(heroKey){
   const d = HEROES[heroKey];
   return {
     G: {zones:[], elems:[], timers:[], wave:0, waveT:CFG.firstWave, t:0, gold:CFG.startGold, income:CFG.baseIncome, lives:CFG.startLives, goldMul:1,
-        units:[], fx:[], incomeT:0, over:false, bossIncome:0, bossSpawned:false, sendPool:[], stats:{kills:0, gold:0, sent:{}}},
+        units:[], fx:[], incomeT:0, over:false, bossIncome:0, bossSpawned:false, sendPool:[], endlessT:0, endlessAcc:0, endlessStage:0, endlessSpent:{}, stats:{kills:0, gold:0, sent:{}}},
     H: {key:heroKey, d, x:120, y:0, lvl:1, xp:0, hp:d.hp, dead:0, moveTo:null, target:null, atkT:0,
         sp:1, ranks:[0,0,0,0], cds:[0,0,0,0], buffs:{}, mul:1, deaths:0,
         bp:0, bpCd:0, bonusDmg:0, bonusArmor:0, bonusHp:0, bonusAs:0, bonusSp:0, bonusSpd:0, bag:[], cons:{potion:0}, potCd:0, critCh:0, uniq:new Set(), cdr:0, bonusRegen:0, comboT:0, ampNow:false, lifesteal:0, dmgT:99, spellVamp:0, dr:0, goldPS:0, bpRed:0, bpMax:0},
@@ -435,7 +439,7 @@ const inHeal = ()=>H.x < CFG.healX && !H.dead;   // Heilung (12 % Leben pro Seku
 const reduce = (dmg,armor)=>dmg*(1-armor/(armor+CFG.armorK));   // Rüstung: Schadensverringerung = Rüstung/(Rüstung+armorK)
 const xpNeed = l=>CFG.xpBase + CFG.xpPer*l;
 const hpMult = ()=>1 + (G.t/60)*CFG.hpScalePerMin;
-const endlessMul = ()=>G.wave > CFG.maxWaves ? Math.pow(CFG.endlessGrow, G.wave - CFG.maxWaves) : 1;   // Endlos-Phase: jede Welle nach maxWaves stärker
+const endlessMul = ()=>G.wave >= CFG.maxWaves ? Math.pow(CFG.endlessGrow, G.endlessT/60) : 1;   // Endlos-Phase: Monster werden mit der Zeit seit Welle 50 stärker
 const clampY = y=>Math.max(-CFG.laneHalf+10, Math.min(CFG.laneHalf-10, y));
 
 // ====== EINHEITEN ======
@@ -451,8 +455,7 @@ const waveKind = n => isBossWave(n) ? 'boss' : n % CFG.eliteEvery === 0 ? 'elite
 // Abstand bis zur nächsten Welle nach Welle n: wächst von waveEveryStart auf waveEveryEnd, Pause nach Bosswellen, ab maxWaves Endlos-Phase (immer kürzer)
 function waveInterval(n){
   let iv = CFG.waveEveryStart + (CFG.waveEveryEnd - CFG.waveEveryStart) * Math.min(1, Math.max(0, (n-1) / Math.max(1, CFG.waveEveryRamp)));
-  if(n >= CFG.maxWaves) iv = Math.max(CFG.endlessMin, iv * Math.pow(CFG.endlessFactor, n - CFG.maxWaves + 1));
-  else if(isBossWave(n)) iv += CFG.bossPause;
+  if(isBossWave(n)) iv += CFG.bossPause;
   return iv;
 }
 const WAVE_NAME = {normal:'Normale Welle', elite:'ELITE-WELLE', boss:'BOSSWELLE'};
@@ -461,8 +464,32 @@ function waveInfoHtml(){
   const nxt = G.wave+1, k = waveKind(nxt);
   const nextElite = (Math.floor(G.wave/CFG.eliteEvery)+1)*CFG.eliteEvery;
   const nb = CFG.bossWaves.find(w=>w > G.wave), boss = nb ? ` · Boss: Welle ${nb}` : '';
-  if(G.wave >= CFG.maxWaves) return `Welle ${G.wave} · <b style="color:#ff7a7a">ENDLOS-PHASE</b> · nächste in ${Math.ceil(G.waveT)} s: <b style="color:${WAVE_COL[k]}">${WAVE_NAME[k]}</b>`;
+  if(G.wave >= CFG.maxWaves) return `<b style="color:#ff7a7a">ENDLOS · ${Math.floor(G.endlessT/60)}:${String(Math.floor(G.endlessT%60)).padStart(2,'0')}</b> · Monsterstrom: ${Object.keys(endlessMixAt(G.endlessT)).map(t=>UNITS[t].name).join(', ')}`;
   return `Welle ${G.wave} · nächste (Welle ${nxt}) in ${Math.ceil(G.waveT)} s: <b style="color:${WAVE_COL[k]}">${WAVE_NAME[k]}</b> <small>(Elite: Welle ${nextElite}${boss})</small>`;
+}
+// Endlos-Phase: Zusammensetzung zur Zeit t (Sekunden seit Welle 50)
+function endlessMixAt(t){ let m = CFG.endlessMix[0][1]; for(const [min, mix] of CFG.endlessMix) if(t >= min*60) m = mix; return m; }
+// Nächstes Monster im Strom (ohne Zufall): die Sorte, die am weitesten hinter ihrem Anteil am Budget dieses Abschnitts liegt
+function endlessPick(mix){
+  const tot = Object.values(G.endlessSpent).reduce((a,b)=>a+b, 0) + 1;
+  let best = null, bd = -Infinity;
+  for(const t of ['grunt','fast','archer','tank','elite']){ const w = mix[t] || 0; if(!w) continue; const d = w/100*tot - (G.endlessSpent[t] || 0); if(d > bd){ bd = d; best = t; } }
+  return best;
+}
+// Endlos-Phase: Gesendetes läuft sofort los; der Strom bekommt Budget pro Sekunde und schickt davon Monster nach der Zusammensetzung
+function endlessStep(dt){
+  G.endlessT += dt;
+  G.sendPool.forEach(t=>spawn(t, 0, 0, t==='fast' ? 1 : CFG.waveSpeedMul)); G.sendPool = [];
+  const stage = CFG.endlessMix.filter(([min])=>G.endlessT >= min*60).length;
+  if(stage !== G.endlessStage){ G.endlessStage = stage; G.endlessSpent = {}; }   // neuer Abschnitt: Anteile neu zählen
+  G.endlessAcc += CFG.endlessBudget * Math.pow(CFG.endlessBudgetGrow, G.endlessT/60) * dt;
+  const mix = endlessMixAt(G.endlessT);
+  for(let k = 0; k < 50; k++){
+    const t = endlessPick(mix);
+    if(!t || G.endlessAcc < UNITS[t].cost) break;
+    G.endlessAcc -= UNITS[t].cost; G.endlessSpent[t] = (G.endlessSpent[t] || 0) + UNITS[t].cost;
+    spawn(t, 0, 0, CFG.waveSpeedMul);
+  }
 }
 // Zusatzmonster der Welle n (Reihenfolge: Brocken, Schütze, Läufer)
 function waveMix(n){
@@ -495,7 +522,7 @@ function spawnWave(){
     showWave(n, isElite, isBoss); sfx(isBoss ? 'boss' : 'wave');
     if(isBoss) uiAlert('BOSSWELLE! Ein Boss kommt mit der Welle. Wer ihn besiegt, bekommt dauerhaft +'+CFG.bossIncome+' Gold pro Welle', 'danger', 7000);
     else if(isElite) uiAlert('ELITE-WELLE! '+CFG.eliteCount+' Elite-Gegner kommen mit der Welle (mehr XP und Gold)', 'danger', 5000);
-    if(n === CFG.maxWaves) uiAlert('ENDLOS-PHASE! Ab jetzt kommen die Wellen immer schneller', 'danger', 7000);
+    if(n === CFG.maxWaves) uiAlert('ENDLOS-PHASE! Ab jetzt ein ununterbrochener Monsterstrom – immer stärker, am Ende nur noch Elites', 'danger', 7000);
   }
 }
 function showWave(n, elite, boss){ const m=document.getElementById('msg'); m.textContent=(boss?'BOSSWELLE ':elite?'ELITE-WELLE ':'Welle ')+n; m.style.color=boss?'#ff7a7a':elite?'#d9b3ff':'#ffd166'; setTimeout(()=>{ if(!G.over) m.textContent=''; },1500); }
@@ -954,8 +981,8 @@ function update(dt){
   G.incomeT += dt;
   if(G.incomeT >= CFG.incomeTick){ G.incomeT -= CFG.incomeTick; const inc = G.income * (G.goldMul||1) * (1 + comebackBonus(G)); G.gold += inc; G.stats.gold += inc; }
   // Wellen
-  G.waveT -= dt;
-  if(G.waveT <= 0){ spawnWave(); G.waveT = waveInterval(G.wave); }
+  if(G.wave < CFG.maxWaves){ G.waveT -= dt; if(G.waveT <= 0){ spawnWave(); G.waveT = waveInterval(G.wave); } }
+  else endlessStep(dt);   // nach Welle 50: Monsterstrom statt Wellen
   // Zeitverzögerte Skill-Effekte
   for(const t of G.timers.slice()){ t.t -= dt; if(t.t<=0){ G.timers.splice(G.timers.indexOf(t),1); t.fn(); } }
   // Schadensfelder

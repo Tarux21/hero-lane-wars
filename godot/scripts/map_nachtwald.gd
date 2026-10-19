@@ -702,7 +702,8 @@ func update_spawns(delta: float) -> void:
 		var is_busy: bool = busy.has(key)
 		var wt: float = float(g.sides[int(e["side"])]["wave_t"])
 		var pre: float = clampf(1.0 - wt / 4.0, 0.0, 1.0) if wt > 0.0 and wt < 4.0 else 0.0
-		var want: float = 1.0 if is_busy else pre * 0.9
+		var endless: bool = int(g.sides[int(e["side"])]["wave"]) >= int(g.cfg["maxWaves"])   # Endlos-Phase: Strom, der Baum leuchtet dauerhaft
+		var want: float = 1.0 if (is_busy or endless) else pre * 0.9
 		if spawn_debug:
 			want = 1.0
 		var glow: float = float(e["glow"])

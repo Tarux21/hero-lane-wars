@@ -115,6 +115,7 @@ func _setup(hero_key: String, in_base: bool, rnd: float = 0.5) -> Dictionary:
 		s["units"].clear()
 		s["boss_spawned"] = false
 		s["leak"] = {}
+		g._endless_reset(s)
 	g.sides[1]["players"].clear()
 	var p: Dictionary = g.hero
 	p["x"] = 120.0 if in_base else 1000.0
@@ -323,7 +324,8 @@ func _economy() -> void:
 	var rows7: Array = []
 	var last := 0
 	var steps := 0
-	while g.sides[0]["wave"] < 55 and steps < int(round(3000.0 / DT)):
+	var endless7: Array = []                 # Endlos-Phase: je Minute gespawnte Monster je Sorte und Leben des ersten Monsters jeder Sorte
+	while (g.sides[0]["wave"] < int(g.cfg["maxWaves"]) or g.sides[0]["endless_t"] < 420.0) and steps < int(round(3000.0 / DT)):
 		g.step(DT)
 		steps += 1
 		if g.sides[0]["wave"] != last:
@@ -338,6 +340,14 @@ func _economy() -> void:
 					first_g = u
 			rows7.append({"wave": last, "step": steps, "t": g.t, "counts": counts, "firstGruntX": first_g["x"], "lastX": xs.max(), "minX": xs.min(),
 				"gruntHp": first_g["hp"], "gruntSpd": first_g["spd"], "gruntDmg": first_g["dmg"], "bossSpawned": g.sides[0]["boss_spawned"], "nextWaveIn": g.sides[0]["wave_t"]})
+		elif g.sides[0]["wave"] >= int(g.cfg["maxWaves"]) and not g.units.is_empty():
+			var mi := int(floor(g.sides[0]["endless_t"] / 60.0))
+			while endless7.size() <= mi:
+				endless7.append({"min": endless7.size(), "counts": {}, "firstHp": {}})
+			for u in g.units:
+				endless7[mi]["counts"][u["type"]] = endless7[mi]["counts"].get(u["type"], 0) + 1
+				if not endless7[mi]["firstHp"].has(u["type"]):
+					endless7[mi]["firstHp"][u["type"]] = u["hp"]
 		g.units.clear()
 	var want_rows: Array = []
 	for w in eco["waves"]["waves"]:
@@ -345,6 +355,7 @@ func _economy() -> void:
 		wr.erase("kind")
 		want_rows.append(wr)
 	_cmp(diffs7, "waves", rows7, want_rows)
+	_cmp(diffs7, "endless", endless7, eco["waves"]["endless"])
 	_cmp(diffs7, "totalSteps", float(steps), eco["waves"]["totalSteps"])
 	_record("waves", diffs7)
 	# a7b Boss-Einkommen

@@ -60,9 +60,70 @@
   "waveEveryEnd": 50,
   "waveEveryRamp": 50,
   "maxWaves": 50,
-  "endlessFactor": 0.85,
-  "endlessMin": 8,
-  "endlessGrow": 1.15,
+  "endlessBudget": 150,
+  "endlessBudgetGrow": 1.35,
+  "endlessGrow": 1.1,
+  "endlessMix": [
+   [
+    0,
+    {
+     "grunt": 50,
+     "fast": 20,
+     "archer": 15,
+     "tank": 15
+    }
+   ],
+   [
+    1,
+    {
+     "grunt": 40,
+     "fast": 20,
+     "archer": 20,
+     "tank": 20
+    }
+   ],
+   [
+    2,
+    {
+     "grunt": 25,
+     "fast": 25,
+     "archer": 25,
+     "tank": 25
+    }
+   ],
+   [
+    3,
+    {
+     "fast": 25,
+     "archer": 30,
+     "tank": 35,
+     "elite": 10
+    }
+   ],
+   [
+    4,
+    {
+     "fast": 10,
+     "archer": 25,
+     "tank": 40,
+     "elite": 25
+    }
+   ],
+   [
+    5,
+    {
+     "archer": 15,
+     "tank": 35,
+     "elite": 50
+    }
+   ],
+   [
+    6,
+    {
+     "elite": 100
+    }
+   ]
+  ],
   "rampStart": 2950,
   "rampStep": 250,
   "tankQBase": 25,

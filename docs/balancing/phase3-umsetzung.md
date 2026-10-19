@@ -7,7 +7,7 @@ Entscheidungen: Gesamtpaket v2 übernehmen (1A), Pflichtpunkte plus Bot-Senden n
 **Regeln (neu, beide Versionen gleich, Golden-Tests decken sie ab):**
 - Wellenabstand `waveInterval(n)`: 25 s nach Welle 1, gleichmäßig bis 50 s ab Welle 50 (`waveEveryStart/End/Ramp`), ersetzt `earlyWaves/earlyWaveEvery/waveEvery`.
 - Bosswellen `bossWaves [20, 40]`, zweiter Boss ×1,9 (`bossGrow`), je Boss-Kill +50 Gold pro Welle, 35 s Pause nach einer Bosswelle (`bossPause`).
-- Endlos-Phase ab Welle 50 (`maxWaves`): Abstand × 0,85 je Welle bis mindestens 8 s; **neu:** jede Welle danach ×1,15 stärker (`endlessGrow`, Leben und Schaden wie die Zeit-Skalierung). Ohne diese Regel liefen alle Partien bis Welle 90+ (siehe unten). Meldung „ENDLOS-PHASE“, Anzeige „Welle N · ENDLOS“ (Godot) bzw. im Wellen-Text (Prototyp).
+- Endlos-Phase nach Welle 50 (`maxWaves`), Entscheidung des Projektleiters: **Monsterstrom statt Wellen.** Ununterbrochener Strom mit Budget 150 Sende-Kosten pro Sekunde, ×1,35 pro Minute; jedes Monster ×1,10 stärker pro Minute; die Zusammensetzung steigt auf (Pilzling → Pestratte → Dornspinne → Borkengolem → Sumpftroll), ab Minute 6 nur noch Sumpftrolle als „Endboss“. Gesendete Monster laufen sofort los, keine Schübe, keine Bosse. Ziel: schnell einen Sieger finden, nicht überleben. Anzeige „ENDLOS · m:ss“, der Faulbaum leuchtet dauerhaft. (Erste Fassung mit immer kürzeren Wellen ×1,15 ist ersetzt.)
 - Startleben 30.
 
 **Zahlen:** alle Werte aus `tunes/gesamt_v2.json`, dazu nach den Phase-3-Messungen:
@@ -45,3 +45,9 @@ Entscheidungen: Gesamtpaket v2 übernehmen (1A), Pflichtpunkte plus Bot-Senden n
 - **Tank in der Endlos-Phase zu schwach.** Bis Welle 40 hält der Tank gut mit, entschieden wird aber meist in der Endlos-Phase (Median Welle 60), und dort stirbt der Tank zuerst, weil er Monster am langsamsten tötet. Geprüft ohne Erfolg (je 48 Tank-Duelle): Fähigkeitsschaden 1,1 / 1,25 / 1,6, Schildwurf 10 s, Tank-Bot kauft Gigantenschlag zuerst, Endlos-Stärke nur auf Leben (1,15 und 1,25). Die Werte schwanken bei 48 Partien um ±10 %. Braucht eine Entscheidung (siehe Bericht an den Projektleiter).
 - Bot-Partien sind mit gleichem Startwert nicht wiederholbar (bekannt).
 - Messungen dauern jetzt länger (Partien ~35 Min. Spielzeit): 336 Partien ≈ 55 Min. bei 12 parallel.
+
+## Nachtrag: Tank-Versuche und Monsterstrom (19.10.2026)
+
+Versuche, die Endlos-Phase früher zu erreichen bzw. den Tank zu stärken (je 48–72 Partien, nur Klassen), haben die Tank-Quote nicht verbessert: Monster-Skalierung 0,12 / 0,14 (mehr frühe Zusammenbrüche, Tank 25–38 %), zweiter Boss ×2,5 / ×3,0 (Tank 13–38 %). Partien enden fast nie zwischen Welle 25 und 50: entweder kippt eine Partie früh durch einen Heldentod, oder beide Bots halten bis zur Endlos-Phase.
+
+Messung mit Monsterstrom (72 Partien, Klassen): Median 37 Min., Entscheidung meist 3–5 Min. nach Welle 50, 11 % unter 15 Min., Comeback 28 %. Klassen: **Schurke dominiert** (gegen Magier 88 %, gegen Tank 69 %), Tank gegen Magier 13 %. Die Endlos-Phase belohnt jetzt Einzelziel-Schaden gegen Golems und Sumpftrolle. Offen: Klassen-Ausgleich für die Elite-Phase (z. B. Prozentschaden für Tank/Magier).

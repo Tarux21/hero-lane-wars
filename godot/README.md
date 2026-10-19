@@ -109,6 +109,7 @@ Alte Wiese zum Vergleichen: Start mit `--map=gras`. Eigene Modelle (z. B. aus Bl
 - Am eigenen Ufer liegt ein versunkener Ritualkreis (`pool_island.glb`): drei Steinstufen nach unten zum runden Giftbecken, sechs Säulen mit Ketten und ein Runenring auf dem Rand. Dort stehen die Monster, die dein Team gesendet hat (bis 18 sichtbar, darüber `+N`); die des Gegners bleiben geheim.
 - Startet die nächste Gegner-Welle, tauchen sie ab und eine Giftfontäne schießt hoch (`update_pool`, `_pool_release`).
 - Testflags: `--pooltest=20` (sendet zu Beginn 20 Monster), `--poolrelease` (nach 1 s startet die Gegner-Welle), z. B. `--sim=3 --shot=pfad.png --camx=500 --camdx=12 --zoom=26 --shotwait=2`.
+- Endlos-Phase (Monsterstrom nach Welle 50): `--startwave=50` startet direkt mit Welle 50 (Spielzeit wie in einer Partie, alle Helden Level 15 mit allen Rängen), z. B. `--botplay --startwave=50 --sim=45 --team=1 --shot=pfad.png`. Lange Bild-Simulationen (über ~30 Min.) laufen in Grafik-Speichergrenzen, weil ohne gezeichnete Bilder gelöschte Figuren nicht freigegeben werden; dafür `--startwave` nutzen.
 
 ### Monster: Giftwald-Brut
 - Eigene Modelle aus Blender (`godot/tools/blender/make_monsters.py` → `godot/assets/monsters/*.glb`), je mit Skelett und den Animationen `Idle`, `Walk`, `Attack`: Pilzling (Grunt), Borkengolem (Brocken), Dornspinne (Schütze), Pestratte (Läufer), Sumpftroll (Elite), Gifthydra (Boss). Zuordnung in `UNIT_MODEL` (`game.gd`).

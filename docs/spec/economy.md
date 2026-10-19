@@ -40,7 +40,7 @@ Items selbst: `items.md`, Skills: `skills.md`.
 (`UNITS`, Zeile 237–244.) Alle Monster (außer `fast`) jagen den Helden (`aggroRange 350` wenn er vor ihnen steht, `aggroBehind 110` wenn er hinter ihnen steht).
 
 ### Zeitliche Skalierung (`spawn`, Zeile 433–438)
-`m = hpMult() * endlessMul()`, `hpMult() = 1 + (G.t/60) * hpScalePerMin (0.10)` mit der Zeit **der Lane, auf der das Monster entsteht**; `endlessMul() = endlessGrow (1.15) ^ (G.wave − maxWaves)` nach Welle 50 (Endlos-Phase), sonst 1. `hp = max = u.hp*m`, `dmg = u.dmg * (1 + unitDmgScale (0.5) * (m−1))`. Position beim Spawn: `x = spawnX (2950) + offX + Math.random()*30`, `y = (Math.random()*2 − 1) * (laneHalf 90 − 16)`.
+`m = hpMult() * endlessMul()`, `hpMult() = 1 + (G.t/60) * hpScalePerMin (0.10)` mit der Zeit **der Lane, auf der das Monster entsteht**; `endlessMul() = endlessGrow (1.10) ^ (endlessT / 60)` in der Endlos-Phase (`endlessT` = Sekunden seit Welle 50), sonst 1. `hp = max = u.hp*m`, `dmg = u.dmg * (1 + unitDmgScale (0.5) * (m−1))`. Position beim Spawn: `x = spawnX (2950) + offX + Math.random()*30`, `y = (Math.random()*2 − 1) * (laneHalf 90 − 16)`.
 
 ## 4. Kill-Belohnung, XP, Level, Respawn
 
@@ -52,7 +52,7 @@ Items selbst: `items.md`, Skills: `skills.md`.
 ## 5. Wellen (`spawnWave`, Zeile 449–467; `update`, Zeile 923–924)
 
 - Erste Welle bei `t = firstWave = 1`. `waveT` danach `waveInterval(n)`: `waveEveryStart 25 + (waveEveryEnd 50 − 25) * min(1, (n−1)/waveEveryRamp 50)` (25 s nach Welle 1, 50 s ab Welle 51); nach einer Bosswelle `+ bossPause 35 s`.
-- **Endlos-Phase** ab Welle `maxWaves 50`: Abstand `max(endlessMin 8, Rampe * endlessFactor 0.85 ^ (n − 50 + 1))`; jede Welle danach ist `endlessGrow 1.15`-mal stärker (`endlessMul`). Meldung „ENDLOS-PHASE“ bei Welle 50, Anzeige im Wellen-Text.
+- **Endlos-Phase** nach Welle `maxWaves 50` (`endlessStep`): keine Wellen mehr, sondern ein ununterbrochener Monsterstrom. Jede Sekunde kommt Budget `endlessBudget 150 * endlessBudgetGrow 1.35 ^ (endlessT/60)` dazu (in Sende-Kosten); davon spawnt der Strom Monster am Lane-Ende (`spawn(t, 0, 0, waveSpeedMul)`), solange das Budget für das nächste reicht. Welche Sorte, bestimmt `endlessMix` (Anteile am Budget je Minute: Minute 0 vor allem Grunts, ab Minute 3 keine Grunts, ab Minute 6 nur Elites); gewählt wird ohne Zufall die Sorte, die am weitesten hinter ihrem Anteil im aktuellen Abschnitt liegt (`endlessPick`, beim Abschnittswechsel neu gezählt). Gesendete Monster laufen in der Endlos-Phase sofort los (Pool wird jeden Schritt geleert). Keine Bosse. Meldung „ENDLOS-PHASE“ bei Welle 50, Anzeige „ENDLOS · m:ss“.
 - Gemischte Wellen (`waveMix`, `waveMix(n)`): hinter den Grunts kommen zusätzlich Brocken, Schützen und Läufer: ab Welle 2 +1 Läufer; ab 4 +1 Brocken, 1 Läufer; ab 7 je 1; ab 10 +1 Brocken, 1 Schütze, 2 Läufer; ab 14 +2 Brocken, 1 Schütze, 2 Läufer; ab 18 je 2; ab Welle 22 alle 4 Wellen von jeder Sorte +1. Reihenfolge Brocken, Schützen, Läufer, Position `(from − spawnX) + Wellengröße*4 + 12 + i*10`, Tempo `waveSpeedMul`. Gleich für beide Teams.
 - Wellengröße: `round(waveBase 3 + wavePer 0.5 * n)` Grunts; Position `from = min(spawnX, rampStart 2950 + rampStep 250*(n−1))` (rampStart = spawnX: jede Welle startet am Lane-Ende), `x = spawnX + (from − spawnX) + i*4 + Math.random()*30`.
 - Elite-Welle (`n % 10 == 0`): zusätzlich 1 Elite (`eliteCount`) bei `from + count*4 + 30 + k*40`.

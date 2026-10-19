@@ -166,6 +166,7 @@ func _ready() -> void:
 	bot = BotLib.new(self)
 	bot_diff = Data.raw["diff"]["normal"]
 	var sim_secs := 0.0
+	var start_wave := 0
 	var shot_path := ""
 	var direct := false                  # Kommandozeile gibt Modus vor: Menü überspringen
 	team_size = Data.sel_team
@@ -249,6 +250,8 @@ func _ready() -> void:
 			no_bots = true
 			golden_filter = a.substr(9)
 			direct = true
+		elif a.begins_with("--startwave="):   # Test: direkt mit Welle N starten (Zeit wie in einer Partie, Held Level 15 mit allen Rängen)
+			start_wave = int(a.substr(12))
 		elif a.begins_with("--tune="):
 			_apply_tune(a.substr(7))
 		elif a.begins_with("--enemy="):
@@ -334,6 +337,20 @@ func _ready() -> void:
 			runner.run(golden_filter)
 			get_tree().quit()
 			return
+		if start_wave > 0:
+			var tw := float(cfg["firstWave"])
+			for n in range(1, start_wave):
+				tw += _wave_interval(n)
+			t = tw - 0.5
+			for s in sides:
+				s["wave"] = start_wave - 1
+				s["wave_t"] = 0.5
+			for p in players:
+				p["lvl"] = int(cfg["maxLevel"])
+				for i in 4:
+					p["ranks"][i] = int(skills.skill_def(p, i)["max"])
+				p["sp"] = 0
+				p["hp"] = skills.h_max_hp(p)
 		if sim_secs > 0.0:
 			set_process(false)   # Testmodus: nur der Simulationslauf rechnet
 			_run_simulation(sim_secs, shot_path)
@@ -420,7 +437,7 @@ func _start_game() -> void:
 func _setup_sides() -> void:
 	sides.clear()
 	for i in 2:
-		sides.append({"idx": i, "units": [], "players": [], "wave": 0, "wave_t": float(cfg["firstWave"]), "boss_spawned": false, "leak": {}, "pool": []})
+		sides.append({"idx": i, "units": [], "players": [], "wave": 0, "wave_t": float(cfg["firstWave"]), "boss_spawned": false, "leak": {}, "pool": [], "endless_t": 0.0, "endless_acc": 0.0, "endless_stage": 0, "endless_spent": {}})
 	units = sides[0]["units"]
 
 
@@ -1406,10 +1423,76 @@ func _hp_mult() -> float:
 	return 1.0 + (t / 60.0) * float(cfg["hpScalePerMin"])
 
 
-## Endlos-Phase: jede Welle nach maxWaves macht die Monster der Seite stärker (wie endlessMul im Prototyp)
+## Endlos-Phase: Monster werden mit der Zeit seit Welle 50 stärker (wie endlessMul im Prototyp)
 func _endless_mul(side_idx: int) -> float:
-	var w: int = sides[side_idx]["wave"] if side_idx < sides.size() else 0
-	return pow(float(cfg["endlessGrow"]), w - int(cfg["maxWaves"])) if w > int(cfg["maxWaves"]) else 1.0
+	if side_idx >= sides.size() or int(sides[side_idx]["wave"]) < int(cfg["maxWaves"]):
+		return 1.0
+	return pow(float(cfg["endlessGrow"]), float(sides[side_idx]["endless_t"]) / 60.0)
+
+
+func _endless_reset(s: Dictionary) -> void:
+	s["endless_t"] = 0.0
+	s["endless_acc"] = 0.0
+	s["endless_stage"] = 0
+	s["endless_spent"] = {}
+
+
+## Zusammensetzung des Monsterstroms zur Zeit t (Sekunden seit Welle 50), wie endlessMixAt im Prototyp
+func endless_mix_at(et: float) -> Dictionary:
+	var m: Dictionary = cfg["endlessMix"][0][1]
+	for e in cfg["endlessMix"]:
+		if et >= float(e[0]) * 60.0:
+			m = e[1]
+	return m
+
+
+## Nächstes Monster im Strom (ohne Zufall): die Sorte, die am weitesten hinter ihrem Anteil am Budget dieses Abschnitts liegt
+func _endless_pick(side: Dictionary, mix: Dictionary) -> String:
+	var spent: Dictionary = side["endless_spent"]
+	var tot := 1.0
+	for k in spent:
+		tot += float(spent[k])
+	var best := ""
+	var bd := -INF
+	for k in ["grunt", "fast", "archer", "tank", "elite"]:
+		var w: float = float(mix.get(k, 0))
+		if w <= 0.0:
+			continue
+		var d: float = w / 100.0 * tot - float(spent.get(k, 0.0))
+		if d > bd:
+			bd = d
+			best = k
+	return best
+
+
+## Endlos-Phase (wie endlessStep im Prototyp): Gesendetes läuft sofort los; der Strom bekommt Budget pro Sekunde
+## und schickt davon Monster nach der Zusammensetzung (auf jeder Lane des Teams).
+func _endless_step(side: Dictionary, dt: float) -> void:
+	side["endless_t"] += dt
+	var si: int = side["idx"]
+	var pool: Array = side["pool"]
+	for lane in lanes_per_team:
+		for e in pool:
+			_spawn_unit(str(e["type"]), 0.0, 1.0 if str(e["type"]) == "fast" else float(cfg["waveSpeedMul"]), lane, si, int(e["from"]))
+	side["pool"] = []
+	var et: float = side["endless_t"]
+	var stage := 0
+	for e in cfg["endlessMix"]:
+		if et >= float(e[0]) * 60.0:
+			stage += 1
+	if stage != int(side["endless_stage"]):
+		side["endless_stage"] = stage
+		side["endless_spent"] = {}
+	side["endless_acc"] += float(cfg["endlessBudget"]) * pow(float(cfg["endlessBudgetGrow"]), et / 60.0) * dt
+	var mix := endless_mix_at(et)
+	for k in 50:
+		var tp := _endless_pick(side, mix)
+		if tp == "" or side["endless_acc"] < float(Data.units[tp]["cost"]):
+			break
+		side["endless_acc"] -= float(Data.units[tp]["cost"])
+		side["endless_spent"][tp] = float(side["endless_spent"].get(tp, 0.0)) + float(Data.units[tp]["cost"])
+		for lane in lanes_per_team:
+			_spawn_unit(tp, 0.0, float(cfg["waveSpeedMul"]), lane, si)
 
 
 ## Heilfeld: nur hinter dem Kristall (x < healX), dort heilt der Held 12 % Leben pro Sekunde
@@ -1981,7 +2064,7 @@ func _spawn_wave(side: Dictionary) -> void:
 		_flash_msg(("BOSSWELLE %d" if wk == "boss" else ("ELITE-WELLE %d" if wk == "elite" else "Welle %d")) % n, Color("#ff7a7a") if wk == "boss" else (Color("#d9b3ff") if wk == "elite" else Color("#ffd166")))
 		sfx("boss" if _is_boss_wave(n) else "wave")
 		if n == int(cfg["maxWaves"]):
-			ui_alert("ENDLOS-PHASE! Ab jetzt kommen die Wellen immer schneller", "danger", 7.0)
+			ui_alert("ENDLOS-PHASE! Ab jetzt ein ununterbrochener Monsterstrom – immer stärker, am Ende nur noch Elites", "danger", 7.0)
 
 
 func _flash_msg(text: String, col: Color = Color.WHITE) -> void:
@@ -2306,6 +2389,10 @@ func step(dt: float) -> void:
 			p["stat_gold"] += inc
 	# Wellen: jede Seite hat ihre eigene
 	for side in sides:
+		if int(side["wave"]) >= int(cfg["maxWaves"]):                     # nach Welle 50: Monsterstrom statt Wellen
+			cur_side = side["idx"]
+			_endless_step(side, dt)
+			continue
 		side["wave_t"] -= dt
 		if side["wave_t"] <= 0.0:
 			cur_side = side["idx"]
@@ -3143,7 +3230,11 @@ func _sync_visuals(delta: float) -> void:
 	ring.scale = Vector3(0.4 + 0.6 * prog, 1.0, 0.4 + 0.6 * prog)
 	var min_t := int(t) / 60
 	hud.text = "Team-Leben  %d   (Gegner %d)\nEinkommen  +%.0f alle %d s" % [team_lives[0], team_lives[1], hero["income"], int(cfg["incomeTick"])]
-	hud_mid.text = ("Welle %d · ENDLOS\nZeit %d:%02d" if sides[0]["wave"] >= int(cfg["maxWaves"]) else "Welle %d\nZeit %d:%02d") % [sides[0]["wave"], min_t, int(t) % 60]
+	var et := int(sides[0]["endless_t"])
+	if sides[0]["wave"] >= int(cfg["maxWaves"]):
+		hud_mid.text = "ENDLOS · %d:%02d\nZeit %d:%02d" % [et / 60, et % 60, min_t, int(t) % 60]
+	else:
+		hud_mid.text = "Welle %d\nZeit %d:%02d" % [sides[0]["wave"], min_t, int(t) % 60]
 	fps_ema = lerpf(fps_ema, 1.0 / maxf(delta, 0.0001), 0.05)
 	hud_right.text = "Kills  %d" % kills + ("\nHeld tot: %d s" % int(ceil(hero["dead"])) if hero["dead"] > 0.0 else "") + ("\nFPS %d" % int(round(fps_ema)) if Data.user.show_fps else "")
 	if mini != null:
@@ -3381,6 +3472,7 @@ func reset_test(inp: Dictionary, heldpos: Array, layouts: Dictionary) -> void:
 		s["wave_t"] = 1e9
 		s["units"].clear()
 		s["boss_spawned"] = false
+		_endless_reset(s)
 	income_t = 0.0
 	over = false
 	team_lives = [int(cfg["startLives"]), int(cfg["startLives"])]
@@ -3690,7 +3782,30 @@ func _selftest() -> void:
 	check.call("Abstand nach Welle 1: 25 s", is_equal_approx(_wave_interval(1), 25.0))
 	check.call("Abstand nach Welle 20: Rampe + Boss-Pause", is_equal_approx(_wave_interval(20), 25.0 + 25.0 * 19.0 / 50.0 + 35.0))
 	check.call("Bosswellen 20 und 40", _is_boss_wave(20) and _is_boss_wave(40) and not _is_boss_wave(30) and _boss_index(40) == 1)
-	check.call("Endlos-Phase: Abstand nach Welle 50 kürzer", _wave_interval(50) < _wave_interval(49) and _wave_interval(70) >= 8.0)
+	# 8d. Endlos-Phase: Monsterstrom, schwache Monster verschwinden, am Ende nur Elites
+	var es2: Dictionary = sides[1]
+	es2["units"].clear()
+	es2["pool"] = [{"type": "grunt", "from": 0}]
+	es2["wave"] = int(cfg["maxWaves"])
+	_endless_reset(es2)
+	for i in 1200:
+		_endless_step(es2, 0.05)
+	var kinds := {}
+	for u in es2["units"]:
+		kinds[u["type"]] = true
+	check.call("Strom Minute 0: %d Monster, keine Elites, gesendeter Grunt sofort da" % es2["units"].size(), es2["units"].size() > 40 and not kinds.has("elite") and es2["pool"].is_empty())
+	es2["units"].clear()
+	es2["endless_t"] = 6.0 * 60.0
+	for i in 200:
+		_endless_step(es2, 0.05)
+	var only_elite: bool = not es2["units"].is_empty()
+	for u in es2["units"]:
+		only_elite = only_elite and u["type"] == "elite"
+	check.call("Strom ab Minute 6: nur Elites (%d)" % es2["units"].size(), only_elite)
+	check.call("Strom-Monster werden stärker", _endless_mul(1) > 1.7)
+	es2["units"].clear()
+	es2["wave"] = 0
+	_endless_reset(es2)
 	var ws: Dictionary = sides[1]
 	ws["units"].clear()
 	ws["pool"] = []
@@ -3943,13 +4058,11 @@ func _boss_index(n: int) -> int:
 
 
 ## Zeit bis zur nächsten Welle nach Welle n (wie waveInterval im Prototyp): wächst von waveEveryStart auf waveEveryEnd
-## über waveEveryRamp Wellen, bossPause nach Bosswellen, ab maxWaves Endlos-Phase (jeder Abstand × endlessFactor, mindestens endlessMin).
+## über waveEveryRamp Wellen, bossPause nach Bosswellen. Nach maxWaves kommen keine Wellen mehr (Endlos-Phase, _endless_step).
 func _wave_interval(n: int) -> float:
 	var k: float = clampf(float(n - 1) / maxf(1.0, float(cfg["waveEveryRamp"])), 0.0, 1.0)
 	var iv: float = float(cfg["waveEveryStart"]) + (float(cfg["waveEveryEnd"]) - float(cfg["waveEveryStart"])) * k
-	if n >= int(cfg["maxWaves"]):
-		iv = maxf(float(cfg["endlessMin"]), iv * pow(float(cfg["endlessFactor"]), n - int(cfg["maxWaves"]) + 1))
-	elif _is_boss_wave(n):
+	if _is_boss_wave(n):
 		iv += float(cfg["bossPause"])
 	return iv
 

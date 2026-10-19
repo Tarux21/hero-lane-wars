@@ -165,7 +165,8 @@
     return sim({}, (P,E)=>{
       P.G.waveT = CFG.firstWave; P.G.lives = 1e9; E.G.lives = 1e9;
       const rows = []; let lastWave = 0; let steps = 0; const maxSteps = Math.round(3000/DT);
-      while(P.G.wave < 55 && steps < maxSteps){
+      const endless = [];   // Endlos-Phase: je Minute gespawnte Monster je Sorte und Leben des ersten Monsters jeder Sorte
+      while((P.G.wave < CFG.maxWaves || P.G.endlessT < 420) && steps < maxSteps){
         const before = P.G.gold;
         update(DT); steps++;
         if(P.G.wave !== lastWave){
@@ -176,9 +177,14 @@
             gruntHp:r3(P.G.units.find(u=>u.type==='grunt').hp), gruntSpd:r3(P.G.units.find(u=>u.type==='grunt').spd), gruntDmg:r3(P.G.units.find(u=>u.type==='grunt').dmg),
             bossSpawned:P.G.bossSpawned, nextWaveIn:r3(P.G.waveT)});
         }
+        else if(P.G.wave >= CFG.maxWaves && P.G.units.length){
+          const m = Math.floor(P.G.endlessT/60);
+          if(!endless[m]) endless[m] = {min:m, counts:{}, firstHp:{}};
+          for(const u of P.G.units){ endless[m].counts[u.type] = (endless[m].counts[u.type]||0) + 1; if(endless[m].firstHp[u.type] === undefined) endless[m].firstHp[u.type] = r3(u.hp); }
+        }
         P.G.units.length = 0;
       }
-      return {note:'kind = waveKind(wave) NACH dem Spawn: fuer Welle 20 ist bossSpawned dann schon true; die tatsaechlichen Typen stehen in counts', waves:rows, totalSteps:steps};
+      return {note:'kind = waveKind(wave) NACH dem Spawn: fuer Welle 20 ist bossSpawned dann schon true; die tatsaechlichen Typen stehen in counts', waves:rows, endless, totalSteps:steps};
     });
   })();
   // a7b: Boss-Einkommen: nach dem Boss-Kill +bossIncome Gold pro Welle
