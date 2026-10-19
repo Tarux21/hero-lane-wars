@@ -1430,6 +1430,15 @@ func _endless_mul(side_idx: int) -> float:
 	return pow(float(cfg["endlessGrow"]), float(sides[side_idx]["endless_t"]) / 60.0)
 
 
+## Tempo gesendeter Monster (wie sentSpeed im Prototyp): Läufer volles Tempo, Elites langsamer als die Welle, alle anderen Wellentempo
+func sent_speed(tp: String) -> float:
+	if tp == "fast":
+		return 1.0
+	if tp == "elite":
+		return float(cfg["waveSpeedMul"]) * float(cfg["sentEliteSpeedMul"])
+	return float(cfg["waveSpeedMul"])
+
+
 func _endless_reset(s: Dictionary) -> void:
 	s["endless_t"] = 0.0
 	s["endless_acc"] = 0.0
@@ -1473,7 +1482,7 @@ func _endless_step(side: Dictionary, dt: float) -> void:
 	var pool: Array = side["pool"]
 	for lane in lanes_per_team:
 		for e in pool:
-			_spawn_unit(str(e["type"]), 0.0, 1.0 if str(e["type"]) == "fast" else float(cfg["waveSpeedMul"]), lane, si, int(e["from"]))
+			_spawn_unit(str(e["type"]), 0.0, sent_speed(str(e["type"])), lane, si, int(e["from"]))
 	side["pool"] = []
 	var et: float = side["endless_t"]
 	var stage := 0
@@ -2055,7 +2064,7 @@ func _spawn_wave(side: Dictionary) -> void:
 			bu["dmg"] *= bg
 		var pool: Array = side["pool"]
 		for j in pool.size():                                              # Pool: alle gesendeten Monster laufen gesammelt mit der Welle los
-			_spawn_unit(str(pool[j]["type"]), base_off + count * 4.0 + 60.0 + j * 6.0, 1.0 if str(pool[j]["type"]) == "fast" else float(cfg["waveSpeedMul"]), lane, si, int(pool[j]["from"]))   # Wellentempo, Läufer bleibt schneller
+			_spawn_unit(str(pool[j]["type"]), base_off + count * 4.0 + 60.0 + j * 6.0, sent_speed(str(pool[j]["type"])), lane, si, int(pool[j]["from"]))   # Wellentempo, Läufer schneller, Elites langsamer
 	side["pool"] = []
 	if _is_boss_wave(n):
 		side["boss_spawned"] = true
@@ -3771,6 +3780,7 @@ func _selftest() -> void:
 		if int(u["from_side"]) == 0 and u["type"] == "tank":
 			tank_ok = absf(float(u["spd"]) - float(Data.units["tank"]["spd"]) * float(cfg["waveSpeedMul"]) * float(cfg["speedMul"])) < 0.001
 	check.call("Gesendete Monster laufen im Wellentempo", tank_ok)
+	check.call("Gesendete Elites langsamer als die Welle, Läufer schneller", is_equal_approx(sent_speed("elite"), float(cfg["waveSpeedMul"]) * float(cfg["sentEliteSpeedMul"])) and sent_speed("elite") < sent_speed("tank") and sent_speed("fast") == 1.0)
 	# 8b. Gemischte Wellen wie im Prototyp (waveMix)
 	check.call("Welle 1 nur Grunts", wave_mix(1).is_empty())
 	check.call("Welle 2: 1 Läufer", wave_mix(2) == ["fast"])

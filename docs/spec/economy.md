@@ -25,7 +25,7 @@ Items selbst: `items.md`, Skills: `skills.md`.
 
 - `send(type)`: nur wenn `G.gold >= cost`, Spiel nicht vorbei und Gegner vorhanden. Dann `gold −= cost`, `income += inc * incMul (0.7)`, `stats.sent[type]++`; das Monster kommt in den **Pool** des Gegners (`E.G.sendPool`, `sendTo`). Mit der nächsten Welle des Gegners (`spawnWave`) laufen alle Pool-Monster gesammelt los: nach Grunts, Elite und Boss je `spawn(t, 0, (from − spawnX) + Wellengröße*4 + 60 + i*6, t = fast ? 1 : waveSpeedMul)`; danach ist der Pool leer. Bei 2 Lanes pro Team kommt jedes Pool-Monster auf beiden Lanes.
 - Boss kann nicht gesendet werden (`noSend`, die Tastenbelegung enthält ihn nicht; `send('boss')` selbst prüft das nicht).
-- Gesendete Monster laufen mit der Welle im Wellentempo (`waveSpeedMul 0.85`), nur der Läufer (`fast`) mit voller Geschwindigkeit (`spdMul 1`).
+- Gesendete Monster laufen mit der Welle im Wellentempo (`waveSpeedMul 0.85`), nur der Läufer (`fast`) mit voller Geschwindigkeit (`spdMul 1`), Elites langsamer (`waveSpeedMul × sentEliteSpeedMul 0.8`, `sentSpeed`).
 - Helden laufen höchstens bis `maxX 2950` (= `spawnX`, Öffnung des Spawns), nicht hinter den Spawn.
 
 | Typ | Kosten | Einkommen `inc` | HP | Schaden | Tempo | Reichweite | Rüstung | Radius | XP | Kill-Gold | Leben bei Leak |

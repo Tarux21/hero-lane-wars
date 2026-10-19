@@ -194,7 +194,7 @@ const CFG = {
   tormentCd: 6,                                     // Abklingzeit je Ziel (Sek.) bis die Qual erneut wirken kann; 0 = keine Abklingzeit
   ruinPct: 0.05, ruinMin: 12, ruinMax: 120,         // Schneide des gefallenen Monarchen: % des aktuellen Lebens (min/max Schaden)
   drCap: 0.40,                                      // Obergrenze für verringerten Schaden durch Items
-  lifestealCap: 0.5,                                // Obergrenze für Lebensraub aus Items (Anteil des Angriffsschadens)
+  lifestealCap: 0.25,                               // Obergrenze für Lebensraub aus Items (Anteil des Angriffsschadens)
   sparkFlat: 12, sparkAp: 0.35,                      // Funkenklinge: magischer Zusatzschaden je Angriff
   giantsPct: 0.025, cleaveItemPct: 0.40, cleaveMax: 3,             // Gigantenschlag (% max. Leben) / Splitteraxt (Anteil des Schadens)
   svFactor: 0.4,                                    // Zauberraub: Heilung je Treffer (abgeschwächt, weil Fähigkeiten mehrere Ziele treffen)
@@ -228,6 +228,7 @@ const CFG = {
   waveMix: [[2, {fast:1}], [4, {tank:1, fast:1}], [7, {tank:1, archer:1, fast:1}], [10, {tank:1, archer:1, fast:2}], [14, {tank:2, archer:1, fast:2}], [18, {tank:2, archer:2, fast:2}]],
   waveMixGrowFrom: 22, waveMixGrowEvery: 4,
   waveSpeedMul: 0.85,          // Wellenmonster laufen langsamer als gesendete
+  sentEliteSpeedMul: 0.8,      // gesendete Elites laufen mit 80 % des Wellentempos (Läufer: volles Tempo, alle anderen: Wellentempo)
   backportCast: 4.5,         // Sekunden Cast-Zeit
   backportCd: 75,
   itemPower: {sword:.8, armor:1.3, heart:1.2, gloves:1.1, staff:1.6, boots:1},   // Stärke je Item (Balance-Regler; Beschreibungen im Shop passend halten)
@@ -482,7 +483,7 @@ function endlessPick(mix){
 // Endlos-Phase: Gesendetes läuft sofort los; der Strom bekommt Budget pro Sekunde und schickt davon Monster nach der Zusammensetzung
 function endlessStep(dt){
   G.endlessT += dt;
-  G.sendPool.forEach(t=>spawn(t, 0, 0, t==='fast' ? 1 : CFG.waveSpeedMul)); G.sendPool = [];
+  G.sendPool.forEach(t=>spawn(t, 0, 0, sentSpeed(t))); G.sendPool = [];
   const stage = CFG.endlessMix.filter(([min])=>G.endlessT >= min*60).length;
   if(stage !== G.endlessStage){ G.endlessStage = stage; G.endlessSpent = {}; }   // neuer Abschnitt: Anteile neu zählen
   G.endlessAcc += CFG.endlessBudget * Math.pow(CFG.endlessBudgetGrow, G.endlessT/60) * dt;
@@ -519,7 +520,7 @@ function spawnWave(){
   const isBoss = isBossWave(n);                                                 // Bosswelle: Boss kommt mit der normalen Welle, jeder weitere ist bossGrow-mal stärker
   if(isBoss){ G.bossSpawned = true; spawn('boss', 0, (from-CFG.spawnX)+list.length*4+160, CFG.waveSpeedMul);
     const b = G.units[G.units.length-1], g = Math.pow(CFG.bossGrow, CFG.bossWaves.indexOf(n)); b.hp *= g; b.max *= g; b.dmg *= g; }
-  G.sendPool.forEach((t,i)=>spawn(t, 0, (from-CFG.spawnX)+list.length*4+60+i*6, t==="fast" ? 1 : CFG.waveSpeedMul));   // Pool: alle gesendeten Monster kommen gesammelt mit der Welle, im Wellentempo (Läufer bleibt schneller)
+  G.sendPool.forEach((t,i)=>spawn(t, 0, (from-CFG.spawnX)+list.length*4+60+i*6, sentSpeed(t)));   // Pool: alle gesendeten Monster kommen gesammelt mit der Welle, im Wellentempo (Läufer schneller, Elites langsamer)
   G.sendPool = [];
   if(isMainG()){
     showWave(n, isElite, isBoss); sfx(isBoss ? 'boss' : 'wave');
@@ -529,6 +530,8 @@ function spawnWave(){
   }
 }
 function showWave(n, elite, boss){ const m=document.getElementById('msg'); m.textContent=(boss?'BOSSWELLE ':elite?'ELITE-WELLE ':'Welle ')+n; m.style.color=boss?'#ff7a7a':elite?'#d9b3ff':'#ffd166'; setTimeout(()=>{ if(!G.over) m.textContent=''; },1500); }
+// Tempo gesendeter Monster: Läufer volles Tempo, Elites langsamer als die Welle, alle anderen Wellentempo
+const sentSpeed = t => t === 'fast' ? 1 : t === 'elite' ? CFG.waveSpeedMul * CFG.sentEliteSpeedMul : CFG.waveSpeedMul;
 // Gesendetes Monster kommt in den Pool des Gegenübers (target = P oder E) und läuft mit dessen nächster Welle los
 function sendTo(target, type){ target.G.sendPool.push(type); }   // gesendete Monster sammeln sich im Pool des Gegner-Teams und kommen mit dessen nächster Welle
 function send(type){

@@ -43,7 +43,7 @@
   "ruinMin": 12,
   "ruinMax": 120,
   "drCap": 0.4,
-  "lifestealCap": 0.5,
+  "lifestealCap": 0.25,
   "sparkFlat": 12,
   "sparkAp": 0.35,
   "giantsPct": 0.025,
@@ -216,6 +216,7 @@
   "waveMixGrowFrom": 22,
   "waveMixGrowEvery": 4,
   "waveSpeedMul": 0.85,
+  "sentEliteSpeedMul": 0.8,
   "backportCast": 4.5,
   "backportCd": 75,
   "itemPower": {
