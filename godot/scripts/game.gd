@@ -3339,7 +3339,7 @@ func _sync_visuals(delta: float) -> void:
 	var prog: float = hero["bp"] / maxf(0.01, hero["bp_max"])
 	ring.scale = Vector3(0.4 + 0.6 * prog, 1.0, 0.4 + 0.6 * prog)
 	var min_t := int(t) / 60
-	hud.text = "Team-Leben  %d   (Gegner %d)\nEinkommen  +%.0f alle %d s" % [team_lives[0], team_lives[1], hero["income"], int(cfg["incomeTick"])]
+	hud.text = "Einkommen  +%.0f alle %d s" % [hero["income"], int(cfg["incomeTick"])]   # Leben stehen im Duell-Balken oben in der Mitte
 	_update_duel()
 	var et := int(sides[0]["endless_t"])
 	if sides[0]["wave"] >= int(cfg["maxWaves"]):
