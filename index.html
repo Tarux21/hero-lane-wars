@@ -211,6 +211,7 @@ const CFG = {
                [3, {fast:25, archer:30, tank:35, elite:10}], [4, {fast:10, archer:25, tank:40, elite:25}], [5, {archer:15, tank:35, elite:50}], [6, {elite:100}]],
   rampStart: 2950, rampStep: 250,           // jede Welle startet am Lane-Ende (spawnX); früher rückten die Wellen von x=850 aus Welle für Welle nach hinten
   tankQBase: 25, tankQcd: 10,   // Tank Schockwelle: Grundschaden / Abklingzeit
+  tankQPct: [0, 0, 0, 0.03, 0.06], casterEPct: [0, 0, 0, 0.03, 0.06], pctBossMul: 0.5,   // Prozentschaden je Rang: Tank-Schockwelle / Caster-Kettenblitz treffen zusätzlich mit diesem Anteil der max. Leben des Ziels (Bosse halb)
   tankRRange: 310, tankRHalf: .68,   // Tank Titanenstoß: Kegel nach vorn (Reichweite / Halbwinkel in rad)
   poisonTime: 4, poisonBase: 5, poisonPer: 3, poisonK: .15,   // Schurke: Giftklingen (W ab Rang 3) und Gift-Schaden pro Sekunde: Dauer / Grundwert / je Rang / Anteil Angriffsschaden
   leapSlow: 2.5,                                                   // Schurke Sprung Rang 5: Verlangsamung der Gegner im Umkreis (Sek.)
@@ -668,6 +669,7 @@ function applyTorment(u){
   u.tormCd = CFG.tormentCd;
 }
 function affect(u, dmg, o){
+  if(o && o.pct) dmg += u.max * o.pct * (u.boss ? CFG.pctBossMul : 1);   // Prozentschaden (Tank-Schockwelle, Caster-Kettenblitz auf hohem Rang)
   const dealt = hitUnit(u, dmg);
   if(H.spellVamp>0 && dealt>0){                       // Zauberraub: Fähigkeitsschaden heilt (abgeschwächt, da Fähigkeiten mehrere Ziele treffen)
     const vf = H.uniq.has('vengeance') && H.hp < .4*hMaxHp() ? 2 : 1;
@@ -707,14 +709,14 @@ function lineHit(ox, oy, ang, range, width, dmg, o={}){
 }
 // Kettenblitz: springt ab `first` von Gegner zu Gegner. Krit = doppelter Schaden + 0,5 Sek. Betäubung.
 const CRIT_BY_RANK = [.10,.125,.15,.225,.30];
-function chainLightning(from, first, count, dmg, crit, falloff, jump=170){
+function chainLightning(from, first, count, dmg, crit, falloff, jump=170, pct=0){
   let cur = first; const hit = new Set(); from = {x:from.x, y:from.y};
   while(cur && count-- > 0){
     const isCrit = Math.random() < crit;
     hit.add(cur); G.fx.push({k:'line', x:from.x, y:from.y, x2:cur.x, y2:cur.y, t:.25, c:isCrit?'#ffe066':'#9fe0ff', w:isCrit?4:2});
     from = {x:cur.x, y:cur.y};
     if(isCrit) G.fx.push({k:'text', x:cur.x, y:cur.y-28, t:.7, s:'KRIT!', c:'#ffe066'});
-    affect(cur, isCrit ? dmg*2 : dmg, {stun:isCrit?.5:0});
+    affect(cur, isCrit ? dmg*2 : dmg, {stun:isCrit?.5:0, pct});
     dmg *= falloff;
     cur = enemies().filter(u=>!hit.has(u) && Math.hypot(u.x-from.x,u.y-from.y)<=jump)
                    .sort((a,b)=>Math.hypot(a.x-from.x,a.y-from.y)-Math.hypot(b.x-from.x,b.y-from.y))[0];
@@ -765,8 +767,8 @@ function updateElems(dt){
 
 const SK = {
   tank: [
-    {name:'Schockwelle', cd:CFG.tankQcd, max:5, info:['Kegel nach vorne: Schaden + Betäubung','Rang 3: schleudert Gegner zurück','Rang 5: zweite, stärkere Welle'],
-     cast(r,m){ const range = 200+15*(r-1), half = .62, dmg = dmgOf(CFG.tankQBase,8,r,0,.5), o = {stun:.8+.12*(r-1), knock:r>=3?80:0};
+    {name:'Schockwelle', cd:CFG.tankQcd, max:5, info:['Kegel nach vorne: Schaden + Betäubung','Rang 3: schleudert Gegner zurück','Rang 4–5: zusätzlich 3 % / 6 % der max. Leben jedes Getroffenen (Bosse halb). Rang 5: zweite, stärkere Welle'],
+     cast(r,m){ const range = 200+15*(r-1), half = .62, dmg = dmgOf(CFG.tankQBase,8,r,0,.5), o = {stun:.8+.12*(r-1), knock:r>=3?80:0, pct:CFG.tankQPct[r-1]};
        coneHit(H.x,H.y,m.ang,range,half,dmg,o);
        if(r>=5) later(.6,()=>{ o.stun += .4; coneHit(H.x,H.y,m.ang,range+40,half,dmg*1.25,o); }); }},
     {name:'Eiserne Haut', passive:true, max:5, info:['Passiv, immer aktiv: Rüstung + Dornen. Reflektiert 20% (Rang 1) bis 60% (Rang 5) des erlittenen Schadens an jeden Angreifer','Rang 3: viel mehr Rüstung, Regeneration 1% Leben/Sek.','Rang 5: sehr viel Rüstung, Regeneration 2,5% Leben/Sek.'],
@@ -842,12 +844,12 @@ const SK = {
        } else field(p.x, p.y, 5); }},
     {name:'Frostnova', cd:12, max:5, info:['Frostkegel nach vorne: Schaden + Verlangsamung','Rang 3: betäubt kurz (0,8 Sek.)','Rang 5: Frostbann 1,6 Sek.'],
      cast(r,m){ coneHit(H.x,H.y,m.ang,200+15*(r-1),.62,dmgOf(20,10,r,.3,0),{slow:3+.5*(r-1), stun:r>=5?1.6:r>=3?.8:0}); }},
-    {name:'Kettenblitz', cd:8, max:5, info:['Springt von Gegner zu Gegner (4–8 Ziele). Krit 10%: doppelter Schaden + 0,5 Sek. Betäubung','Rang 3: Krit-Chance 15%','Rang 5: Krit-Chance 30%, kein Schadensverlust pro Sprung'],
+    {name:'Kettenblitz', cd:8, max:5, info:['Springt von Gegner zu Gegner (4–8 Ziele). Krit 10%: doppelter Schaden + 0,5 Sek. Betäubung','Rang 3: Krit-Chance 15%','Rang 4–5: zusätzlich 3 % / 6 % der max. Leben jedes Getroffenen (Bosse halb). Rang 5: Krit-Chance 30%, kein Schadensverlust pro Sprung'],
      cast(r,m){
        const pool = enemies().filter(u=>Math.hypot(u.x-H.x,u.y-H.y)<=520);
        if(!pool.length) return;
        pool.sort((a,b)=>Math.hypot(a.x-m.wx,a.y-m.wy)-Math.hypot(b.x-m.wx,b.y-m.wy));
-       chainLightning(H, pool[0], 3+r, dmgOf(40,18,r,.6,0), CRIT_BY_RANK[r-1], r>=5 ? 1 : .9); }},
+       chainLightning(H, pool[0], 3+r, dmgOf(40,18,r,.6,0), CRIT_BY_RANK[r-1], r>=5 ? 1 : .9, 170, CFG.casterEPct[r-1]); }},
     {name:'Elementar', cd:90, max:1, info:['Beschwört einen Elementar passend zum zuletzt benutzten Skill (Q Feuer · W Frost · E Blitz)','Kämpft 60 Sek. an der Beschwörungsstelle und wirkt alle 6–10 Sek. seine Fähigkeit'],
      cast(r,m){
        if(!H.lastElem){ G.fx.push({k:'text', x:H.x-40, y:H.y-40, t:1.5, s:'Erst Q, W oder E benutzen!', c:'#ff9a8a'}); return false; }

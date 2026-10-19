@@ -51,3 +51,9 @@ Entscheidungen: Gesamtpaket v2 übernehmen (1A), Pflichtpunkte plus Bot-Senden n
 Versuche, die Endlos-Phase früher zu erreichen bzw. den Tank zu stärken (je 48–72 Partien, nur Klassen), haben die Tank-Quote nicht verbessert: Monster-Skalierung 0,12 / 0,14 (mehr frühe Zusammenbrüche, Tank 25–38 %), zweiter Boss ×2,5 / ×3,0 (Tank 13–38 %). Partien enden fast nie zwischen Welle 25 und 50: entweder kippt eine Partie früh durch einen Heldentod, oder beide Bots halten bis zur Endlos-Phase.
 
 Messung mit Monsterstrom (72 Partien, Klassen): Median 37 Min., Entscheidung meist 3–5 Min. nach Welle 50, 11 % unter 15 Min., Comeback 28 %. Klassen: **Schurke dominiert** (gegen Magier 88 %, gegen Tank 69 %), Tank gegen Magier 13 %. Die Endlos-Phase belohnt jetzt Einzelziel-Schaden gegen Golems und Sumpftrolle. Offen: Klassen-Ausgleich für die Elite-Phase (z. B. Prozentschaden für Tank/Magier).
+
+## Nachtrag: Prozentschaden für Tank und Magier (19.10.2026)
+
+Entscheidung A des Projektleiters. Schockwelle (Tank) und Kettenblitz (Magier) treffen ab Rang 4 zusätzlich mit 3 % / 6 % (Rang 4 / 5) der maximalen Lebenspunkte jedes getroffenen Monsters, gegen Bosse halb so viel (`tankQPct`, `casterEPct`, `pctBossMul`).
+
+Messung (je 72 Partien, nur Klassen): Tank gegen Magier vorher 13 %, mit 2/4 % 38 %, **mit 3/6 % 44 %** ✓. Der Schurke gewinnt weiter 75–88 % gegen beide; seinen Fähigkeitsschaden zu senken (1,3 → 1,15 / 1,0) ändert daran nichts (75–81 %), seine Stärke in der Elite-Phase kommt aus dem Normalangriff mit kritischen Treffern. Offen: Schurke im späten Spiel (Normalangriff/Krit) – Entscheidung des Projektleiters nötig.

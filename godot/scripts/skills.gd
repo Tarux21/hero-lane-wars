@@ -76,7 +76,14 @@ func dmg_of(p: Dictionary, base: float, per: float, r: int, sc: float, k: float)
 
 
 # ---------------------------------------------------------------- Treffer und Statuseffekte
+## Zusatz für die Werte-Anzeige: Prozentschaden des Rangs
+func _pct_txt(pct: float) -> String:
+	return " · +%d %% der max. Leben" % int(round(pct * 100.0)) if pct > 0.0 else ""
+
+
 func affect(p: Dictionary, u: Dictionary, dmg: float, o: Dictionary = {}) -> void:
+	if float(o.get("pct", 0.0)) > 0.0:                                 # Prozentschaden (Tank-Schockwelle, Caster-Kettenblitz auf hohem Rang)
+		dmg += float(u["max"]) * float(o["pct"]) * (float(cfg["pctBossMul"]) if u["boss"] else 1.0)
 	var dealt: float = g.hit_unit(u, dmg, p)
 	if p["spell_vamp"] > 0.0 and dealt > 0.0:                       # Zauberraub: Fähigkeitsschaden heilt (abgeschwächt)
 		var vf := 2.0 if p["uniq"].has("vengeance") and p["hp"] < 0.4 * h_max_hp(p) else 1.0
@@ -133,7 +140,7 @@ func cone_hit(p: Dictionary, ox: float, oy: float, ang: float, range_: float, ha
 
 
 ## Kettenblitz: springt ab `first` von Gegner zu Gegner. Krit = doppelter Schaden + 0,5 s Betäubung.
-func chain_lightning(p: Dictionary, from: Vector2, first: Dictionary, count: int, dmg: float, crit: float, falloff: float, jump: float = 170.0, hand: bool = false) -> void:
+func chain_lightning(p: Dictionary, from: Vector2, first: Dictionary, count: int, dmg: float, crit: float, falloff: float, jump: float = 170.0, hand: bool = false, pct: float = 0.0) -> void:
 	var cur: Variant = first
 	var hit: Array = []
 	var link := 0
@@ -148,7 +155,7 @@ func chain_lightning(p: Dictionary, from: Vector2, first: Dictionary, count: int
 		from = Vector2(cur["x"], cur["y"])
 		if is_crit:
 			g.fx_text(cur["x"], cur["y"] - 28.0, "KRIT!", "#ffe066", 0.7, 34)
-		affect(p, cur, dmg * 2.0 if is_crit else dmg, {"stun": 0.5 if is_crit else 0.0})
+		affect(p, cur, dmg * 2.0 if is_crit else dmg, {"stun": 0.5 if is_crit else 0.0, "pct": pct})
 		dmg *= falloff
 		var best: Variant = null
 		var bd := 1e9
@@ -251,14 +258,14 @@ func _tank_q(p: Dictionary, r: int, m: Dictionary) -> bool:
 	var half := 0.62
 	var dmg := dmg_of(p, float(cfg["tankQBase"]), 8.0, r, 0.0, 0.5)
 	var stun := 0.8 + 0.12 * (r - 1)
-	var o := {"stun": stun, "knock": 80.0 if r >= 3 else 0.0}
+	var o := {"stun": stun, "knock": 80.0 if r >= 3 else 0.0, "pct": float(cfg["tankQPct"][r - 1])}
 	var ang: float = m["ang"]
 	cone_hit(p, p["x"], p["y"], ang, range_, half, dmg, o, "#e8d9b0", 0.15)
 	g.cast_pose(p, p["x"] + cos(ang) * 100.0, p["y"] + sin(ang) * 100.0, "Sword_Attack", 0.6)
 	g.vfx.tank_shockwave(p, ang, range_, half, r)
 	g.sfx_p(p, "tank_q")
 	if r >= 5:                                                               # zweite, stärkere Welle
-		var o2 := {"stun": stun + 0.4, "knock": o["knock"]}
+		var o2 := {"stun": stun + 0.4, "knock": o["knock"], "pct": o["pct"]}
 		g.later(0.6, func():
 			cone_hit(p, p["x"], p["y"], ang, range_ + 40.0, half, dmg * 1.25, o2, "#e8d9b0", 0.15)
 			g.vfx.tank_shockwave(p, ang, range_ + 40.0, half, r)
@@ -444,7 +451,7 @@ func _cas_e(p: Dictionary, r: int, m: Dictionary) -> bool:
 		return true                                                          # Prototyp: kein Ziel, aber Cooldown läuft trotzdem
 	pool.sort_custom(func(a, b): return _dist(a, m["wx"], m["wy"]) < _dist(b, m["wx"], m["wy"]))
 	g.vfx.cast_burst(p, Color("#9fc8ff"), pool[0]["x"], pool[0]["y"])
-	chain_lightning(p, Vector2(p["x"], p["y"]), pool[0], 3 + r, dmg_of(p, 40.0, 18.0, r, 0.6, 0.0), CRIT_BY_RANK[r - 1], 1.0 if r >= 5 else 0.9, 170.0, true)
+	chain_lightning(p, Vector2(p["x"], p["y"]), pool[0], 3 + r, dmg_of(p, 40.0, 18.0, r, 0.6, 0.0), CRIT_BY_RANK[r - 1], 1.0 if r >= 5 else 0.9, 170.0, true, float(cfg["casterEPct"][r - 1]))
 	return true
 
 
@@ -523,7 +530,7 @@ func tip(p: Dictionary, i: int, r: int) -> String:
 	match [p["key"], i]:
 		["tank", 0]:
 			return "Schaden %s · Reichweite %d · Betäubung %s s%s%s" % [_rd(dmg_of(p, float(cfg["tankQBase"]), 8.0, r, 0.0, 0.5)), 200 + 15 * (r - 1), _f1(0.8 + 0.12 * (r - 1)),
-				" · Rückstoß" if r >= 3 else "", (" · 2. Welle " + _rd(dmg_of(p, float(cfg["tankQBase"]), 8.0, r, 0.0, 0.5) * 1.25)) if r >= 5 else ""]
+				" · Rückstoß" if r >= 3 else "", (" · 2. Welle " + _rd(dmg_of(p, float(cfg["tankQBase"]), 8.0, r, 0.0, 0.5) * 1.25)) if r >= 5 else ""] + _pct_txt(float(cfg["tankQPct"][r - 1]))
 		["tank", 1]:
 			var x: Dictionary = IRON[r - 1]
 			return "Rüstung +%d · Dornen %d %% des erlittenen Schadens · Regeneration %s %%/s" % [int(x["armor"]), int(round(float(x["reflect"]) * 100.0)), _f1(float(x["regen"]) * 100.0)]
@@ -559,7 +566,7 @@ func tip(p: Dictionary, i: int, r: int) -> String:
 			return "Schaden %s · Reichweite %d · Verlangsamung %s s%s" % [_rd(dmg_of(p, 20.0, 10.0, r, 0.3, 0.0)), 200 + 15 * (r - 1), _f1(3.0 + 0.5 * (r - 1)),
 				" · Betäubung 1,6 s" if r >= 5 else (" · Betäubung 0,8 s" if r >= 3 else "")]
 		["caster", 2]:
-			return "Schaden %s je Ziel · %d Ziele · Krit %d %% (doppelter Schaden, 0,5 s Betäubung)" % [_rd(dmg_of(p, 40.0, 18.0, r, 0.6, 0.0)), 3 + r, int(round(float(CRIT_BY_RANK[r - 1]) * 100.0))]
+			return "Schaden %s je Ziel · %d Ziele · Krit %d %% (doppelter Schaden, 0,5 s Betäubung)" % [_rd(dmg_of(p, 40.0, 18.0, r, 0.6, 0.0)), 3 + r, int(round(float(CRIT_BY_RANK[r - 1]) * 100.0))] + _pct_txt(float(cfg["casterEPct"][r - 1]))
 		["caster", 3]:
 			return "Beschwört einen Elementar (%d s, %d Leben) passend zum zuletzt genutzten Skill" % [int(cfg["elemTime"]), int(cfg["elemHp"])]
 	return ""

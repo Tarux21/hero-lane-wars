@@ -128,6 +128,21 @@
   "rampStep": 250,
   "tankQBase": 25,
   "tankQcd": 10,
+  "tankQPct": [
+   0,
+   0,
+   0,
+   0.03,
+   0.06
+  ],
+  "casterEPct": [
+   0,
+   0,
+   0,
+   0.03,
+   0.06
+  ],
+  "pctBossMul": 0.5,
   "tankRRange": 310,
   "tankRHalf": 0.68,
   "poisonTime": 4,
@@ -1180,7 +1195,7 @@
     "info": [
      "Kegel nach vorne: Schaden + Betäubung",
      "Rang 3: schleudert Gegner zurück",
-     "Rang 5: zweite, stärkere Welle"
+     "Rang 4–5: zusätzlich 3 % / 6 % der max. Leben jedes Getroffenen (Bosse halb). Rang 5: zweite, stärkere Welle"
     ]
    },
    {
@@ -1288,7 +1303,7 @@
     "info": [
      "Springt von Gegner zu Gegner (4–8 Ziele). Krit 10%: doppelter Schaden + 0,5 Sek. Betäubung",
      "Rang 3: Krit-Chance 15%",
-     "Rang 5: Krit-Chance 30%, kein Schadensverlust pro Sprung"
+     "Rang 4–5: zusätzlich 3 % / 6 % der max. Leben jedes Getroffenen (Bosse halb). Rang 5: Krit-Chance 30%, kein Schadensverlust pro Sprung"
     ]
    },
    {
