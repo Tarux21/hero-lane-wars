@@ -116,6 +116,8 @@ var mc: Dictionary = {}                # Farben der Karte
 var sun: DirectionalLight3D            # Sonne (Schatten je nach Grafikqualität)
 var fps_ema := 60.0
 var hud_mid: Label
+var duel := {}                          # Duell-Balken unter Welle/Zeit: Statuen beider Teams (Lebens-Anteil und Zerfallsstufe)
+var statue_seen := {}                   # Team -> zuletzt gemeldete Zerfallsstufe (Meldung bei neuer Stufe)
 var hud_right: Label
 var msg: Label
 var started := false
@@ -145,6 +147,7 @@ var pool_release_test := false              # Test: nach 1 s startet die Gegner-
 var cam_test_dx := -9.0                    # Test: seitlicher Versatz der Testkamera in Metern, --camdx=0
 var cam_test_x := -99999.0                # Test: Kamera frei auf Lane-Position x (Spielwert), --camx=1500
 var lives_test := -1                       # Test: Team-Leben für das Bild setzen (Statuenstufen), --lives=4
+var lives_test_b := -1                     # Test: Leben des Gegner-Teams, --lives=28,10
 var merchant_test := false              # Test: Klick auf den Händler per Skript
 var menu_obj
 var fxtest := ""                     # Test: Effekt einer Fähigkeit zeigen (q, w, e, rfire, rfrost, rlightning) und Bilder speichern
@@ -277,7 +280,9 @@ func _ready() -> void:
 		elif a == "--merchanttest":
 			merchant_test = true
 		elif a.begins_with("--lives="):
-			lives_test = int(a.substr(8))
+			var lv := a.substr(8).split(",")
+			lives_test = int(lv[0])
+			lives_test_b = int(lv[1]) if lv.size() > 1 else lives_test
 		elif a.begins_with("--camx="):
 			cam_test_x = float(a.substr(7))
 		elif a.begins_with("--camdx="):
@@ -1027,7 +1032,43 @@ func _build_hud() -> void:
 	mid_panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	mid_panel.position.y = 8.0
 	mid_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	mid_panel.add_child(hud_mid)
+	var mid_box := VBoxContainer.new()
+	mid_box.add_theme_constant_override("separation", 3)
+	mid_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	mid_box.add_child(hud_mid)
+	var bar_row := HBoxContainer.new()
+	bar_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	bar_row.add_theme_constant_override("separation", 6)
+	var own_n := Label.new()
+	own_n.add_theme_font_size_override("font_size", 13)
+	var bar_bg := ColorRect.new()
+	bar_bg.color = Color(0.2, 0.2, 0.22)
+	bar_bg.custom_minimum_size = Vector2(240, 10)
+	var own_fill := ColorRect.new()
+	own_fill.color = Color("#4fa3e0")
+	var en_fill := ColorRect.new()
+	en_fill.color = Color("#e05a4f")
+	bar_bg.add_child(own_fill)
+	bar_bg.add_child(en_fill)
+	var bar_c := CenterContainer.new()
+	bar_c.add_child(bar_bg)
+	var en_n := Label.new()
+	en_n.add_theme_font_size_override("font_size", 13)
+	bar_row.add_child(own_n)
+	bar_row.add_child(bar_c)
+	bar_row.add_child(en_n)
+	mid_box.add_child(bar_row)
+	var stage_l := RichTextLabel.new()
+	stage_l.bbcode_enabled = true
+	stage_l.fit_content = true
+	stage_l.scroll_active = false
+	stage_l.autowrap_mode = TextServer.AUTOWRAP_OFF
+	stage_l.custom_minimum_size = Vector2(300, 0)
+	stage_l.add_theme_font_size_override("normal_font_size", 12)
+	stage_l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	mid_box.add_child(stage_l)
+	duel = {"own_n": own_n, "en_n": en_n, "bg": bar_bg, "own": own_fill, "en": en_fill, "stage": stage_l}
+	mid_panel.add_child(mid_box)
 	layer.add_child(mid_panel)
 	hud_right = Label.new()                              # rechts oben: Kills
 	hud_right.add_theme_font_size_override("font_size", 15)
@@ -1040,7 +1081,7 @@ func _build_hud() -> void:
 	layer.add_child(right_panel)
 	msg = Label.new()
 	msg.set_anchors_preset(Control.PRESET_CENTER_TOP)
-	msg.position = Vector2(-120, 80)
+	msg.position = Vector2(-120, 112)
 	msg.add_theme_font_size_override("font_size", 40)
 	msg.add_theme_color_override("font_outline_color", Color.BLACK)
 	msg.add_theme_constant_override("outline_size", 8)
@@ -3299,6 +3340,7 @@ func _sync_visuals(delta: float) -> void:
 	ring.scale = Vector3(0.4 + 0.6 * prog, 1.0, 0.4 + 0.6 * prog)
 	var min_t := int(t) / 60
 	hud.text = "Team-Leben  %d   (Gegner %d)\nEinkommen  +%.0f alle %d s" % [team_lives[0], team_lives[1], hero["income"], int(cfg["incomeTick"])]
+	_update_duel()
 	var et := int(sides[0]["endless_t"])
 	if sides[0]["wave"] >= int(cfg["maxWaves"]):
 		hud_mid.text = "ENDLOS · %d:%02d\nZeit %d:%02d" % [et / 60, et % 60, min_t, int(t) % 60]
@@ -3339,9 +3381,52 @@ func _update_statues(delta: float) -> void:
 			stage = 0                                                      # Test: unendliche Leben
 		if stage != st["stage"]:
 			decor.set_statue_stage(st, stage)
+		if stage > int(statue_seen.get(team, 0)) and stage < 3 and not hero.is_empty():   # Meldung bei neuer Zerfallsstufe (eigene und gegnerische Statue)
+			var own: bool = team == int(hero["side"]["idx"])
+			var what: String = "bekommt Risse" if stage == 1 else "bröckelt"
+			ui_alert(("Eure Statue %s!" if own else "Die Statue des Gegners %s!") % what, "danger" if own else "good", 4.0)
+		statue_seen[team] = maxi(int(statue_seen.get(team, 0)), stage)
 	var healing: bool = not hero.is_empty() and _in_heal() and hero["hp"] < skills.h_max_hp(hero) - 0.5
 	for hl in heal_lights:
 		(hl as OmniLight3D).light_energy = lerpf((hl as OmniLight3D).light_energy, (3.2 if healing else 1.4) * Data.user.light_factor(), minf(1.0, delta * 5.0))
+
+
+const STAGE_NAME := ["intakt", "rissig", "bröckelt", "zerstört"]
+const STAGE_COL := ["#9fe0a0", "#f0d060", "#f0a050", "#e05a4f"]
+## Zerfallsstufe der Statue aus den Leben (wie _update_statues)
+func _statue_stage(lives: int) -> int:
+	var start := int(cfg["startLives"])
+	if lives > 100000000:
+		return 0
+	if lives <= 0:
+		return 3
+	if lives < int(ceil(start * 0.4)):
+		return 2
+	if lives < int(ceil(start * 0.75)):
+		return 1
+	return 0
+
+
+## Duell-Balken: Anteil eurer Leben an den Leben beider Teams, darunter die Zerfallsstufen (nur Anzeige)
+func _update_duel() -> void:
+	if duel.is_empty() or hero.is_empty():
+		return
+	var me: int = hero["side"]["idx"]
+	var start := int(cfg["startLives"])
+	var a: int = clampi(team_lives[me], 0, start)
+	var b: int = clampi(team_lives[1 - me], 0, start)
+	(duel["own_n"] as Label).text = str(a)
+	(duel["en_n"] as Label).text = str(b)
+	var w: float = (duel["bg"] as ColorRect).custom_minimum_size.x
+	var h: float = (duel["bg"] as ColorRect).custom_minimum_size.y
+	var k: float = 0.5 if a + b == 0 else float(a) / float(a + b)
+	(duel["own"] as ColorRect).position = Vector2.ZERO
+	(duel["own"] as ColorRect).size = Vector2(w * k, h)
+	(duel["en"] as ColorRect).position = Vector2(w * k, 0)
+	(duel["en"] as ColorRect).size = Vector2(w * (1.0 - k), h)
+	var sa := _statue_stage(team_lives[me])
+	var sb := _statue_stage(team_lives[1 - me])
+	(duel["stage"] as RichTextLabel).text = "[center]Eure Statue: [color=%s]%s[/color]     Gegner: [color=%s]%s[/color][/center]" % [STAGE_COL[sa], STAGE_NAME[sa], STAGE_COL[sb], STAGE_NAME[sb]]
 
 
 ## Zeigt die Maus auf den Händler (Goblin oder Wagen)?
@@ -4074,7 +4159,7 @@ func _run_simulation(secs: float, shot_path: String) -> void:
 		_sync_visuals(0.2)
 	if lives_test >= 0:
 		team_lives[0] = lives_test
-		team_lives[1] = lives_test
+		team_lives[1] = lives_test_b
 		_update_statues(0.1)
 	if cam_test_x > -99998.0:
 		cam_free = true
