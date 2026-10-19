@@ -323,7 +323,7 @@ func _economy() -> void:
 	var rows7: Array = []
 	var last := 0
 	var steps := 0
-	while g.sides[0]["wave"] < 30 and steps < int(round(1000.0 / DT)):
+	while g.sides[0]["wave"] < 55 and steps < int(round(3000.0 / DT)):
 		g.step(DT)
 		steps += 1
 		if g.sides[0]["wave"] != last:

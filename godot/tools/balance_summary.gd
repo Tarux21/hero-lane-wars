@@ -26,6 +26,7 @@ func _init() -> void:
 	res["wirtschaft"] = _economy(games)
 	res["comeback"] = _comeback(games)
 	res["senden"] = _sending(games)
+	res["frueh_raus"] = _early_out(games)
 	var fo := FileAccess.open(out_path, FileAccess.WRITE)
 	fo.store_string(JSON.stringify(res, "  "))
 	fo.close()
@@ -127,7 +128,27 @@ func _lives_curve(games: Array) -> Dictionary:
 	for w in sum:
 		curve[w] = {"leben": float(sum[w]) / float(cnt[w]), "n": cnt[w]}
 	lost_first.sort()
-	return {"kurve": curve, "erstes_leben_median_welle": lost_first[lost_first.size() / 2] if not lost_first.is_empty() else -1}
+	# Früher Lebensverlust: verlorene Leben bis Welle w (Mittel) und Anteil der Seiten mit mindestens einem verlorenen Leben
+	var early := {}
+	for w in [5, 10, 15, 20, 30]:
+		var lost_sum := 0.0
+		var any := 0
+		var n := 0
+		for g in games:
+			var start: float = float(g["log"][0]["lives"]) if not g["log"].is_empty() else 0.0
+			for e in g["log"]:
+				if int(e["wave"]) == w + 1:
+					var l: float = start - float(e["lives"])
+					lost_sum += l
+					any += 1 if l > 0.0 else 0
+					n += 1
+		early[str(w)] = {"verloren_mittel": lost_sum / maxf(1.0, float(n)), "anteil_mind_1": float(any) / maxf(1.0, float(n)), "n": n}
+	var short := 0
+	for g in games:
+		if float(g["t_end"]) < 15.0 * 60.0:
+			short += 1
+	return {"kurve": curve, "erstes_leben_median_welle": lost_first[lost_first.size() / 2] if not lost_first.is_empty() else -1,
+		"bis_welle": early, "unter_15_min": float(short) / maxf(1.0, float(games.size()))}
 
 
 func _leaks(games: Array) -> Dictionary:
@@ -182,6 +203,24 @@ func _comeback(games: Array) -> Dictionary:
 		if int(g["winner"]) == trailing:
 			won += 1
 	return {"partien": behind, "aufgeholt": won, "quote": float(won) / maxf(1.0, float(behind))}
+
+
+## Anteil der Verlierer-Seiten je Klasse, die vor Welle 20 ausscheiden (früher Zusammenbruch)
+func _early_out(games: Array) -> Dictionary:
+	var out := {}
+	for g in games:
+		if int(g["winner"]) < 0:
+			continue
+		for p in g["players"]:
+			var k := str(p["key"])
+			if not out.has(k):
+				out[k] = {"seiten": 0, "vor_welle_20": 0}
+			out[k]["seiten"] += 1
+			if int(p["side"]) != int(g["winner"]) and int(g["waves"][int(p["side"])]) < 20:
+				out[k]["vor_welle_20"] += 1
+	for k in out:
+		out[k]["anteil"] = float(out[k]["vor_welle_20"]) / maxf(1.0, float(out[k]["seiten"]))
+	return out
 
 
 func _sending(games: Array) -> Dictionary:

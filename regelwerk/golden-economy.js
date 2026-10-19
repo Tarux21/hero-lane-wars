@@ -164,8 +164,8 @@
   economy.waves = (()=>{
     return sim({}, (P,E)=>{
       P.G.waveT = CFG.firstWave; P.G.lives = 1e9; E.G.lives = 1e9;
-      const rows = []; let lastWave = 0; let steps = 0; const maxSteps = Math.round(1000/DT);
-      while(P.G.wave < 30 && steps < maxSteps){
+      const rows = []; let lastWave = 0; let steps = 0; const maxSteps = Math.round(3000/DT);
+      while(P.G.wave < 55 && steps < maxSteps){
         const before = P.G.gold;
         update(DT); steps++;
         if(P.G.wave !== lastWave){

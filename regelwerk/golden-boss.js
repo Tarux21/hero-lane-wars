@@ -118,11 +118,12 @@
   // Verstaerkung aufraeumen, um die Wiederholung zu sehen
   add({id:'boss-verstaerkung-phase3', note:'Boss in Phase 3 (Leben 0.2): Verstaerkung alle 10 s mit 5 Grunts; Grunts werden bei t=12 entfernt', bossFrac:0.2, events:[{t:12, op:'clearGrunts'}]});
   // Boss-Welle komplett (Welle 20 mit Elites und Grunts) und Elite-Welle 10
-  SC.push({id:'bosswelle-20-held-fern', note:'spawnWave() fuer Welle 20: 27 Grunts, 2 Elites, 1 Boss; Held weit weg', start:'wave', wave:20, heroX:1000, events:[]});
+  SC.push({id:'bosswelle-20-held-fern', note:'spawnWave() fuer Welle 20: 13 Grunts, Zusatzmonster, 1 Elite, 1 Boss; Held weit weg', start:'wave', wave:20, heroX:1000, events:[]});
+  SC.push({id:'bosswelle-40-held-fern', note:'spawnWave() fuer Welle 40: zweiter Boss (bossGrow-mal staerker); Held weit weg', start:'wave', wave:40, heroX:1000, events:[]});
   SC.push({id:'bosswelle-20-held-nah', note:'wie oben, Held bei x=2400 (vor der Welle)', start:'wave', wave:20, heroX:2400, events:[]});
-  SC.push({id:'elitewelle-10-held-fern', note:'spawnWave() fuer Welle 10: 15 Grunts + 2 Elites; Held weit weg', start:'wave', wave:10, heroX:1000, events:[]});
+  SC.push({id:'elitewelle-10-held-fern', note:'spawnWave() fuer Welle 10: 8 Grunts + Zusatzmonster + 1 Elite; Held weit weg', start:'wave', wave:10, heroX:1000, events:[]});
   SC.push({id:'elitewelle-10-held-nah', note:'Welle 10, Held bei x=2500: Elites und Grunts jagen den Helden', start:'wave', wave:10, heroX:2500, events:[]});
-  SC.push({id:'normale-welle-5', note:'Welle 5 (9 Grunts) zum Vergleich der Bewegung', start:'wave', wave:5, heroX:1000, events:[]});
+  SC.push({id:'normale-welle-5', note:'Welle 5 (6 Grunts + 1 Brocken) zum Vergleich der Bewegung', start:'wave', wave:5, heroX:1000, events:[]});
 
 
   const out = SC.map(run);
@@ -133,7 +134,7 @@
   }));
   const data = {
     _hinweis: 'Automatisch erzeugt von regelwerk/golden-boss.js aus index.html. Nicht von Hand aendern.',
-    version: VERSION, dt: DT, snapshotZeiten: SNAP_T, bossConfig:{bossWave:CFG.bossWave, bossStompR:CFG.bossStompR, bossStompMul:CFG.bossStompMul, bossStompEvery:CFG.bossStompEvery, bossSummonEvery:CFG.bossSummonEvery, bossSpeedMul:CFG.bossSpeedMul, bossIncome:CFG.bossIncome, eliteEvery:CFG.eliteEvery, eliteCount:CFG.eliteCount},
+    version: VERSION, dt: DT, snapshotZeiten: SNAP_T, bossConfig:{bossWaves:CFG.bossWaves, bossGrow:CFG.bossGrow, bossStompR:CFG.bossStompR, bossStompMul:CFG.bossStompMul, bossStompEvery:CFG.bossStompEvery, bossSummonEvery:CFG.bossSummonEvery, bossSpeedMul:CFG.bossSpeedMul, bossIncome:CFG.bossIncome, eliteEvery:CFG.eliteEvery, eliteCount:CFG.eliteCount},
     scenarios: out,
   };
   window.GOLDEN_BOSS = data;

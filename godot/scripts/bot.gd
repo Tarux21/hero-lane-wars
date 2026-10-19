@@ -41,9 +41,14 @@ func _init(game: Node) -> void:
 	cfg = Data.cfg
 
 
-## Gewichte beim Senden: früh viele Grunts/Brocken, später auch Elites
-func send_weights(t: float) -> Dictionary:
-	if t < 480.0:
+## Nach dem Bauplan füllt der Bot freie Rucksack-Plätze mit weiteren fertigen Items seiner Klasse (wie BOT_FILL im Prototyp)
+const FILL := {"damage": ["mightyBlade", "soulDrinker", "stormBreaker", "ruinBlade", "cleaver"], "caster": ["arcaneCrown", "timeStaff", "tormentMask", "soulDrinker", "moonstone"],
+	"tank": ["thornPlate", "titanPlate", "lifeSpring", "bulwark", "giantsMight"]}
+
+
+## Gewichte beim Senden: früh viele Grunts/Brocken, ab Welle botEliteWave auch Elites
+func send_weights(wave: int) -> Dictionary:
+	if wave < int(cfg["botEliteWave"]):
 		return {"grunt": 3, "tank": 3, "archer": 2, "fast": 1, "elite": 0}
 	return {"grunt": 1, "tank": 3, "archer": 2, "fast": 1, "elite": 3}
 
@@ -54,8 +59,12 @@ func setup(p: Dictionary, diff: Dictionary, style: String) -> void:
 	if st == "random" or not Data.raw["bot_style"].has(st):
 		st = styles[randi() % styles.size()]
 	var pool: Array = POOL[p["key"]]
+	var build: Array = pool[randi() % pool.size()].duplicate()
+	for id in (Data.raw["bot_fill"] if Data.raw.has("bot_fill") else FILL)[p["key"]]:   # Messung: --tune kann bot_fill überschreiben
+		if not build.has(id):
+			build.append(id)
 	p["bot_state"] = {"mode": "fight", "step": 0, "trips": 0, "deaths": 0, "was_dead": false, "clock": 0.0, "last_send": 0.0,
-		"diff": diff, "style": st, "build": pool[randi() % pool.size()]}
+		"diff": diff, "style": st, "build": build}
 
 
 func _plan(p: Dictionary) -> Array:
@@ -187,7 +196,8 @@ func send_decision(p: Dictionary) -> void:
 	var t: float = g.t
 	if t < 35.0 or t - b["last_send"] < float(diff["sendEvery"]) * float(st["every"]):
 		return
-	var ph := 0 if t < 240.0 else (1 if t < 600.0 else 2)
+	var wave: int = p["side"]["wave"]
+	var ph := 0 if wave < int(cfg["botPhaseWaves"][0]) else (1 if wave < int(cfg["botPhaseWaves"][1]) else 2)   # Sende-Phase nach Wellennummer
 	var f := minf(0.95, float(diff["strat"][ph]) * float(st["strat"][ph]))
 	var enemy_dead := false
 	for q in g.sides[1 - p["side"]["idx"]]["players"]:
@@ -202,7 +212,7 @@ func send_decision(p: Dictionary) -> void:
 		reserve = next_cost(p) * 0.7 * float(st["reserve"])
 	var budget := maxf(0.0, p["gold"] - reserve) * f
 	for n in 10:
-		var w := send_weights(t)
+		var w := send_weights(wave)
 		var opts: Array = []
 		for k in w.keys():
 			if w[k] > 0 and float(Data.units[k]["cost"]) <= budget:
@@ -247,7 +257,12 @@ func think(p: Dictionary, dt: float) -> void:
 		g.items.drink_potion(p)
 	if g._in_base(p):
 		shop(p)
-		if b["mode"] != "fight" and p["hp"] > 0.9 * mx:
+		var back_hp := 0.9
+		for u in g.units_of(p):
+			if u["x"] < 1500.0:
+				back_hp = 0.6                                                 # Monster nahe der Basis: schon mit 60 % Leben zurück auf die Lane
+				break
+		if b["mode"] != "fight" and p["hp"] > back_hp * mx:
 			b["mode"] = "fight"
 	send_decision(p)
 	var lane_units: Array = []                                            # Ziele: Monster auf der eigenen Lane
@@ -260,7 +275,7 @@ func think(p: Dictionary, dt: float) -> void:
 		var nx := next_cost(p)
 		if p["hp"] < float(diff["retreat"]) * mx:
 			b["mode"] = "retreat"
-		elif nx > 0.0 and not g._in_base(p) and p["bp_cd"] <= 0.0 and near == 0 and (p["gold"] >= float(diff["shopGold"]) * nx or (p["gold"] >= nx and (lane_units.is_empty() or p["hp"] < 0.6 * mx))):
+		elif nx > 0.0 and not g._in_base(p) and p["bp_cd"] <= 0.0 and (near == 0 or p["gold"] >= 2.0 * float(diff["shopGold"]) * nx) and (p["gold"] >= float(diff["shopGold"]) * nx or (p["gold"] >= nx and (lane_units.is_empty() or p["hp"] < 0.6 * mx))):
 			b["mode"] = "shop"
 	if b["mode"] == "retreat" or b["mode"] == "shop":
 		if g._in_base(p):

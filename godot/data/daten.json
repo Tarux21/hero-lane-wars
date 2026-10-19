@@ -14,10 +14,10 @@
   "startGold": 300,
   "baseIncome": 24,
   "incomeTick": 10,
-  "startLives": 20,
-  "comebackDiff": 3,
-  "comebackPerLife": 0.04,
-  "comebackCap": 0.2,
+  "startLives": 30,
+  "comebackDiff": 4,
+  "comebackPerLife": 0.01,
+  "comebackCap": 0.03,
   "bagSize": 6,
   "consMax": 5,
   "sellRatio": 0.7,
@@ -55,14 +55,18 @@
   "thornFlat": 6,
   "thornArmorPct": 0.1,
   "infiniteEnemyLives": false,
-  "waveEvery": 30,
   "firstWave": 1,
-  "earlyWaves": 4,
-  "earlyWaveEvery": 16,
+  "waveEveryStart": 25,
+  "waveEveryEnd": 50,
+  "waveEveryRamp": 50,
+  "maxWaves": 50,
+  "endlessFactor": 0.85,
+  "endlessMin": 8,
+  "endlessGrow": 1.15,
   "rampStart": 2950,
   "rampStep": 250,
   "tankQBase": 25,
-  "tankQcd": 6.5,
+  "tankQcd": 10,
   "tankRRange": 310,
   "tankRHalf": 0.68,
   "poisonTime": 4,
@@ -84,23 +88,31 @@
   ],
   "whirlHealCap": 5,
   "waveBase": 3,
-  "wavePer": 1.2,
+  "wavePer": 0.5,
   "waveMix": [
    [
-    3,
+    2,
     {
-     "tank": 2
+     "fast": 1
     }
    ],
    [
-    6,
+    4,
     {
      "tank": 1,
-     "archer": 2
+     "fast": 1
     }
    ],
    [
-    9,
+    7,
+    {
+     "tank": 1,
+     "archer": 1,
+     "fast": 1
+    }
+   ],
+   [
+    10,
     {
      "tank": 1,
      "archer": 1,
@@ -108,7 +120,15 @@
     }
    ],
    [
-    12,
+    14,
+    {
+     "tank": 2,
+     "archer": 1,
+     "fast": 2
+    }
+   ],
+   [
+    18,
     {
      "tank": 2,
      "archer": 2,
@@ -116,8 +136,8 @@
     }
    ]
   ],
-  "waveMixGrowFrom": 15,
-  "waveMixGrowEvery": 3,
+  "waveMixGrowFrom": 22,
+  "waveMixGrowEvery": 4,
   "waveSpeedMul": 0.85,
   "backportCast": 4.5,
   "backportCd": 75,
@@ -129,12 +149,12 @@
    "staff": 1.6,
    "boots": 1
   },
-  "incMul": 1,
+  "incMul": 0.7,
   "itemMul": 1,
   "power": {
-   "tank": 0.93,
-   "damage": 1.18,
-   "caster": 0.95
+   "tank": 1.25,
+   "damage": 1.3,
+   "caster": 1.1
   },
   "adEff": {
    "tank": 0.8,
@@ -147,10 +167,15 @@
    "caster": 0.7
   },
   "unitDmgScale": 0.5,
-  "hpScalePerMin": 0.35,
+  "hpScalePerMin": 0.1,
   "killGold": 6,
-  "bossWave": 20,
+  "bossWaves": [
+   20,
+   40
+  ],
+  "bossGrow": 1.9,
   "bossIncome": 50,
+  "bossPause": 35,
   "bossStompR": 150,
   "bossStompMul": 1.5,
   "bossStompEvery": [
@@ -169,9 +194,14 @@
    1.3
   ],
   "eliteEvery": 10,
-  "eliteCount": 2,
+  "eliteCount": 1,
+  "botPhaseWaves": [
+   8,
+   22
+  ],
+  "botEliteWave": 15,
   "respawnBase": 5,
-  "respawnPerLevel": 2,
+  "respawnPerLevel": 1,
   "debug": true,
   "elemHp": 700,
   "elemTime": 60,
@@ -251,7 +281,7 @@
   },
   "boss": {
    "name": "Boss",
-   "hp": 1200,
+   "hp": 750,
    "dmg": 28,
    "spd": 45,
    "range": 46,
@@ -260,7 +290,7 @@
    "inc": 0,
    "xp": 400,
    "gold": 300,
-   "lives": 10,
+   "lives": 5,
    "r": 26,
    "col": "#ff4d4d",
    "key": "",
@@ -315,8 +345,8 @@
   "caster": {
    "name": "Caster",
    "desc": "Fernkampf. Feuerfeld, Frostnova, Kettenblitz, Meteoritenregen.",
-   "hp": 260,
-   "hpl": 32,
+   "hp": 320,
+   "hpl": 45,
    "dmg": 12,
    "dpl": 1.8,
    "armor": 1,
@@ -331,17 +361,17 @@
   "easy": {
    "name": "Leicht",
    "react": [
-    0.7,
-    1.1
+    0.9,
+    1.4
    ],
-   "miss": 0.35,
+   "miss": 0.55,
    "strat": [
     0.25,
     0.2,
     0.22
    ],
-   "heroMul": 0.75,
-   "goldMul": 0.85,
+   "heroMul": 0.5,
+   "goldMul": 0.75,
    "sendEvery": 9,
    "retreat": 0.45,
    "shopGold": 3
@@ -377,7 +407,7 @@
     0.65
    ],
    "heroMul": 1.3,
-   "goldMul": 1.3,
+   "goldMul": 1.8,
    "sendEvery": 3,
    "retreat": 0.28,
    "shopGold": 1.3
@@ -395,7 +425,7 @@
     0.7
    ],
    "heroMul": 1.5,
-   "goldMul": 1.5,
+   "goldMul": 2.5,
    "sendEvery": 2.5,
    "retreat": 0.25,
    "shopGold": 1.2
@@ -415,12 +445,12 @@
   "rush": {
    "name": "Aggressiv",
    "strat": [
-    1.25,
+    1.1,
     1.05,
     0.95
    ],
    "every": 0.85,
-   "reserve": 0.3
+   "reserve": 0.6
   },
   "eco": {
    "name": "Wirtschaft",
@@ -1084,7 +1114,7 @@
   "tank": [
    {
     "name": "Schockwelle",
-    "cd": 6.5,
+    "cd": 10,
     "max": 5,
     "info": [
      "Kegel nach vorne: Schaden + Betäubung",
@@ -1104,7 +1134,7 @@
    },
    {
     "name": "Schildwurf",
-    "cd": 10,
+    "cd": 14,
     "max": 5,
     "info": [
      "Schild prallt von Gegner zu Gegner (3 Ziele) und heilt dich 10%, wenn er zurückkehrt",

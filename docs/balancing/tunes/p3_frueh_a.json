@@ -1,0 +1,2 @@
+{"cfg": {"comebackDiff": 4, "comebackPerLife": 0.01, "comebackCap": 0.03,
+ "waveMix": [[2, {"fast": 1}], [4, {"tank": 1, "fast": 1}], [7, {"tank": 1, "archer": 1, "fast": 1}], [10, {"tank": 1, "archer": 1, "fast": 2}], [14, {"tank": 2, "archer": 1, "fast": 2}], [18, {"tank": 2, "archer": 2, "fast": 2}]]}}

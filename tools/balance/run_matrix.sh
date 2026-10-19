@@ -21,9 +21,10 @@ done; done; done
   h=${CL[$((s % 3))]}; e=$h                      # gleiche Klasse auf beiden Seiten: nur der Stil soll entscheiden
   echo "stile_${a}_${b}_$s --hero=$h --enemy=$e --diff=normal --style=$a --estyle=$b --seed=$((100 + s))" >> "$JOBS"
 done; done; done
-[[ " $BLOCKS " == *" stufen "* ]] && for pair in "hard normal" "normal easy" "expert hard" "easy easy" "hard hard"; do set -- $pair; for s in $(seq 1 $((REP * 2))); do
-  h=${CL[$((s % 3))]}; e=${CL[$(((s / 3) % 3))]}
-  echo "stufen_${1}_${2}_$s --hero=$h --enemy=$e --diff=$1 --ediff=$2 --style=random --estyle=random --seed=$((200 + s))" >> "$JOBS"
+[[ " $BLOCKS " == *" stufen "* ]] && for pair in "hard normal" "normal easy" "expert hard" "easy easy" "hard hard"; do set -- $pair; for s in $(seq 1 "$REP"); do
+  h=${CL[$((s % 3))]}; e=${CL[$(((s / 3) % 3))]}          # jede Klassen-Paarung auf beiden Seiten (a und b), damit die Seitenverteilung nichts verfälscht
+  echo "stufen_${1}_${2}_${s}a --hero=$h --enemy=$e --diff=$1 --ediff=$2 --style=random --estyle=random --seed=$((200 + s))" >> "$JOBS"
+  echo "stufen_${1}_${2}_${s}b --hero=$e --enemy=$h --diff=$1 --ediff=$2 --style=random --estyle=random --seed=$((200 + s))" >> "$JOBS"
 done; done
 echo "Partien: $(wc -l < "$JOBS")"
 run_one() {

@@ -1406,6 +1406,12 @@ func _hp_mult() -> float:
 	return 1.0 + (t / 60.0) * float(cfg["hpScalePerMin"])
 
 
+## Endlos-Phase: jede Welle nach maxWaves macht die Monster der Seite stärker (wie endlessMul im Prototyp)
+func _endless_mul(side_idx: int) -> float:
+	var w: int = sides[side_idx]["wave"] if side_idx < sides.size() else 0
+	return pow(float(cfg["endlessGrow"]), w - int(cfg["maxWaves"])) if w > int(cfg["maxWaves"]) else 1.0
+
+
 ## Heilfeld: nur hinter dem Kristall (x < healX), dort heilt der Held 12 % Leben pro Sekunde
 func _in_heal(p: Dictionary = {}) -> bool:
 	var q: Dictionary = p if not p.is_empty() else hero
@@ -1866,7 +1872,7 @@ func _play_anim(fig: Dictionary, name: String) -> void:
 
 func _spawn_unit(type: String, off_x: float, spd_mul: float, lane: int = 0, side_idx: int = 0, from_side: int = -1) -> void:
 	var u: Dictionary = Data.units[type]
-	var m := _hp_mult()
+	var m := _hp_mult() * _endless_mul(side_idx)
 	var node: Node3D = null
 	var bar: Dictionary = {}
 	if not test_mode:
@@ -1948,7 +1954,6 @@ func _spawn_wave(side: Dictionary) -> void:
 	for pl in side["players"]:                # Boss besiegt: dauerhaft Gold pro Welle (wie im Prototyp beim Spawn)
 		if pl["boss_income"] > 0.0:
 			pl["gold"] += pl["boss_income"]
-	var boss_due_done: bool = side["boss_spawned"]      # Merker vor der Schleife: alle Lanes bekommen ihren Boss
 	for lane in lanes_per_team:          # jede Lane des Teams bekommt die Welle (gleich groß, egal wie viele Spieler)
 		for i in count:
 			_spawn_unit("grunt", base_off + i * 4.0, float(cfg["waveSpeedMul"]), lane, si)
@@ -1958,15 +1963,13 @@ func _spawn_wave(side: Dictionary) -> void:
 		if n % int(cfg["eliteEvery"]) == 0:
 			for k in int(cfg["eliteCount"]):
 				_spawn_unit("elite", base_off + count * 4.0 + 30.0 + k * 40.0, float(cfg["waveSpeedMul"]), lane, si)
-		if _is_boss_wave(n) and (not boss_due_done or cfg.has("bossWaves")):   # ein Boss je Lane (Standard: einmalig; mit bossWaves mehrere, jeder stärker)
+		if _is_boss_wave(n):                                              # ein Boss je Lane; jeder weitere Boss ist bossGrow-mal stärker (wie im Prototyp)
 			_spawn_unit("boss", base_off + count * 4.0 + 160.0, float(cfg["waveSpeedMul"]), lane, si)
-			if cfg.has("bossWaves"):
-				var bi: int = (cfg["bossWaves"] as Array).find(float(n)) if (cfg["bossWaves"] as Array).has(float(n)) else (cfg["bossWaves"] as Array).find(n)
-				var bg: float = pow(float(cfg.get("bossGrow", 1.0)), maxi(0, bi))
-				var bu: Dictionary = side["units"][side["units"].size() - 1]
-				bu["hp"] *= bg
-				bu["max"] *= bg
-				bu["dmg"] *= bg
+			var bg: float = pow(float(cfg["bossGrow"]), _boss_index(n))
+			var bu: Dictionary = side["units"][side["units"].size() - 1]
+			bu["hp"] *= bg
+			bu["max"] *= bg
+			bu["dmg"] *= bg
 		var pool: Array = side["pool"]
 		for j in pool.size():                                              # Pool: alle gesendeten Monster laufen gesammelt mit der Welle los
 			_spawn_unit(str(pool[j]["type"]), base_off + count * 4.0 + 60.0 + j * 6.0, 1.0 if str(pool[j]["type"]) == "fast" else float(cfg["waveSpeedMul"]), lane, si, int(pool[j]["from"]))   # Wellentempo, Läufer bleibt schneller
@@ -1977,6 +1980,8 @@ func _spawn_wave(side: Dictionary) -> void:
 		var wk := _wave_kind_after(n, side)
 		_flash_msg(("BOSSWELLE %d" if wk == "boss" else ("ELITE-WELLE %d" if wk == "elite" else "Welle %d")) % n, Color("#ff7a7a") if wk == "boss" else (Color("#d9b3ff") if wk == "elite" else Color("#ffd166")))
 		sfx("boss" if _is_boss_wave(n) else "wave")
+		if n == int(cfg["maxWaves"]):
+			ui_alert("ENDLOS-PHASE! Ab jetzt kommen die Wellen immer schneller", "danger", 7.0)
 
 
 func _flash_msg(text: String, col: Color = Color.WHITE) -> void:
@@ -2271,7 +2276,7 @@ func _ui_tick(dt: float) -> void:
 
 
 func _wave_kind(side: Dictionary, n: int) -> String:
-	if _is_boss_wave(n) and (not side["boss_spawned"] or cfg.has("bossWaves")):
+	if _is_boss_wave(n):
 		return "boss"
 	return "elite" if n % int(cfg["eliteEvery"]) == 0 else "normal"
 
@@ -3138,7 +3143,7 @@ func _sync_visuals(delta: float) -> void:
 	ring.scale = Vector3(0.4 + 0.6 * prog, 1.0, 0.4 + 0.6 * prog)
 	var min_t := int(t) / 60
 	hud.text = "Team-Leben  %d   (Gegner %d)\nEinkommen  +%.0f alle %d s" % [team_lives[0], team_lives[1], hero["income"], int(cfg["incomeTick"])]
-	hud_mid.text = "Welle %d\nZeit %d:%02d" % [sides[0]["wave"], min_t, int(t) % 60]
+	hud_mid.text = ("Welle %d · ENDLOS\nZeit %d:%02d" if sides[0]["wave"] >= int(cfg["maxWaves"]) else "Welle %d\nZeit %d:%02d") % [sides[0]["wave"], min_t, int(t) % 60]
 	fps_ema = lerpf(fps_ema, 1.0 / maxf(delta, 0.0001), 0.05)
 	hud_right.text = "Kills  %d" % kills + ("\nHeld tot: %d s" % int(ceil(hero["dead"])) if hero["dead"] > 0.0 else "") + ("\nFPS %d" % int(round(fps_ema)) if Data.user.show_fps else "")
 	if mini != null:
@@ -3427,11 +3432,11 @@ func reset_test(inp: Dictionary, heldpos: Array, layouts: Dictionary) -> void:
 
 # ---------------------------------------------------------------- Selbsttest Shop (--selftest-items)
 func _selftest_items() -> void:
-	var ok := true
+	var res := {"ok": true}                      # Dictionary: ein Lambda kann lokale Variablen nicht ändern, nur Inhalte
 	var check := func(name: String, cond: bool) -> void:
 		print(("PASS  " if cond else "FAIL  ") + name)
 		if not cond:
-			ok = false
+			res["ok"] = false
 	var p := hero
 	p["gold"] = 10000.0
 	p["x"] = 1000.0
@@ -3496,17 +3501,17 @@ func _selftest_items() -> void:
 	p["x"] = 1000.0
 	_start_backport(hero)
 	check.call("Hut des Reisenden: Backport 2,7 s statt 4,5 s", absf(p["bp"] - 2.7) < 1e-9)
-	print("SELFTEST-ITEMS " + ("OK" if ok else "FEHLER"))
+	print("SELFTEST-ITEMS " + ("OK" if res["ok"] else "FEHLER"))
 	get_tree().quit()
 
 
 # ---------------------------------------------------------------- Selbsttest (--selftest, nur 4v4)
 func _selftest() -> void:
-	var ok := true
+	var res := {"ok": true}                      # Dictionary: ein Lambda kann lokale Variablen nicht ändern, nur Inhalte
 	var check := func(name: String, cond: bool) -> void:
 		print(("PASS  " if cond else "FAIL  ") + name)
 		if not cond:
-			ok = false
+			res["ok"] = false
 	var run := func(secs: float) -> void:
 		for i in int(secs / 0.05):
 			for s in sides:
@@ -3675,24 +3680,30 @@ func _selftest() -> void:
 			tank_ok = absf(float(u["spd"]) - float(Data.units["tank"]["spd"]) * float(cfg["waveSpeedMul"]) * float(cfg["speedMul"])) < 0.001
 	check.call("Gesendete Monster laufen im Wellentempo", tank_ok)
 	# 8b. Gemischte Wellen wie im Prototyp (waveMix)
-	check.call("Welle 2 nur Grunts", wave_mix(2).is_empty())
-	check.call("Welle 3: 2 Brocken", wave_mix(3) == ["tank", "tank"])
-	check.call("Welle 6: 1 Brocken, 2 Schützen", wave_mix(6) == ["tank", "archer", "archer"])
-	check.call("Welle 9: 1 Brocken, 1 Schütze, 2 Läufer", wave_mix(9) == ["tank", "archer", "fast", "fast"])
-	check.call("Welle 15: je 3", wave_mix(15).count("tank") == 3 and wave_mix(15).count("archer") == 3 and wave_mix(15).count("fast") == 3)
+	check.call("Welle 1 nur Grunts", wave_mix(1).is_empty())
+	check.call("Welle 2: 1 Läufer", wave_mix(2) == ["fast"])
+	check.call("Welle 4: 1 Brocken, 1 Läufer", wave_mix(4) == ["tank", "fast"])
+	check.call("Welle 7: je 1", wave_mix(7) == ["tank", "archer", "fast"])
+	check.call("Welle 10: 1 Brocken, 1 Schütze, 2 Läufer", wave_mix(10) == ["tank", "archer", "fast", "fast"])
+	check.call("Welle 22: je 3", wave_mix(22).count("tank") == 3 and wave_mix(22).count("archer") == 3 and wave_mix(22).count("fast") == 3)
+	# 8c. Wellentakt, Bosswellen, Endlos-Phase (wie waveInterval / isBossWave im Prototyp)
+	check.call("Abstand nach Welle 1: 25 s", is_equal_approx(_wave_interval(1), 25.0))
+	check.call("Abstand nach Welle 20: Rampe + Boss-Pause", is_equal_approx(_wave_interval(20), 25.0 + 25.0 * 19.0 / 50.0 + 35.0))
+	check.call("Bosswellen 20 und 40", _is_boss_wave(20) and _is_boss_wave(40) and not _is_boss_wave(30) and _boss_index(40) == 1)
+	check.call("Endlos-Phase: Abstand nach Welle 50 kürzer", _wave_interval(50) < _wave_interval(49) and _wave_interval(70) >= 8.0)
 	var ws: Dictionary = sides[1]
 	ws["units"].clear()
 	ws["pool"] = []
 	ws["wave"] = 5
 	_spawn_wave(ws)
 	var tanks := 0
-	var archers := 0
+	var fasts := 0
 	for u in ws["units"]:
 		if u["type"] == "tank":
 			tanks += 1
-		elif u["type"] == "archer":
-			archers += 1
-	check.call("Welle 6 im Spiel: Brocken %d, Schützen %d (je Lane 1 und 2)" % [tanks, archers], tanks == lanes_per_team and archers == 2 * lanes_per_team)
+		elif u["type"] == "fast":
+			fasts += 1
+	check.call("Welle 6 im Spiel: Brocken %d, Läufer %d (je Lane 1 und 1)" % [tanks, fasts], tanks == lanes_per_team and fasts == lanes_per_team)
 	# 9. Held kommt nicht hinter den Spawn
 	hero["dead"] = 0.0
 	hero["x"] = float(cfg["laneLen"])
@@ -3700,7 +3711,7 @@ func _selftest() -> void:
 	hero["target"] = null
 	_step_hero(hero, 0.05)
 	check.call("Held bleibt vor dem Spawn (x %.0f, Grenze %.0f)" % [hero["x"], float(cfg["maxX"])], float(hero["x"]) <= float(cfg["maxX"]))
-	print("SELFTEST " + ("OK" if ok else "FEHLER"))
+	print("SELFTEST " + ("OK" if res["ok"] else "FEHLER"))
 	get_tree().quit()
 
 
@@ -3917,28 +3928,29 @@ func _run_simulation(secs: float, shot_path: String) -> void:
 	get_tree().quit()
 
 
-## Bosswelle? Standard: nur bossWave (einmalig). Mit cfg.bossWaves (Liste) mehrere Bosswellen (Balancing-Messung).
+## Bosswelle? (cfg.bossWaves, wie isBossWave im Prototyp)
 func _is_boss_wave(n: int) -> bool:
-	if cfg.has("bossWaves"):
-		for w in cfg["bossWaves"]:
-			if int(w) == n:
-				return true
-		return false
-	return n == int(cfg["bossWave"])
+	return _boss_index(n) >= 0
 
 
-## Zeit bis zur nächsten Welle nach Welle n. Standard wie im Prototyp (earlyWaves/earlyWaveEvery, dann waveEvery).
-## Optional (Balancing-Messung): waveEveryStart -> waveEveryEnd über waveEveryRamp Wellen, bossPause nach Bosswellen,
-## maxWaves mit Endlos-Phase (danach jede Welle um endlessFactor schneller, höchstens bis endlessMin).
+## Der wievielte Boss kommt in Welle n (0 = erster), -1 = keine Bosswelle
+func _boss_index(n: int) -> int:
+	var bw: Array = cfg["bossWaves"]
+	for i in bw.size():
+		if int(bw[i]) == n:
+			return i
+	return -1
+
+
+## Zeit bis zur nächsten Welle nach Welle n (wie waveInterval im Prototyp): wächst von waveEveryStart auf waveEveryEnd
+## über waveEveryRamp Wellen, bossPause nach Bosswellen, ab maxWaves Endlos-Phase (jeder Abstand × endlessFactor, mindestens endlessMin).
 func _wave_interval(n: int) -> float:
-	var iv: float = float(cfg["earlyWaveEvery"]) if n <= int(cfg["earlyWaves"]) else float(cfg["waveEvery"])
-	if cfg.has("waveEveryStart"):
-		var k: float = clampf(float(n - 1) / maxf(1.0, float(cfg.get("waveEveryRamp", 30))), 0.0, 1.0)
-		iv = lerpf(float(cfg["waveEveryStart"]), float(cfg.get("waveEveryEnd", cfg["waveEveryStart"])), k)
-	if int(cfg.get("maxWaves", 0)) > 0 and n >= int(cfg["maxWaves"]):
-		iv = maxf(float(cfg.get("endlessMin", 8.0)), iv * pow(float(cfg.get("endlessFactor", 0.9)), n - int(cfg["maxWaves"]) + 1))
+	var k: float = clampf(float(n - 1) / maxf(1.0, float(cfg["waveEveryRamp"])), 0.0, 1.0)
+	var iv: float = float(cfg["waveEveryStart"]) + (float(cfg["waveEveryEnd"]) - float(cfg["waveEveryStart"])) * k
+	if n >= int(cfg["maxWaves"]):
+		iv = maxf(float(cfg["endlessMin"]), iv * pow(float(cfg["endlessFactor"]), n - int(cfg["maxWaves"]) + 1))
 	elif _is_boss_wave(n):
-		iv += float(cfg.get("bossPause", 0.0))
+		iv += float(cfg["bossPause"])
 	return iv
 
 

@@ -121,7 +121,7 @@
       <li>Dein Held hält die Monsterwellen auf deiner Lane auf (Rechtsklick = laufen/angreifen, Q W E R = Skills).</li>
       <li>Besiegte Monster geben Gold und XP. Kaufe Items im Shop – in der Basis, links.</li>
       <li>Schicke Monster zum Gegner (Z X C V): das kostet Gold, erhöht aber dein Einkommen.</li>
-      <li>Wer zuerst alle Leben verliert, verliert. Alle 10 Wellen kommen Elite-Monster, auf Welle 20 ein Boss.</li>
+      <li>Wer zuerst alle Leben verliert, verliert. Alle 10 Wellen kommen Elite-Monster, in Welle 20 und 40 ein Boss. Ab Welle 50 beginnt die Endlos-Phase: Die Wellen kommen immer schneller und werden stärker.</li>
     </ol></div>
   <div class="row" style="margin-bottom:12px;align-items:center">
     <label>Schwierigkeit&nbsp;<select id="diffSel"><option value="easy">Leicht</option><option value="normal" selected>Normal</option><option value="hard">Schwer</option><option value="expert">Experte</option></select></label>
@@ -180,8 +180,8 @@ const CFG = {
   healX: -40, minX: -230,       // Heilfeld: nur hinter dem Kristall (x < healX), der Platz reicht bis minX (Basis vorn: Shop und Backport bleiben bei x < baseX)
   speedMul: 1.0,              // Lauftempo aller Monster (zum Anpassen an die Lanelänge)
   startGold: 300, baseIncome: 24, incomeTick: 10,   // Wirtschaft x3 (wegen der teureren Items)
-  startLives: 20,
-  comebackDiff: 3, comebackPerLife: 0.04, comebackCap: 0.20,   // Aufholhilfe: ab 3 Leben Rückstand +4 % Einkommen je weiterem Leben (max. +20 %)
+  startLives: 30,
+  comebackDiff: 4, comebackPerLife: 0.01, comebackCap: 0.03,   // Aufholhilfe: ab 4 Leben Rückstand +1 % Einkommen je weiterem Leben (max. +3 %)
   bagSize: 6, consMax: 5, sellRatio: 0.7,           // Rucksack-Plätze / max. Verbrauchsgegenstände je Sorte / Verkaufserlös
   potionHeal: 0.40, potionCd: 15,                   // Heiltrank
   critDmgBase: 2.0, critDmgBonus: 0.25,             // Kritischer Schaden: Grundfaktor / Bonus der Mächtigen Klinge
@@ -201,10 +201,12 @@ const CFG = {
   lifeflowDelay: 5, lifeflowPct: 0.08,              // Lebensquell-Harnisch: Sekunden ohne Schaden / Regeneration in % pro Sek.
   thornFlat: 6, thornArmorPct: 0.10,                // Dornen-Items: fester Schaden + Anteil der zusätzlichen Rüstung
   infiniteEnemyLives: false,  // Testmodus: Gegner kann nicht verlieren (auch im Testfenster umschaltbar)
-  waveEvery: 30, firstWave: 1,
-  earlyWaves: 4, earlyWaveEvery: 16,        // die ersten Wellen kommen enger hintereinander
+  firstWave: 1,
+  waveEveryStart: 25, waveEveryEnd: 50, waveEveryRamp: 50,   // Wellenabstand: 25 s nach Welle 1, wächst gleichmäßig auf 50 s bis Welle 50
+  maxWaves: 50, endlessFactor: 0.85, endlessMin: 8,          // Endlos-Phase nach Welle 50: jeder Abstand ×0,85 kürzer, mindestens 8 s
+  endlessGrow: 1.15,                                         // Endlos-Phase: Monster jeder weiteren Welle ×1,15 Leben (Schaden wächst wie mit der Zeit mit)
   rampStart: 2950, rampStep: 250,           // jede Welle startet am Lane-Ende (spawnX); früher rückten die Wellen von x=850 aus Welle für Welle nach hinten
-  tankQBase: 25, tankQcd: 6.5,   // Tank Schockwelle: Grundschaden / Abklingzeit
+  tankQBase: 25, tankQcd: 10,   // Tank Schockwelle: Grundschaden / Abklingzeit
   tankRRange: 310, tankRHalf: .68,   // Tank Titanenstoß: Kegel nach vorn (Reichweite / Halbwinkel in rad)
   poisonTime: 4, poisonBase: 5, poisonPer: 3, poisonK: .15,   // Schurke: Giftklingen (W ab Rang 3) und Gift-Schaden pro Sekunde: Dauer / Grundwert / je Rang / Anteil Angriffsschaden
   leapSlow: 2.5,                                                   // Schurke Sprung Rang 5: Verlangsamung der Gegner im Umkreis (Sek.)
@@ -214,26 +216,28 @@ const CFG = {
   xpBase: 30, xpPer: 30,      // XP bis zum nächsten Level = xpBase + xpPer × Level
   whirlHeal: [0,.004,.006,.008,.010], // Wirbel-Heilung je Rang (Anteil des max. Lebens pro getroffenem Gegner)
   whirlHealCap: 5,          // Damage-Wirbel: Heilung zählt höchstens so viele getroffene Gegner
-  waveBase: 3, wavePer: 1.2,    // Wellengröße = waveBase + wavePer × Wellennummer
+  waveBase: 3, wavePer: 0.5,    // Wellengröße = waveBase + wavePer × Wellennummer
   // Gemischte Wellen: ab Welle w kommen zusätzlich zu den Grunts diese Monster mit (gilt für beide Teams gleich).
   // Ab waveMixGrowFrom kommt alle waveMixGrowEvery Wellen von jeder Sorte (Brocken, Schütze, Läufer) eins dazu.
-  waveMix: [[3, {tank:2}], [6, {tank:1, archer:2}], [9, {tank:1, archer:1, fast:2}], [12, {tank:2, archer:2, fast:2}]],
-  waveMixGrowFrom: 15, waveMixGrowEvery: 3,
+  waveMix: [[2, {fast:1}], [4, {tank:1, fast:1}], [7, {tank:1, archer:1, fast:1}], [10, {tank:1, archer:1, fast:2}], [14, {tank:2, archer:1, fast:2}], [18, {tank:2, archer:2, fast:2}]],
+  waveMixGrowFrom: 22, waveMixGrowEvery: 4,
   waveSpeedMul: 0.85,          // Wellenmonster laufen langsamer als gesendete
   backportCast: 4.5,         // Sekunden Cast-Zeit
   backportCd: 75,
   itemPower: {sword:.8, armor:1.3, heart:1.2, gloves:1.1, staff:1.6, boots:1},   // Stärke je Item (Balance-Regler; Beschreibungen im Shop passend halten)
-  incMul: 1, itemMul: 1,   // Balance-Regler: Einkommen pro gesendetem Monster / Stärke aller Items
-  power: {tank:0.93, damage:1.18, caster:0.95},
+  incMul: 0.7, itemMul: 1,   // Balance-Regler: Einkommen pro gesendetem Monster / Stärke aller Items
+  power: {tank:1.25, damage:1.3, caster:1.1},
   adEff: {tank:0.8, damage:1, caster:1},
   earlyBoost: {tank:0, damage:0, caster:0.7},   // Balance-Regler: Skillschaden-Bonus in der Frühphase je Klasse (Level 1 voll, Level 15 null)   // Wirkung von Angriffsschaden-Items je Klasse (Balance-Regler)   // Skillschaden-Faktor je Held (nur zum Balancen)
   unitDmgScale: 0.5,         // wie stark der Schaden der Monster mit der Zeit mitwächst (relativ zu ihrem Leben)
-  hpScalePerMin: 0.35,   // Monster werden mit der Zeit stärker
+  hpScalePerMin: 0.10,   // Monster werden mit der Zeit stärker
   killGold: 6,                // Gold pro besiegtem normalem Gegner (Elite: eigener Wert in UNITS.gold)
-  bossWave: 20, bossIncome: 50,     // Bosswelle: einmalig mit der normalen Welle; Killer bekommt dauerhaft +50 Gold pro Welle
+  bossWaves: [20, 40], bossGrow: 1.9, bossIncome: 50,   // Bosswellen: Boss kommt mit der normalen Welle, jeder weitere ×1,9 stärker; Killer bekommt je Boss dauerhaft +50 Gold pro Welle
+  bossPause: 35,                    // nach einer Bosswelle kommt die nächste Welle 35 s später
   bossStompR: 150, bossStompMul: 1.5, bossStompEvery: [6,5,4], bossSummonEvery: [20,14,10], bossSpeedMul: [0.8,1.0,1.3],   // Boss-Phasen (bei 100/66/33 % Leben)
-  eliteEvery: 10, eliteCount: 2,   // Elite-Welle: alle 10 Wellen kommen zusätzlich 2 Elite-Gegner mit der normalen Welle
-  respawnBase: 5, respawnPerLevel: 2,
+  eliteEvery: 10, eliteCount: 1,   // Elite-Welle: alle 10 Wellen kommt zusätzlich 1 Elite-Gegner mit der normalen Welle
+  botPhaseWaves: [8, 22], botEliteWave: 15,   // Gegner-Bot: Sende-Phase früh/Mitte/spät wechselt ab diesen Wellen; Elites sendet er ab Welle 15
+  respawnBase: 5, respawnPerLevel: 1,
   debug: true,               // Testmodus: Gegner-Leben unendlich + Testfenster (F2)
   elemHp: 700, elemTime: 60, elemRange: 320,   // Caster-Elementar: Leben, Dauer (Sek.), Reichweite der Fähigkeit
   shieldHeal: 0.10,          // Tank-Schildwurf: Heilung bei Rückkehr (Anteil des max. Llebens)
@@ -247,13 +251,13 @@ const UNITS = {
   tank:   {name:'Brocken', hp:220, dmg:8,  spd:50,  range:28,  armor:6,  cost:225, inc:4.7, xp:20, lives:1, r:13, col:'#8a6d3b', key:'X'},
   archer: {name:'Schütze', hp:45,  dmg:10, spd:65,  range:130, armor:0,  cost:180, inc:3.8, xp:14, lives:1, r:8,  col:'#6fbf73', key:'C'},
   fast:   {name:'Läufer',  hp:35,  dmg:5,  spd:135, range:24,  armor:0,  cost:150, inc:2.8, xp:12, lives:1, r:7,  col:'#e0c341', key:'V'},
-  boss:   {name:'Boss',    hp:1200,dmg:28, spd:45,  range:46,  armor:20, cost:0,   inc:0,   xp:400,gold:300, lives:10, r:26, col:'#ff4d4d', key:'', noSend:true},
+  boss:   {name:'Boss',    hp:750, dmg:28, spd:45,  range:46,  armor:20, cost:0,   inc:0,   xp:400,gold:300, lives:5,  r:26, col:'#ff4d4d', key:'', noSend:true},
   elite:  {name:'Elite',   hp:600, dmg:25, spd:55,  range:30,  armor:15, cost:720, inc:15,  xp:60, gold:40, lives:3, r:16, col:'#b04ad1', key:'N'},
 };
 const HEROES = {
   tank:   {name:'Tank',   desc:'Viel Leben & Rüstung. Schockwelle, Eiserne Haut (Dornen), Schildwurf, Titanenstoß.', hp:416, hpl:60, dmg:22, dpl:3.5, armor:6.4, armorl:0.96, as:1.0, range:38, spd:175, col:'#4a90e2'},
   damage: {name:'Damage', desc:'Hoher Nahkampfschaden. Wirbel (heilt), Giftklingen, Sprung, Dolchhagel.', hp:488, hpl:65, dmg:26, dpl:4.5, armor:5, armorl:1.0, as:1.1, range:38, spd:195, col:'#e2584a'},
-  caster: {name:'Caster', desc:'Fernkampf. Feuerfeld, Frostnova, Kettenblitz, Meteoritenregen.', hp:260, hpl:32, dmg:12, dpl:1.8, armor:1, armorl:0.4, as:0.9, range:230, spd:180, col:'#b06cf0'},
+  caster: {name:'Caster', desc:'Fernkampf. Feuerfeld, Frostnova, Kettenblitz, Meteoritenregen.', hp:320, hpl:45, dmg:12, dpl:1.8, armor:1, armorl:0.4, as:0.9, range:230, spd:180, col:'#b06cf0'},
 };
 // ====== ITEMS (Rucksack-System wie in League of Legends) ======
 // group: 'basis' (alte Items, vorerst einfache Füller), 'teil' (Baustein), 'fertig' (aus Teilen kombiniert), 'verbrauch' (eigene Slots, max. CFG.consMax)
@@ -376,10 +380,10 @@ let P = null, E = null, viewEnemy = false;   // P = du (Spieler), E = Gegner-Bot
 
 // Gegner-Schwierigkeit: Reaktionszeit, Fehlerquote, Sende-Anteil (früh/Mitte/spät), Heldenkraft, Goldbonus
 const DIFF = {
-  easy:   {name:'Leicht', react:[.7,1.1],  miss:.35, strat:[.25,.20,.22], heroMul:.75, goldMul:.85, sendEvery:9, retreat:.45, shopGold:3},
+  easy:   {name:'Leicht', react:[.9,1.4],  miss:.55, strat:[.25,.20,.22], heroMul:.5,  goldMul:.75, sendEvery:9, retreat:.45, shopGold:3},
   normal: {name:'Normal', react:[.2,.35],  miss:.05, strat:[.60,.55,.60], heroMul:1.12,goldMul:1.12,sendEvery:4, retreat:.30, shopGold:1.5},
-  hard:   {name:'Schwer', react:[.14,.24], miss:.02, strat:[.65,.60,.65], heroMul:1.30,goldMul:1.30,sendEvery:3, retreat:.28, shopGold:1.3},
-  expert: {name:'Experte',react:[.10,.18], miss:0,   strat:[.70,.65,.70], heroMul:1.50,goldMul:1.50,sendEvery:2.5,retreat:.25, shopGold:1.2},
+  hard:   {name:'Schwer', react:[.14,.24], miss:.02, strat:[.65,.60,.65], heroMul:1.30,goldMul:1.8, sendEvery:3, retreat:.28, shopGold:1.3},
+  expert: {name:'Experte',react:[.10,.18], miss:0,   strat:[.70,.65,.70], heroMul:1.50,goldMul:2.5, sendEvery:2.5,retreat:.25, shopGold:1.2},
 };
 
 function makeState(heroKey){
@@ -431,23 +435,33 @@ const inHeal = ()=>H.x < CFG.healX && !H.dead;   // Heilung (12 % Leben pro Seku
 const reduce = (dmg,armor)=>dmg*(1-armor/(armor+CFG.armorK));   // Rüstung: Schadensverringerung = Rüstung/(Rüstung+armorK)
 const xpNeed = l=>CFG.xpBase + CFG.xpPer*l;
 const hpMult = ()=>1 + (G.t/60)*CFG.hpScalePerMin;
+const endlessMul = ()=>G.wave > CFG.maxWaves ? Math.pow(CFG.endlessGrow, G.wave - CFG.maxWaves) : 1;   // Endlos-Phase: jede Welle nach maxWaves stärker
 const clampY = y=>Math.max(-CFG.laneHalf+10, Math.min(CFG.laneHalf-10, y));
 
 // ====== EINHEITEN ======
 function spawn(type, lane, offX=0, spdMul=1){   // lane 0 = deine Lane (Gegner laufen auf deine Basis), 1 = Gegnerlane
-  const u = UNITS[type], m = hpMult();
+  const u = UNITS[type], m = hpMult() * endlessMul();
   G.units.push({type, lane, x:CFG.spawnX + offX + Math.random()*30, y:(Math.random()*2-1)*(CFG.laneHalf-16),
     hp:u.hp*m, max:u.hp*m, dmg:u.dmg*(1+CFG.unitDmgScale*(m-1)), spd:u.spd*spdMul*CFG.speedMul, range:u.range, armor:u.armor, r:u.r,
     atkT:0, stun:0, slow:0, ...(type==='boss' ? {boss:true, phase:1, base:u.spd*spdMul*CFG.speedMul, stompT:5, summonT:12} : {})});
 }
 // Wellenarten und Vorschau auf die nächste Welle
-const waveKind = n => (n === CFG.bossWave && !G.bossSpawned) ? 'boss' : n % CFG.eliteEvery === 0 ? 'elite' : 'normal';
+const isBossWave = n => CFG.bossWaves.includes(n);
+const waveKind = n => isBossWave(n) ? 'boss' : n % CFG.eliteEvery === 0 ? 'elite' : 'normal';
+// Abstand bis zur nächsten Welle nach Welle n: wächst von waveEveryStart auf waveEveryEnd, Pause nach Bosswellen, ab maxWaves Endlos-Phase (immer kürzer)
+function waveInterval(n){
+  let iv = CFG.waveEveryStart + (CFG.waveEveryEnd - CFG.waveEveryStart) * Math.min(1, Math.max(0, (n-1) / Math.max(1, CFG.waveEveryRamp)));
+  if(n >= CFG.maxWaves) iv = Math.max(CFG.endlessMin, iv * Math.pow(CFG.endlessFactor, n - CFG.maxWaves + 1));
+  else if(isBossWave(n)) iv += CFG.bossPause;
+  return iv;
+}
 const WAVE_NAME = {normal:'Normale Welle', elite:'ELITE-WELLE', boss:'BOSSWELLE'};
 const WAVE_COL = {normal:'#9aa3b5', elite:'#d9b3ff', boss:'#ff7a7a'};
 function waveInfoHtml(){
   const nxt = G.wave+1, k = waveKind(nxt);
   const nextElite = (Math.floor(G.wave/CFG.eliteEvery)+1)*CFG.eliteEvery;
-  const boss = (!G.bossSpawned && CFG.bossWave > G.wave) ? ` · Boss: Welle ${CFG.bossWave}` : '';
+  const nb = CFG.bossWaves.find(w=>w > G.wave), boss = nb ? ` · Boss: Welle ${nb}` : '';
+  if(G.wave >= CFG.maxWaves) return `Welle ${G.wave} · <b style="color:#ff7a7a">ENDLOS-PHASE</b> · nächste in ${Math.ceil(G.waveT)} s: <b style="color:${WAVE_COL[k]}">${WAVE_NAME[k]}</b>`;
   return `Welle ${G.wave} · nächste (Welle ${nxt}) in ${Math.ceil(G.waveT)} s: <b style="color:${WAVE_COL[k]}">${WAVE_NAME[k]}</b> <small>(Elite: Welle ${nextElite}${boss})</small>`;
 }
 // Zusatzmonster der Welle n (Reihenfolge: Brocken, Schütze, Läufer)
@@ -472,14 +486,16 @@ function spawnWave(){
   const isElite = n % CFG.eliteEvery === 0;   // Elite-Welle: normale Welle + Elite-Gegner (mehr Leben/Schaden, bringen deutlich mehr XP und Gold)
   if(isElite) for(let k=0;k<CFG.eliteCount;k++) spawn('elite', 0, (from-CFG.spawnX)+list.length*4+30+k*40, CFG.waveSpeedMul);
   if(G.bossIncome){ G.gold += G.bossIncome; G.stats.gold += G.bossIncome; }   // Boss-Einkommen: dauerhaft pro Welle für den Killer
-  const isBoss = n === CFG.bossWave && !G.bossSpawned;                        // Bosswelle: einmalig, Boss kommt mit der normalen Welle
-  if(isBoss){ G.bossSpawned = true; spawn('boss', 0, (from-CFG.spawnX)+list.length*4+160, CFG.waveSpeedMul); }
+  const isBoss = isBossWave(n);                                                 // Bosswelle: Boss kommt mit der normalen Welle, jeder weitere ist bossGrow-mal stärker
+  if(isBoss){ G.bossSpawned = true; spawn('boss', 0, (from-CFG.spawnX)+list.length*4+160, CFG.waveSpeedMul);
+    const b = G.units[G.units.length-1], g = Math.pow(CFG.bossGrow, CFG.bossWaves.indexOf(n)); b.hp *= g; b.max *= g; b.dmg *= g; }
   G.sendPool.forEach((t,i)=>spawn(t, 0, (from-CFG.spawnX)+list.length*4+60+i*6, t==="fast" ? 1 : CFG.waveSpeedMul));   // Pool: alle gesendeten Monster kommen gesammelt mit der Welle, im Wellentempo (Läufer bleibt schneller)
   G.sendPool = [];
   if(isMainG()){
     showWave(n, isElite, isBoss); sfx(isBoss ? 'boss' : 'wave');
     if(isBoss) uiAlert('BOSSWELLE! Ein Boss kommt mit der Welle. Wer ihn besiegt, bekommt dauerhaft +'+CFG.bossIncome+' Gold pro Welle', 'danger', 7000);
     else if(isElite) uiAlert('ELITE-WELLE! '+CFG.eliteCount+' Elite-Gegner kommen mit der Welle (mehr XP und Gold)', 'danger', 5000);
+    if(n === CFG.maxWaves) uiAlert('ENDLOS-PHASE! Ab jetzt kommen die Wellen immer schneller', 'danger', 7000);
   }
 }
 function showWave(n, elite, boss){ const m=document.getElementById('msg'); m.textContent=(boss?'BOSSWELLE ':elite?'ELITE-WELLE ':'Welle ')+n; m.style.color=boss?'#ff7a7a':elite?'#d9b3ff':'#ffd166'; setTimeout(()=>{ if(!G.over) m.textContent=''; },1500); }
@@ -728,7 +744,7 @@ const SK = {
        if(r>=5) later(.6,()=>{ o.stun += .4; coneHit(H.x,H.y,m.ang,range+40,half,dmg*1.25,o); }); }},
     {name:'Eiserne Haut', passive:true, max:5, info:['Passiv, immer aktiv: Rüstung + Dornen. Reflektiert 20% (Rang 1) bis 60% (Rang 5) des erlittenen Schadens an jeden Angreifer','Rang 3: viel mehr Rüstung, Regeneration 1% Leben/Sek.','Rang 5: sehr viel Rüstung, Regeneration 2,5% Leben/Sek.'],
      cast(){ return false; }},
-    {name:'Schildwurf', cd:10, max:5, info:['Schild prallt von Gegner zu Gegner (3 Ziele) und heilt dich 10%, wenn er zurückkehrt','Rang 3: prallt von 5 Gegnern ab','Rang 5: Getroffene bluten 3 Sek. (5% ihres Lebens/Sek.)'],
+    {name:'Schildwurf', cd:14, max:5, info:['Schild prallt von Gegner zu Gegner (3 Ziele) und heilt dich 10%, wenn er zurückkehrt','Rang 3: prallt von 5 Gegnern ab','Rang 5: Getroffene bluten 3 Sek. (5% ihres Lebens/Sek.)'],
      cast(r,m){
        const dmg = dmgOf(35,14,r,0,.8), targets = r>=3 ? 5 : 3, bleed = r>=5;
        const first = enemies().filter(u=>Math.hypot(u.x-H.x,u.y-H.y)<=450)
@@ -939,7 +955,7 @@ function update(dt){
   if(G.incomeT >= CFG.incomeTick){ G.incomeT -= CFG.incomeTick; const inc = G.income * (G.goldMul||1) * (1 + comebackBonus(G)); G.gold += inc; G.stats.gold += inc; }
   // Wellen
   G.waveT -= dt;
-  if(G.waveT <= 0){ spawnWave(); G.waveT = G.wave<=CFG.earlyWaves ? CFG.earlyWaveEvery : CFG.waveEvery; }
+  if(G.waveT <= 0){ spawnWave(); G.waveT = waveInterval(G.wave); }
   // Zeitverzögerte Skill-Effekte
   for(const t of G.timers.slice()){ t.t -= dt; if(t.t<=0){ G.timers.splice(G.timers.indexOf(t),1); t.fn(); } }
   // Schadensfelder
@@ -1231,7 +1247,7 @@ function updateHud(force){
   document.getElementById('hud').innerHTML =
     `<span>Gold <b>${Math.floor(G.gold)}</b></span><span>Einkommen <b>+${G.income.toFixed(1)}</b> / ${CFG.incomeTick}s (in ${tl}s)</span>`+
     `<span>Leben <b>${G.lives}</b> · Gegner <b>${enemyLivesTxt()}</b> <small>(${E.H.d.name}, Lv ${E.H.lvl}, ${E.diff.name}, ${(BOT_STYLE[E.style]||BOT_STYLE.balanced).name})</small></span><span>${waveInfoHtml()} · Zeit ${Math.floor(G.t/60)}:${String(Math.floor(G.t%60)).padStart(2,'0')}</span>`+
-    `<span>Monster-Stärke ×${hpMult().toFixed(2)}</span>`+
+    `<span>Monster-Stärke ×${(hpMult()*endlessMul()).toFixed(2)}</span>`+
     (comebackBonus(G)>0 ? `<span style="color:#9af0a8" title="Du liegst bei den Leben zurück: mehr Einkommen, damit du aufholen kannst.">Aufholhilfe +${Math.round(comebackBonus(G)*100)} %</span>` : '');
   document.querySelectorAll('#sendPanel button').forEach(b=>b.disabled = G.gold < UNITS[b.dataset.k].cost || G.over);
   // Kauf-Buttons bleiben klickbar: nicht kaufbar = abgedunkelt, der Grund steht am Button (und als Meldung beim Klick)
@@ -1431,7 +1447,7 @@ const BOT_CLASS = {
   damage: {bias:[0,1,1,-10],  items:['rake','dagger','ruby','rake','dagger','cloth','boots','rake','ruby']},
   caster: {bias:[0,1,.5,-10], items:['tome','boots','ruby','tome','dagger','tome','cloth','ruby','tome']},
 };
-const BOT_SEND_W = t => t<480 ? {grunt:3,tank:3,archer:2,fast:1,elite:0} : {grunt:1,tank:3,archer:2,fast:1,elite:3};
+const BOT_SEND_W = wave => wave < CFG.botEliteWave ? {grunt:3,tank:3,archer:2,fast:1,elite:0} : {grunt:1,tank:3,archer:2,fast:1,elite:3};   // Elites erst ab botEliteWave
 const nearCount = r => { let n=0; for(const u of G.units) if(u.lane===0 && Math.hypot(u.x-H.x,u.y-H.y)<=r) n++; return n; };
 const nearCone = (range, half, tgt) => { const ang = Math.atan2(tgt.y-H.y, tgt.x-H.x); let n=0; for(const u of G.units){ if(u.lane!==0) continue; const vx=u.x-H.x, vy=u.y-H.y, d=Math.hypot(vx,vy); if(d>range+u.r) continue; if(d<1 || Math.acos(Math.max(-1,Math.min(1,(vx*Math.cos(ang)+vy*Math.sin(ang))/d)))<=half) n++; } return n; };   // Gegner im Kegel Richtung Ziel
 const dist2 = (a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
@@ -1487,7 +1503,9 @@ const BOT_POOL = (()=>{
     ],
   };
 })();
-function pickBotBuild(heroKey){ const p = BOT_POOL[heroKey]; return p[Math.floor(Math.random()*p.length)]; }
+// Nach dem Bauplan füllt der Bot freie Rucksack-Plätze mit weiteren fertigen Items seiner Klasse (die noch nicht im Bauplan sind)
+const BOT_FILL = {damage:['mightyBlade','soulDrinker','stormBreaker','ruinBlade','cleaver'], caster:['arcaneCrown','timeStaff','tormentMask','soulDrinker','moonstone'], tank:['thornPlate','titanPlate','lifeSpring','bulwark','giantsMight']};
+function pickBotBuild(heroKey){ const p = BOT_POOL[heroKey], b = p[Math.floor(Math.random()*p.length)]; return [...b, ...BOT_FILL[heroKey].filter(id=>!b.includes(id))]; }
 const botPlan = I => I.build || BOT_BUILD[H.key];
 // Preis des nächsten Bauplan-Schritts (0 = Bauplan abgeschlossen)
 function botNextCost(I){
@@ -1536,20 +1554,20 @@ function botSkills(I, tgt){
 // Spielstile des Gegners (Abwechslung zwischen Partien): Faktoren auf den Sende-Anteil je Spielphase (früh/Mitte/spät) und auf die Sende-Pause
 const BOT_STYLE = {
   balanced: {name:'Ausgewogen', strat:[1,1,1],        every:1,    reserve:1},
-  rush:     {name:'Aggressiv',  strat:[1.25,1.05,.95], every:.85, reserve:.3},   // legt wenig Gold für Items zurück: schickt früh viele Monster
+  rush:     {name:'Aggressiv',  strat:[1.1,1.05,.95],  every:.85, reserve:.6},   // legt wenig Gold für Items zurück: schickt früh viele Monster
   eco:      {name:'Wirtschaft', strat:[.6,1,1.2],      every:1.15, reserve:1},   // rüstet zuerst den Helden auf, schickt später mehr
 };   // reserve: Faktor auf das Gold, das der Bot für den nächsten Item-Kauf zurückhält
 function botSend(I, O){
   const b = I.b, st = BOT_STYLE[I.style] || BOT_STYLE.balanced;
   if(G.t < 35 || G.t - b.lastSend < I.diff.sendEvery*st.every) return;
-  const ph = G.t<240 ? 0 : G.t<600 ? 1 : 2;
+  const ph = G.wave < CFG.botPhaseWaves[0] ? 0 : G.wave < CFG.botPhaseWaves[1] ? 1 : 2;   // Sende-Phase nach Wellennummer (früh / Mitte / spät)
   let f = Math.min(.95, I.diff.strat[ph]*st.strat[ph]);
   if(O.H.dead>0) f = Math.min(.9, f*1.6);                           // Gegner-Held tot → Druck machen
   if(G.units.filter(u=>u.lane===0).length>22) f *= .4;              // eigene Lane brennt → erst verteidigen
   const reserve = (inBase() || b.mode==='shop') ? 0 : botNextCost(I)*.7*st.reserve;
   let budget = Math.max(0, G.gold - reserve)*f;
   for(let n=0;n<10;n++){
-    const w = BOT_SEND_W(G.t), opts = Object.keys(w).filter(k=>w[k]>0 && UNITS[k].cost<=budget);
+    const w = BOT_SEND_W(G.wave), opts = Object.keys(w).filter(k=>w[k]>0 && UNITS[k].cost<=budget);
     if(!opts.length) break;
     const tot = opts.reduce((a,k)=>a+w[k],0); let r = Math.random()*tot, pick = opts[0];
     for(const k of opts){ r -= w[k]; if(r<=0){ pick = k; break; } }
@@ -1565,13 +1583,13 @@ function botThink(I, O, dt){
   b.clock = diff.react[0] + Math.random()*(diff.react[1]-diff.react[0]);   // Reaktionszeit
   botLearn(I);
   if(H.cons.potion>0 && H.hp < .4*hMaxHp()) drinkPotion();           // Trank trinken bei wenig Leben
-  if(inBase()){ botShop(I); if(b.mode!=='fight' && H.hp>.9*hMaxHp()) b.mode='fight'; }
+  if(inBase()){ botShop(I); if(b.mode!=='fight' && H.hp>(enemies().some(u=>u.x<1500) ? .6 : .9)*hMaxHp()) b.mode='fight'; }   // Monster nahe der Basis: schon mit 60 % Leben zurück auf die Lane
   botSend(I, O);
   const en = enemies(), near = nearCount(300);
   if(b.mode==='fight'){
     const nx = botNextCost(I);
     if(H.hp < diff.retreat*hMaxHp()) b.mode = 'retreat';
-    else if(nx>0 && !inBase() && H.bpCd<=0 && near===0 && (G.gold>=diff.shopGold*nx || (G.gold>=nx && (en.length===0 || H.hp<.6*hMaxHp())))) b.mode = 'shop';
+    else if(nx>0 && !inBase() && H.bpCd<=0 && (near===0 || G.gold>=2*diff.shopGold*nx) && (G.gold>=diff.shopGold*nx || (G.gold>=nx && (en.length===0 || H.hp<.6*hMaxHp())))) b.mode = 'shop';
   }
   if(b.mode==='retreat' || b.mode==='shop'){
     if(inBase()){ if(b.mode==='shop'){ b.trips++; b.mode='fight'; } else if(!inHeal() && H.hp < .9*hMaxHp()) H.moveTo = {x:CFG.healX-80, y:0}; return; }
