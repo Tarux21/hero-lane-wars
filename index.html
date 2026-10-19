@@ -194,6 +194,7 @@ const CFG = {
   tormentCd: 6,                                     // Abklingzeit je Ziel (Sek.) bis die Qual erneut wirken kann; 0 = keine Abklingzeit
   ruinPct: 0.05, ruinMin: 12, ruinMax: 120,         // Schneide des gefallenen Monarchen: % des aktuellen Lebens (min/max Schaden)
   drCap: 0.40,                                      // Obergrenze für verringerten Schaden durch Items
+  lifestealCap: 0.5,                                // Obergrenze für Lebensraub aus Items (Anteil des Angriffsschadens)
   sparkFlat: 12, sparkAp: 0.35,                      // Funkenklinge: magischer Zusatzschaden je Angriff
   giantsPct: 0.025, cleaveItemPct: 0.40, cleaveMax: 3,             // Gigantenschlag (% max. Leben) / Splitteraxt (Anteil des Schadens)
   svFactor: 0.4,                                    // Zauberraub: Heilung je Treffer (abgeschwächt, weil Fähigkeiten mehrere Ziele treffen)
@@ -897,7 +898,7 @@ function recalcItems(){
   }
   H.bonusDmg = t.dmg; H.bonusArmor = t.armor; H.bonusHp = t.hp; H.bonusAs = t.as; H.bonusSp = t.sp; H.bonusSpd = t.spd;
   H.critCh = Math.min(1, t.crit); H.uniq = un;
-  H.cdr = Math.min(CFG.cdrCap, t.cdr); H.bonusRegen = t.regen; H.lifesteal = Math.min(0.5, t.ls);
+  H.cdr = Math.min(CFG.cdrCap, t.cdr); H.bonusRegen = t.regen; H.lifesteal = Math.min(CFG.lifestealCap, t.ls);
   H.spellVamp = Math.min(0.5, t.sv); H.dr = Math.min(CFG.drCap, t.dr); H.goldPS = t.gps; H.bpRed = Math.min(0.8, t.bpRed);
   const nm = hMaxHp(); H.hp = Math.min(nm, H.hp + Math.max(0, nm-oldMax));
 }

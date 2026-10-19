@@ -136,7 +136,7 @@ func recalc(p: Dictionary) -> void:
 	p["uniq"] = un
 	p["cdr"] = minf(float(cfg["cdrCap"]), t["cdr"])
 	p["bonus_regen"] = t["regen"]
-	p["lifesteal"] = minf(0.5, t["ls"])
+	p["lifesteal"] = minf(float(cfg["lifestealCap"]), t["ls"])
 	p["spell_vamp"] = minf(0.5, t["sv"])
 	p["dr"] = minf(float(cfg["drCap"]), t["dr"])
 	p["gps"] = t["gps"]

@@ -43,6 +43,7 @@
   "ruinMin": 12,
   "ruinMax": 120,
   "drCap": 0.4,
+  "lifestealCap": 0.5,
   "sparkFlat": 12,
   "sparkAp": 0.35,
   "giantsPct": 0.025,
