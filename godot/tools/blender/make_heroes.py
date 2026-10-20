@@ -131,7 +131,7 @@ def load_figure(outfit, hair=None, outfit_tint=None):
             bpy.data.objects.remove(o, do_unlink=True)
     body = max((o for o in arm.children if o.type == "MESH"), key=lambda o: len(o.data.vertices))   # Körper = größtes Mesh (Mann und Frau)
     bm = bmesh.new(); bm.from_mesh(body.data)                      # Körper unter dem Hals weg: das Outfit trägt den Rest
-    bmesh.ops.delete(bm, geom=[v for v in bm.verts if (body.matrix_world @ v.co).z < 1.5], context='VERTS')
+    bmesh.ops.delete(bm, geom=[v for v in bm.verts if (body.matrix_world @ v.co).z < 1.5 or abs((body.matrix_world @ v.co).x) > 0.105], context='VERTS')
     bm.to_mesh(body.data); bm.free()
     out = _import(os.path.join(OUTFIT, outfit + ".gltf"))
     keep = [o.name for o in out if not o.name.startswith("Icosphere") and o.type == 'MESH']
@@ -1198,7 +1198,7 @@ def place_shield(o, arm, out=0.09, tilt=40):
 def tower_from_heater(colors):
     """Set-Schild Nr. 16 (Wappenschild) zum Turmschild gestreckt, mit Stacheln im Stil des Sets (kantig, flach schattiert)."""
     W = wmod()
-    s = pack_weapon("Shield_Heater", colors, frac=0.5, stretch=(1.15, 1.25, 1.55), length=1.3)
+    s = pack_weapon("Shield_Heater", colors, frac=0.5, stretch=(1.15, 0.45, 1.55), length=1.3)
     zs = [v.co.z for v in s.data.vertices]
     xs = [v.co.x for v in s.data.vertices]
     ys = [v.co.y for v in s.data.vertices]
@@ -1243,34 +1243,53 @@ def hide_head(arm):
 
 
 def skull_head(arm, bone_m, eye_m):
+    """Totenschädel unter der Kapuze: Schädeldecke, Wangenknochen, tiefe Augenhöhlen mit Glutpunkten, Nasenloch, Zahnreihe, Unterkiefer."""
     W = wmod()
     hb = arm.data.bones["Head"]
-    c = arm.matrix_world @ hb.head_local + Vector((0, -0.01, 0.09))
-    parts = W.skull(bone_m, eye_m, c, 1.25)
-    s = W.join(parts, "skull_head", smooth=False)
-    return attach(s, arm, "Head")
+    c = arm.matrix_world @ hb.head_local + Vector((0, -0.005, 0.1))
+    dark = mat("socket", (0.01, 0.01, 0.01), 0.0, 0.95)
+    bone_m = mat("necro_skull", (0.5, 0.47, 0.4), 0.0, 0.75)
+    P = []
+    P.append(W.ball(bone_m, 0.08, c + Vector((0, 0.012, 0.02)), (0.88, 1.08, 1.02), seg=24))                 # Schädeldecke
+    P.append(W.ball(bone_m, 0.055, c + Vector((0, -0.03, -0.05)), (0.95, 0.95, 0.95), seg=20))                # Gesichtsschädel
+    for sx in (-1, 1):
+        P.append(W.ball(bone_m, 0.02, c + Vector((sx * 0.038, -0.055, -0.035)), (1.0, 1.0, 0.8), seg=12))     # Wangenknochen
+        P.append(W.cube(dark, c + Vector((sx * 0.028, -0.07, -0.006)), (0.034, 0.03, 0.028), rot=(0, 0, sx * 0.2)))      # Augenhöhle
+        P.append(W.ball(eye_m, 0.0045, c + Vector((sx * 0.028, -0.084, -0.008)), seg=8))                       # Glut im Auge
+    P.append(W.cyl(dark, 0.011, c + Vector((0, -0.07, -0.04)), c + Vector((0, -0.086, -0.046)), r2=0.002, verts=3))   # Nasenloch
+    for i in range(8):                                                                                   # Zahnreihe
+        x = -0.03 + i * 0.0086
+        P.append(W.cube(bone_m, c + Vector((x, -0.074 + abs(x) * 0.35, -0.075)), (0.0075, 0.008, 0.016)))
+    P.append(W.ball(bone_m, 0.045, c + Vector((0, -0.035, -0.095)), (1.05, 1.0, 0.45), seg=16))               # Unterkiefer
+    s_ = W.join(P, "skull_head", smooth=True)
+    return attach(s_, arm, "Head")
 
 
 def leaf_crown(arm, leaf_m):
-    """Blätterkranz: flache, spitze Blätter im Kreis (kantig wie das Waffenset)."""
-    from mathutils import Matrix
+    """Gleichmäßiger Blätterkranz: dünner Holzreif, 12 gleiche Blätter im gleichen Winkel, vorn ein kleines Leuchtblatt."""
+    W = wmod()
     hb = arm.data.bones["Head"]
-    c = arm.matrix_world @ hb.head_local + Vector((0, 0.0, 0.115))
+    c = arm.matrix_world @ hb.head_local + Vector((0, 0.01, 0.155))
     parts = []
-    for k in range(16):
-        a = k / 16 * math.tau
+    bpy.ops.mesh.primitive_torus_add(major_radius=1.0, minor_radius=0.06, major_segments=24, minor_segments=6, location=c)
+    ring = bpy.context.object
+    ring.scale = (0.104, 0.118, 0.1)
+    ring.data.materials.append(mat("crownwood", (0.22, 0.13, 0.07), 0.0, 0.8))
+    parts.append(ring)
+    for k in range(12):
+        a_ = k / 12 * math.tau
         bm = bmesh.new()
-        L, Wd = 0.075, 0.03
-        f = bm.faces.new([bm.verts.new(p) for p in ((0, 0, 0), (Wd, 0, L * 0.45), (0, 0, L), (-Wd, 0, L * 0.45))])
+        L, Wd = 0.06, 0.022
+        bm.faces.new([bm.verts.new(p) for p in ((0, 0, 0), (Wd, 0, L * 0.4), (0, 0, L), (-Wd, 0, L * 0.4))])
         me = bpy.data.meshes.new("leaf"); bm.to_mesh(me); bm.free()
         o = bpy.data.objects.new("leaf", me); bpy.context.scene.collection.objects.link(o)
         me.materials.append(leaf_m)
-        so = o.modifiers.new("s", "SOLIDIFY"); so.thickness = 0.005
+        so = o.modifiers.new("s", "SOLIDIFY"); so.thickness = 0.004
         bpy.context.view_layer.objects.active = o; bpy.ops.object.modifier_apply(modifier="s")
-        o.rotation_euler = (math.radians(-55 if k % 2 else -35), 0, a + math.pi)
-        o.location = c + Vector((math.sin(a) * 0.1, -math.cos(a) * 0.112, -0.01 * (k % 2)))
+        o.rotation_euler = (math.radians(-60), 0, a_ + math.pi)
+        o.location = c + Vector((math.sin(a_) * 0.104, -math.cos(a_) * 0.118, 0))
         parts.append(o)
-    W = wmod()
+    parts.append(W.ball(mat("crownglow", (0.4, 0.95, 0.35), 0.0, 0.4, emit=(0.35, 0.95, 0.3)), 0.012, c + Vector((0, -0.124, 0.008)), seg=8))
     return attach(W.join(parts, "leafcrown", smooth=False), arm, "Head")
 
 
@@ -1292,12 +1311,12 @@ HERO_LOOK = {
     "tank":   dict(gender="Male", outfit="Male_Knight", parts=["Male_Knight_Head_Armet", "Male_Knight_Acc_Pauldron_Round", "Male_Knight_Acc_Scarf"], hair=[],
                    look={"Scarf": (0.12, 1.1, 0.9)}),
     "damage": dict(gender="Male", outfit="Male_Ranger", parts=["Male_Ranger_Head_Hood", "Male_Ranger_Acc_Pauldron"], hair=[],
-                   look={"*": (0.17, 0.75, 0.45)}, shrink="Hood"),
+                   look={"*": (0.17, 0.75, 0.45)}, shrink=("Hood", 0.93)),
     "caster": dict(gender="Male", outfit="Male_Wizard", parts=[], hair=["Hair_Long", "Hair_Beard"], look=None),
-    "ranger": dict(gender="Female", outfit="Female_Ranger", parts=["Female_Ranger_Head_Hood", "Female_Ranger_Acc_Pauldrons"], hair=[], look=None, shrink="Hood"),
-    "druid":  dict(gender="Female", outfit="Female_Peasant", parts=[], hair=["Hair_Long"], look={"Peasant": (0.5, 1.0, 0.85, (0.75, 0.95, 0.7))}),
-    "necro":  dict(gender="Male", outfit="Male_Noble", parts=["Male_Ranger_Head_Hood"], hair=[], drop=["Lion", "Crown", "Acc_Pauldron"],
-                   look={"Hood": (0.5, 0.1, 0.12), "Noble": (0.75, 0.25, 0.33)}, shrink="Hood"),
+    "ranger": dict(gender="Female", outfit="Female_Ranger", parts=["Female_Ranger_Head_Hood", "Female_Ranger_Acc_Pauldrons"], hair=[], look=None, shrink=("Hood", 0.99)),
+    "druid":  dict(gender="Female", outfit="Female_Wizard", parts=[], hair=["Hair_Long"], look={"Wizard": (0.5, 0.35, 1.0, (0.62, 0.8, 0.45))}),
+    "necro":  dict(gender="Male", outfit="Male_Noble", parts=["Male_Ranger_Head_Hood", "Male_Knight_Acc_Pauldron_Spike"], hair=[], drop=["Lion", "Crown", "Noble_Acc_Pauldron"],
+                   look={"Hood": (0.5, 0.1, 0.12), "Knight": (0.5, 0.25, 0.4), "Noble": (0.75, 0.25, 0.33)}, shrink=("Hood", 0.95)),
 }
 
 
@@ -1307,7 +1326,8 @@ def build_hero(cls):
     if L.get("drop"):
         drop_meshes(arm, L["drop"])
     if L.get("shrink"):
-        shrink(arm, L["shrink"], 0.88)
+        key, k = L["shrink"] if isinstance(L["shrink"], tuple) else (L["shrink"], 0.88)
+        shrink(arm, key, k)
     W = wmod()
     if cls == "tank":                                                   # 16 als Turmschild + 23 Großschwert; Stahl wie die Ritterrüstung, Holz dunkel, blaue Teamfarbe
         cols = {"Steel": STEEL, "LightSteel": ((0.55, 0.57, 0.6), 0.85, 0.3), "DarkSteel": ((0.2, 0.2, 0.22), 0.8, 0.4),
@@ -1335,14 +1355,12 @@ def build_hero(cls):
         leaf_crown(arm, mat("leafcrown", (0.2, 0.5, 0.14), 0.0, 0.6))
     elif cls == "necro":                                                # 14 Sense (schwarz, Knochen), Kapuze mit Totenschädel, Totenkopf-Schulterplatten
         sc_ = pack_weapon("Scythe", {"Steel": ((0.12, 0.13, 0.14), 0.85, 0.3), "LightSteel": ((0.3, 0.42, 0.32), 0.9, 0.25),
-                                     "DarkWood": ((0.05, 0.04, 0.05), 0.0, 0.7), "LightWood": ((0.7, 0.66, 0.56), 0.0, 0.6)}, frac=0.38, length=1.8, flip=True)
+                                     "DarkWood": ((0.05, 0.04, 0.05), 0.0, 0.7), "LightWood": ((0.12, 0.1, 0.1), 0.0, 0.7)}, frac=0.38, length=1.8, flip=True)
         place(sc_, arm, "r", tip="up")
         bone = mat("necro_bone", (0.78, 0.74, 0.62), 0.0, 0.6)
         soul = mat("necro_soul", (0.4, 1.0, 0.45), 0.0, 0.3, emit=(0.4, 1.0, 0.45))
         hide_head(arm)
         skull_head(arm, bone, soul)
-        for sd in ("l", "r"):
-            skull_pauldron(arm, sd, mat("necro_plate", (0.1, 0.1, 0.12), 0.8, 0.4), bone, soul)
     return arm
 
 
