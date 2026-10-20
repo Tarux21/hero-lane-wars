@@ -16,12 +16,12 @@ void vertex() { wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz; }
 
 void fragment() {
 	float d = clamp(abs(wpos.x - river_x) / half_w, 0.0, 1.0);
-	vec3 deep = vec3(0.07, 0.30, 0.42);
-	vec3 shallow = vec3(0.22, 0.52, 0.55);
+	vec3 deep = vec3(0.05, 0.20, 0.30);
+	vec3 shallow = vec3(0.14, 0.36, 0.42);
 	vec3 col = mix(deep, shallow, d * d);
 	vec2 p = vec2(wpos.x * 1.3, wpos.z * 0.35 + TIME * 0.9);
 	float w = noise(p * 1.7) * noise(p * 0.8 + 3.0);
-	col += vec3(0.55, 0.65, 0.6) * smoothstep(0.42, 0.6, w) * 0.5;
+	col += vec3(0.45, 0.55, 0.55) * smoothstep(0.45, 0.62, w) * 0.35;
 	ALBEDO = col;
 	ROUGHNESS = 0.12;
 	METALLIC = 0.0;

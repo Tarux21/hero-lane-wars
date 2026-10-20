@@ -254,7 +254,7 @@ func build_river(river_x: float, lane_len: float) -> void:
 		var mi := MeshInstance3D.new()
 		mi.mesh = q
 		mi.material_override = sm
-		mi.position = Vector3(river_x, -0.12, (z0 + z1) / 2.0)
+		mi.position = Vector3(river_x, 0.035, (z0 + z1) / 2.0)                 # über dem Boden (sonst verdeckt)
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		g.add_child(mi)
 	# Kaimauern in der Stadt (flache Mauerstücke), danach natürliches Ufer mit Steinen und Gras
@@ -796,9 +796,9 @@ func _populate_fields(lx: float, sd: float, half: float, fz: float, hx: float) -
 	var H := "res://assets/heroes/"
 	_npc(H + "Bauer.glb", 2.85, Vector3(lx + sd * (half + 5.0), 0, fz + 14.0), rng.randf() * TAU, ["Work", "Work2", "Idle"])
 	_npc(H + "Baeuerin.glb", 2.75, Vector3(lx + sd * (half + 9.0), 0, fz - 12.0), rng.randf() * TAU, ["Work", "Work2", "Idle"])
-	_npc(DIR + "Kuh.gltf", 2.3, Vector3(hx + sd * 2.0, 0, fz - 9.0), rng.randf() * TAU, ["Eating", "Idle", "Eating", "Idle_Headlow"])
-	_npc(DIR + "Kuh.gltf", 2.3, Vector3(hx + sd * 4.0, 0, fz - 11.5), rng.randf() * TAU, ["Eating", "Idle_2", "Eating"])
-	_npc(DIR + "Pferd.gltf", 2.6, Vector3(hx - sd * 3.0, 0, fz + 9.5), rng.randf() * TAU, ["Idle", "Eating", "Idle_2"])
+	_npc(DIR + "Kuh.gltf", 2.3, Vector3(hx + sd * 9.0, 0, fz - 3.0), rng.randf() * TAU, ["Eating", "Idle", "Eating", "Idle_Headlow"])
+	_npc(DIR + "Kuh.gltf", 2.3, Vector3(hx + sd * 11.0, 0, fz - 6.5), rng.randf() * TAU, ["Eating", "Idle_2", "Eating"])
+	_npc(DIR + "Pferd.gltf", 2.6, Vector3(hx + sd * 8.5, 0, fz + 4.5), rng.randf() * TAU, ["Idle", "Eating", "Idle_2"])
 	_flock(Vector3(lx + sd * (half + 8.0), 0, fz), 4, 7.0, 13.0)
 
 
@@ -811,13 +811,16 @@ func decorate(wall_xs: Array, river_x: float, lane_xs: Array, half: float, x_min
 		var first: int = t * lpt
 		var cxt: float = (lane_xs[first] + lane_xs[first + lpt - 1]) / 2.0
 		var hw: float = (lane_xs[first + lpt - 1] - lane_xs[first]) / 2.0 + half + float(g.WALL) + 9.0
+		hw = minf(hw, absf(river_x - cxt) - 4.2)                          # Hofmauer bleibt diesseits des Flusses (Ufer und Kaimauer davor)
 		_castle(t, cxt, hw, lane_xs.slice(first, first + lpt), river_x)
 		_populate(t, cxt, hw, lane_xs.slice(first, first + lpt))
 		for k in lpt:
 			var lx: float = lane_xs[first + k]
 			_town(lx, half, t, k, lpt, river_x)
 			_fields(lx, half, t, k, lpt, river_x)
-	build_camp(x_min - 4.5, 9.0)                                             # Schmiede im Burghof (vorn links)
+	var cxt0: float = (lane_xs[0] + lane_xs[lpt - 1]) / 2.0                 # Schmiede an der linken Hofmauer (Team 0)
+	var hw0: float = minf((lane_xs[lpt - 1] - lane_xs[0]) / 2.0 + half + float(g.WALL) + 9.0, absf(river_x - cxt0) - 4.2)
+	build_camp(cxt0 - hw0 - 1.0 + 5.5, 9.0)                                             # Schmiede im Burghof (vorn links)
 	build_spawns(lane_xs, half, x_min, x_max)
 	_meadow(x_min, x_max, half, lane_xs, river_x)
 
@@ -829,7 +832,7 @@ func _castle(team: int, cxt: float, hw: float, lxs: Array, river_x: float) -> vo
 		for lx in lxs:
 			if absf(x + 1.0 - float(lx)) < 7.6:
 				skip = true
-		if not skip and absf(x + 1.0 - river_x) > 3.2:
+		if not skip:
 			_put("Burg_Mauer", Vector3(x + 1.0, 0.0, GATE_Z), 0.0, 1.0)
 		x += 2.0
 	for sd in [-1.0, 1.0]:                                              # Ecktürme (gleicher Stil wie am Tor)
@@ -839,7 +842,7 @@ func _castle(team: int, cxt: float, hw: float, lxs: Array, river_x: float) -> vo
 		var z := GATE_Z + 2.0
 		while z < COURT_DEPTH:
 			var mx: float = cxt + sd * (hw + 1.0)
-			if absf(mx - river_x) > 3.2:
+			if true:
 				_put("Burg_Mauer", Vector3(mx, 0.0, z + 1.0), PI / 2.0, 1.0)
 			z += 2.0
 	var keep := _put("Haus_Tower", Vector3(cxt + (hw - 6.0) * (-1.0 if team == 0 else 1.0), 0.0, COURT_DEPTH - 6.0), 0.0, 1.0)
@@ -923,8 +926,8 @@ func _town(lx: float, half: float, team: int, k: int, lpt: int, river_x: float) 
 			_reserve(lx + sd * (half + 0.8 + dep / 2.0), z - w / 2.0, maxf(w, dep) * 0.6)
 			z -= w + rng.randf_range(0.5, 2.0)
 			if rng.randf() < 0.5:
-				_put_parts("Lantern_Wall", Vector3(lx + sd * (half + 0.6), 2.6, z + 1.0), yaw, 1.4)
-				_light(Vector3(lx + sd * (half + 0.2), 2.9, z + 1.0), Color("#ffc070"), 0.35, 4.0)
+				_put_parts("Torch_Metal", Vector3(lx + sd * (half + 0.55), 0.0, z + 1.0), yaw, 1.4)       # Straßenfackel am Rand (steht auf dem Boden)
+				_light(Vector3(lx + sd * (half + 0.55), 2.6, z + 1.0), Color("#ffc070"), 0.35, 4.0)
 
 
 ## Felder: Holzzaun an der Lane, Weizen (Wind), Gemüsebeete, Bauernhöfe
