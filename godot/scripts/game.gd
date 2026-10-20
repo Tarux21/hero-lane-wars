@@ -16,6 +16,7 @@ const FxLib := preload("res://scripts/fx.gd")
 const HudStein := preload("res://scripts/hud_stein.gd")
 const MainMenuLib := preload("res://scripts/main_menu.gd")
 const NachtLib := preload("res://scripts/map_nachtwald.gd")
+const BurgLib := preload("res://scripts/map_burg.gd")
 const ShopLib := preload("res://scripts/shop_stein.gd")
 const GoldenRunner := preload("res://scripts/golden_runner.gd")
 const GoldenEconomyRunner := preload("res://scripts/golden_economy_runner.gd")
@@ -110,7 +111,7 @@ var statues: Array = []                # Wächterstatuen der Teams (map_nachtwal
 var obstacles: Array = []              # Hindernisse für Helden (Statue, Brunnen): Vector3(x, y, Radius) in Spielwerten
 var heal_lights: Array = []            # Lichter der Heilbrunnen (leuchten stärker, wenn geheilt wird)
 var merchant: Dictionary = {}          # Goblin-Händler an der Basis (map_nachtwald.gd): Positionen und Beschriftungen
-var map_theme := "nachtwald"            # Karte: nachtwald (giftiger Nachtwald) oder gras (alte Wiese), Test: --map=gras
+var map_theme := "nachtwald"            # Karte: nachtwald (giftiger Nachtwald), burg (Burg und Stadt, Entwurf) oder gras (alte Wiese), Test: --map=burg
 var decor                              # Dekoration der Karte (map_nachtwald.gd)
 var mc: Dictionary = {}                # Farben der Karte
 var sun: DirectionalLight3D            # Sonne (Schatten je nach Grafikqualität)
@@ -581,9 +582,9 @@ func _build_world() -> void:
 	sun.directional_shadow_max_distance = 90.0
 	add_child(sun)
 
-	mc = NachtLib.COLORS if map_theme == "nachtwald" else {"ground": Color("#4b6b30"), "lane": Color("#a89462"), "strip": Color("#8d7d55"), "wall": Color("#4c4f55"), "wall_top": Color("#5f636b"), "river": Color("#1f5fa8"), "plaza": Color("#8b8272"), "fog": Color(0.62, 0.68, 0.78, 0.72)}
-	decor = NachtLib.new(self)
-	if map_theme == "nachtwald":
+	mc = NachtLib.COLORS if map_theme == "nachtwald" else BurgLib.BCOLORS if map_theme == "burg" else {"ground": Color("#4b6b30"), "lane": Color("#a89462"), "strip": Color("#8d7d55"), "wall": Color("#4c4f55"), "wall_top": Color("#5f636b"), "river": Color("#1f5fa8"), "plaza": Color("#8b8272"), "fog": Color(0.62, 0.68, 0.78, 0.72)}
+	decor = BurgLib.new(self) if map_theme == "burg" else NachtLib.new(self)
+	if _themed():
 		decor.setup_environment(env, sun)
 	_build_map()
 	_build_fog()
@@ -608,13 +609,13 @@ func _build_map() -> void:
 	var z_mid := (z_far + 14.0) / 2.0
 	var z_len := 14.0 - z_far
 	var ground_box := _box(Vector3(mid_x, -0.5, z_mid), Vector3(span + 120.0, 1.0, z_len + 30.0), mc["ground"])            # Boden (Gras bzw. dunkle Erde)
-	if map_theme == "nachtwald" and not test_mode:
+	if _themed() and not test_mode:
 		decor.forest_floor(ground_box)                                   # Waldboden mit Erde, Laub, Moos (Shader)
 	var wall_list: Array = []
 	for i in n:
 		var cx: float = lane_xs[i]
 		var k := i % lanes_per_team
-		if map_theme == "nachtwald":
+		if _themed():
 			if not test_mode:
 				decor.build_lane_ground(cx, half, (lane_xs[(i / lanes_per_team) * lanes_per_team] + lane_xs[(i / lanes_per_team) * lanes_per_team + lanes_per_team - 1]) / 2.0)
 		else:
@@ -626,29 +627,29 @@ func _build_map() -> void:
 			wall_list.append({"x": wall_x, "gapped": lanes_per_team == 2 and k == 0 and side > 0.0})
 			if lanes_per_team == 2 and k == 0 and side > 0.0:
 				_gapped_wall(wall_x)                                  # gemeinsame Wand mit Durchgängen (Helden können die Lane wechseln)
-			elif map_theme != "nachtwald":                       # im Nachtwald stehen Bäume statt der Wand (map_nachtwald.gd)
+			elif not _themed():                       # im Nachtwald stehen Bäume statt der Wand (map_nachtwald.gd)
 				_box(Vector3(wall_x, 1.1, z_mid - 6.0), Vector3(WALL, 2.4, lane_len + 2.0), mc["wall"])   # Wand (Fels bzw. dunkles Unterholz)
 				_box(Vector3(wall_x, 2.45, z_mid - 6.0), Vector3(WALL - 1.0, 0.5, lane_len + 2.0), mc["wall_top"])
 	var river_x: float = (lane_xs[lanes_per_team - 1] + lane_xs[lanes_per_team]) / 2.0
-	if map_theme == "nachtwald":
+	if _themed():
 		if not test_mode:
 			decor.build_river(river_x, lane_len)                     # Giftfluss mit Gabelung und Insel (Pool der gesendeten Monster)
 	else:
 		_box(Vector3(river_x, -0.06, z_mid - 6.0), Vector3(5.0, 0.2, lane_len + 2.0), mc["river"])           # Fluss (Wasser bzw. Lava) zwischen den Teams
 	var spawn_z := -float(cfg["spawnX"]) * S
 	for i in n:
-		if map_theme != "nachtwald":                                  # im Nachtwald steht dort der Spawn-Baum (map_nachtwald.gd)
+		if not _themed():                                  # im Nachtwald steht dort der Spawn-Baum (map_nachtwald.gd)
 			_box(Vector3(lane_xs[i], 0.03, spawn_z - 2.0), Vector3(half * 2.0, 0.06, 6.0), Color("#6e2a2a"))     # Monster-Spawn
 	# Platz am unteren Ende (Basis): Pflaster, magischer Kreis, Feuerstellen
 	var plaza_z := 7.0
 	var plaza_r := span / 2.0 + 6.0
-	if map_theme != "nachtwald":                                       # im Nachtwald: Pflasterplatz um Statue und Brunnen (nachtwald_lane.gdshader)
+	if not _themed():                                       # im Nachtwald: Pflasterplatz um Statue und Brunnen (nachtwald_lane.gdshader)
 		var plaza := _cyl(Vector3(mid_x, -0.02, plaza_z), plaza_r, 0.1, mc["plaza"])
 		plaza.scale = Vector3(1.0, 1.0, minf(1.0, 13.0 / plaza_r))
-	if map_theme != "nachtwald":
+	if not _themed():
 		_cyl(Vector3(mid_x, 0.06, plaza_z), 4.2, 0.05, Color("#2a3a7a"), Color("#4a7aff"))                         # magischer Kreis
 		_cyl(Vector3(mid_x, 0.1, plaza_z), 2.4, 0.06, Color("#3b3f48"))
-	for fx in ([] if map_theme == "nachtwald" else [-1.0, 1.0]):        # Feuerstellen nur in der Graskarte
+	for fx in ([] if _themed() else [-1.0, 1.0]):        # Feuerstellen nur in der Graskarte
 		var fire_x: float = mid_x + fx * (plaza_r * 0.5)
 		_cyl(Vector3(fire_x, 0.1, plaza_z - 2.0), 1.3, 0.2, Color("#4c4f55"))
 		_cyl(Vector3(fire_x, 0.5, plaza_z - 2.0), 0.5, 0.8, Color("#ff7a2a"), Color("#ff5a10"))               # Feuer
@@ -657,9 +658,9 @@ func _build_map() -> void:
 		for sy in slot_ys:
 			var slot_x: float = lane_xs[i] + sy * S
 			for h in 4:
-				if map_theme != "nachtwald":                          # im Nachtwald steht dort die Burgruine (map_nachtwald.gd)
+				if not _themed():                          # im Nachtwald steht dort die Burgruine (map_nachtwald.gd)
 					_house(Vector3(slot_x + (h - 1.5) * 2.5, 0.0, plaza_z + 5.0))
-		if map_theme != "nachtwald":
+		if not _themed():
 			for sx in [-1.0, 1.0]:
 				_cyl(Vector3(lane_xs[i] + sx * (half - 1.5), 0.2, plaza_z - 1.0), 1.1, 0.4, Color("#6d6558"))     # Händler-Sockel
 	# Team-Lebenspunkt: ein Kristall am Ende der Lanes. Bei 4v4 laufen beide Lanes eines Teams hier zusammen.
@@ -668,7 +669,7 @@ func _build_map() -> void:
 		var first := team * lanes_per_team
 		var cx: float = (lane_xs[first] + lane_xs[first + lanes_per_team - 1]) / 2.0
 		var col := Color("#4fd8ff") if team == 0 else Color("#ff9a3a")
-		if map_theme == "nachtwald":
+		if _themed():
 			if not test_mode:
 				decor.place_statue(team, cx, col)                    # Wächterstatue statt Kristall
 				decor.place_fountain(cx, 7.4)                        # Heilbrunnen dahinter
@@ -687,10 +688,10 @@ func _build_map() -> void:
 			crystal.material_override = cmat
 			add_child(crystal)
 		var ll := _label3d("", 44, col)
-		ll.position = Vector3(cx, 3.8 if map_theme != "nachtwald" else 6.0, 0.8)
+		ll.position = Vector3(cx, 3.8 if not _themed() else 6.0, 0.8)
 		add_child(ll)
 		life_labels.append(ll)
-	if map_theme == "nachtwald":
+	if _themed():
 		if not test_mode:
 			decor.decorate(wall_list, river_x, lane_xs, half, x_min, x_max)
 		return
@@ -713,13 +714,13 @@ func _gapped_wall(wall_x: float) -> void:
 
 
 func _sand_piece(wall_x: float, x0: float, x1: float) -> void:
-	if map_theme == "nachtwald":
+	if _themed():
 		return                                                       # Nachtwald: Pflasterweg (Shader) statt Sandfläche
 	_box(Vector3(wall_x, -0.04, -(x0 + x1) / 2.0 * S), Vector3(WALL + 0.2, 0.1, (x1 - x0) * S), mc["lane"])
 
 
 func _wall_piece(wall_x: float, x0: float, x1: float) -> void:
-	if x1 <= x0 or map_theme == "nachtwald":
+	if x1 <= x0 or _themed():
 		return
 	var zc := -(x0 + x1) / 2.0 * S
 	var len := (x1 - x0) * S
@@ -1991,6 +1992,11 @@ const LOOP_ANIMS := ["Idle", "Walk", "Run", "Flying", "Attacking_Idle", "Run_Wea
 var model_cache: Dictionary = {}
 
 
+## Karte mit eigener Gestaltung (map_nachtwald.gd bzw. map_burg.gd) statt der alten Klötzchen-Karte
+func _themed() -> bool:
+	return map_theme == "nachtwald" or map_theme == "burg"
+
+
 ## Lädt ein Modell und skaliert es auf die Höhe `height` (m). Gibt {} zurück, wenn es nicht geladen werden kann.
 ## Ergebnis: {"model": Node3D, "anim": AnimationPlayer, "cur": "", "yaw": 0.0}
 func _make_figure(path: String, height: float) -> Dictionary:
@@ -2992,6 +2998,8 @@ func _step_units(side: Dictionary, dt: float) -> void:
 			var l := int(u["def"]["lives"])
 			team_lives[side["idx"]] -= l
 			side["leak"][u["type"]] = side["leak"].get(u["type"], 0) + l
+			if map_theme == "burg" and not test_mode and u["node"] != null:     # Burgkarte: Monster rennt gegen das Tor (nur Optik)
+				decor.gate_hit(int(side["idx"]), (u["node"] as Node3D).position)
 			if side["idx"] == 0:
 				sfx("leak")
 				shake(5.0)
@@ -3358,7 +3366,7 @@ func _sync_visuals(delta: float) -> void:
 	_update_fx(delta)
 	_update_merchant(delta)
 	_update_statues(delta)
-	if map_theme == "nachtwald":
+	if _themed():
 		decor.update_spawns(delta)
 		decor.update_pool(delta)
 	_cam_input(delta)
@@ -4210,7 +4218,7 @@ func _run_simulation(secs: float, shot_path: String) -> void:
 		_update_statues(0.1)
 	if cam_test_x > -99998.0:
 		cam_free = true
-		cam_focus = _wp(cam_test_x, 0.0, 0) + Vector3(cam_test_dx if cam_test_x >= 0.0 else 0.0, 0.0, 0.0)
+		cam_focus = _wp(cam_test_x, 0.0, 0) + Vector3(cam_test_dx if cam_test_x >= 0.0 or "--camdx" in " ".join(OS.get_cmdline_user_args()) else 0.0, 0.0, 0.0)
 	if lineup_test:                                                    # Test: alle Monster nebeneinander, die Kamera schaut darauf
 		for s in sides:
 			s["wave_t"] = 1e9

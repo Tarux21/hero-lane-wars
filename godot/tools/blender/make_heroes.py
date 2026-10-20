@@ -1501,6 +1501,7 @@ HERO_LOOK = {
     "caster": dict(gender="Male", outfit="Male_Wizard", parts=[], hair=["Hair_Long", "Hair_Beard"], look=None),
     "ranger": dict(gender="Female", outfit="Female_Ranger", parts=["Female_Ranger_Head_Hood", "Female_Ranger_Acc_Pauldrons"], hair=[], look=None, shrink=("Hood", 0.99)),
     "druid":  dict(gender="Female", outfit="Female_Wizard", parts=[], hair=["Hair_Long"], look={"Wizard": (0.5, 0.35, 1.0, (0.62, 0.8, 0.45))}),
+    "smith":  dict(gender="Male", outfit="Male_Peasant", parts=[], hair=["Hair_Buzzed", "Hair_Beard"], look={"Peasant": (0.47, 0.8, 0.8)}),
     "necro":  dict(gender="Male", outfit="Male_Noble", parts=["Male_Ranger_Head_Hood", "Male_Knight_Acc_Pauldron_Spike"], hair=[], drop=["Lion", "Crown", "Noble_Acc_Pauldron"],
                    look={"Hood": (0.5, 0.1, 0.12), "Knight": (0.5, 0.25, 0.4), "Noble": (0.75, 0.25, 0.33)}, shrink=("Hood", 1.0)),
 }
@@ -1538,6 +1539,33 @@ def build_hero(cls):
         _grip(o, 0.35)
         place(o, arm, "r", tip="up")
         leaf_crown(arm, mat("leafcrown", (0.2, 0.5, 0.14), 0.0, 0.6))
+    elif cls == "smith":                                                # Schmied (Händler im Burghof): kleiner Hammer, Lederschürze
+        h = pack_weapon("Hammer_Small", {"Steel": ((0.25, 0.25, 0.27), 0.85, 0.35), "DarkSteel": ((0.15, 0.15, 0.16), 0.8, 0.4),
+                                         "DarkWood": ((0.22, 0.13, 0.07), 0.0, 0.7), "LightWood": ((0.35, 0.2, 0.1), 0.0, 0.7)}, frac=0.15, length=0.42)
+        place(h, arm, "r", tip="up")
+        apron = mat("apron", (0.11, 0.06, 0.03), 0.0, 0.75)
+        body = [o for o in arm.children if o.type == 'MESH' and "Peasant" in o.name]
+        pts = [o.matrix_world @ v.co for o in body for v in o.data.vertices]
+        front = lambda z: min((p.y for p in pts if abs(p.z - z) < 0.04 and abs(p.x) < 0.12), default=-0.12)
+        bm = bmesh.new()                                                # Lederschürze: Gitter, das vorn der Körperform folgt (Brust bis Knie)
+        rows, cols = 12, 6
+        vs = []
+        for r in range(rows + 1):
+            z = 1.38 - r * (1.38 - 0.5) / rows
+            w = 0.15 if z > 1.05 else 0.19
+            y = front(z) - 0.025
+            vs.append([bm.verts.new((-w + 2 * w * c / cols, y - 0.02 * (1 - abs(c / cols * 2 - 1)), z)) for c in range(cols + 1)])
+        for r in range(rows):
+            for c in range(cols):
+                bm.faces.new((vs[r][c], vs[r][c + 1], vs[r + 1][c + 1], vs[r + 1][c]))
+        me = bpy.data.meshes.new("apron"); bm.to_mesh(me); bm.free()
+        ap = bpy.data.objects.new("apron", me); bpy.context.scene.collection.objects.link(ap)
+        me.materials.append(apron)
+        so = ap.modifiers.new("s", "SOLIDIFY"); so.thickness = 0.012
+        bpy.context.view_layer.objects.active = ap; bpy.ops.object.modifier_apply(modifier="s")
+        for p in me.polygons:
+            p.use_smooth = True
+        skin_from(ap, body)
     elif cls == "necro":                                                # 14 Sense (schwarz, Knochen), Kapuze mit Totenschädel, Totenkopf-Schulterplatten
         sc_ = pack_weapon("Scythe", {"Steel": ((0.12, 0.13, 0.14), 0.85, 0.3), "LightSteel": ((0.3, 0.42, 0.32), 0.9, 0.25),
                                      "DarkWood": ((0.05, 0.04, 0.05), 0.0, 0.7), "LightWood": ((0.12, 0.1, 0.1), 0.0, 0.7)}, frac=0.62, length=1.8)
@@ -1609,6 +1637,7 @@ HERO_ANIMS = {
                "Death": ("UAL1", "Death01"), "Hit": ("UAL1", "Hit_Chest")},
     "ranger": {"Idle": ("UAL1", "Idle_Loop"), "Run": ("UAL1", "Jog_Fwd_Loop"), "Attack": ("UAL1", "Spell_Simple_Shoot"),
                "Cast": ("UAL2", "OverhandThrow"), "Death": ("UAL1", "Death01"), "Hit": ("UAL1", "Hit_Chest")},
+    "smith":  {"Idle": ("UAL1", "Idle_Loop"), "Work": ("UAL2", "TreeChopping_Loop"), "Greet": ("UAL2", "Yes")},
     "druid":  {"Idle": ("UAL1", "Idle_Loop"), "Run": ("UAL1", "Jog_Fwd_Loop"), "Attack": ("UAL1", "Spell_Simple_Shoot"),
                "Cast": ("UAL2", "Farm_PlantSeed"), "Death": ("UAL1", "Death01"), "Hit": ("UAL1", "Hit_Chest")},
     "necro":  {"Idle": ("UAL1", "Idle_Loop"), "Run": ("UAL1", "Jog_Fwd_Loop"), "Attack": ("UAL2", "Sword_Regular_A"),
