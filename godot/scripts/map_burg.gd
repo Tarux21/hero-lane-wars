@@ -468,43 +468,57 @@ func _update_gates(delta: float) -> void:
 var smith: Dictionary = {}
 
 
-## Schmied an der Esse: hämmert am Amboss, grüßt (Nicken), wenn ein eigener Held nahe kommt. Klick öffnet den Shop (wie der Goblin).
+## Schmiede in der Ecke vorn links im Burghof (Torseite und linke Hofmauer): Esse, Werkbank und Regale unter einem Pultdach in der Ecke,
+## Amboss und Schmied davor im Freien (aus der Spielkamera sichtbar). Rußboden, Rauch aus der Esse, Karren an der Mauer.
 func build_camp(cx: float, cz: float) -> void:
-	var anvil_p := Vector3(cx + 1.5, 0.0, cz)
-	var smith_p := anvil_p + Vector3(-1.4, 0.0, 0.3)
-	var forge_p := Vector3(cx - 2.5, 0.0, cz + 2.2)
-	var rack_p := Vector3(cx + 4.6, 0.0, cz + 1.0)
-	var bench_p := Vector3(cx - 1.0, 0.0, cz + 4.6)
-	_put_parts("Anvil_Log", anvil_p, 0.3, 1.6)
-	_put_parts("FirePit", forge_p, 0.0, 1.5)
-	_put_parts("Bellows", forge_p + Vector3(-1.6, 0.0, 0.4), 1.4, 1.5)
-	_put_parts("WeaponStand", rack_p, -PI / 2.0, 1.6)
-	_put_parts("Hammer_Rack", rack_p + Vector3(0.2, 0.0, 2.4), -PI / 2.0, 1.6)
-	_put_parts("Workbench_Vice", bench_p, PI, 1.6)
-	_put_parts("Shield_Metal", rack_p + Vector3(-0.8, 0.0, -1.6), 0.4, 1.6)
-	_put_parts("Shield_Wooden", rack_p + Vector3(-1.4, 0.0, -1.3), 1.0, 1.6)
-	_put_parts("Barrel", bench_p + Vector3(2.2, 0.0, 0.4), 0.0, 1.5)
-	_put_parts("Whetstone", anvil_p + Vector3(1.8, 0.0, 1.6), 0.8, 1.6)
-	_put_parts("Sign_Blacksmith", Vector3(cx + 0.5, 0.0, cz - 2.6), 0.0, 1.6)
-	var shed_p := Vector3(cx - 1.0, 0.0, cz + 9.0)                         # Unterstand hinter der Schmiede: Karren, Heu, Säcke
-	_put_parts("Unterstand", shed_p, PI, 1.0)
-	_put_parts("Prop_Wagon", shed_p + Vector3(-1.4, 0.0, -0.4), PI / 2.0 + 0.15, 1.3)
-	_nat_scatter("Grass_Wheat", [_t(shed_p.x + 1.4, shed_p.z - 0.6, 1.6), _t(shed_p.x + 2.0, shed_p.z - 1.2, 1.4), _t(shed_p.x + 1.0, shed_p.z - 1.6, 1.5)], false)
-	for e in [["Bag", 2.6, 0.2], ["Pouch_Large", 2.2, -0.6], ["Barrel", 3.0, -1.8], ["Bucket_Metal", 0.6, -2.2], ["FarmCrate_GreenApples", -3.0, -2.2]]:
-		_put_parts(str(e[0]), shed_p + Vector3(float(e[1]), 0.0, float(e[2])), rng.randf() * TAU, 1.4)
-	_reserve(shed_p.x, shed_p.z - 1.5, 4.0)
-	for e in [[anvil_p, 1.4], [forge_p, 2.0], [rack_p, 2.2], [bench_p, 2.0], [smith_p, 1.2], [Vector3(cx + 0.5, 0.0, cz + 1.5), 6.0]]:
+	var wall_x: float = cx - 5.5                                              # Innenkante der linken Hofmauer
+	var face := PI / 2.0                                                      # Vorderseite zum Hof (+x)
+	var z0: float = GATE_Z + 4.2                                               # Dach beginnt direkt an der Mauer am Tor (Ecke)
+	var S := 1.4                                                              # eine Größe für alle Requisiten (passt zu Häusern und Helden)
+	var shed_p := Vector3(wall_x + 0.3, 0.0, z0)                              # Rückseite des Unterstands an der Mauer
+	var forge_p := Vector3(wall_x + 1.4, 0.0, z0 - 1.6)
+	var anvil_p := Vector3(wall_x + 5.4, 0.0, z0 + 0.6)                        # vor dem Dach im Freien
+	var smith_p := Vector3(wall_x + 4.3, 0.0, z0 + 0.9)
+	var bench_p := Vector3(wall_x + 1.1, 0.0, z0 + 2.0)
+	var rack_p := Vector3(wall_x + 0.9, 0.0, z0 + 4.6)
+	_soot(Vector3(wall_x + 3.6, 0.0, z0 + 1.6), Vector2(8.0, 9.0))
+	_put_parts("Unterstand", shed_p + Vector3(0.0, 0.0, 1.0), face, 1.0)             # Pultdach: hoch an der Mauer, niedrig zum Hof
+	_put_parts("FirePit", forge_p, 0.0, S)
+	_put_parts("Bellows", forge_p + Vector3(0.0, 0.0, -1.5), face, S)
+	_put_parts("Prop_Chimney", forge_p + Vector3(-0.9, 0.0, 0.0), face, 1.0)
+	_put_parts("Anvil_Log", anvil_p, face + 0.15, S)
+	_put_parts("Workbench_Vice", bench_p, face, S)
+	_put_parts("Hammer_Rack", bench_p + Vector3(-0.6, 0.0, 1.5), face, S)
+	_put_parts("WeaponStand", rack_p, face, S)
+	_put_parts("Shield_Metal", rack_p + Vector3(0.1, 0.0, 1.3), face, S)
+	_put_parts("Bucket_Metal", anvil_p + Vector3(0.9, 0.0, -0.9), 0.0, S)
+	_put_parts("Whetstone", anvil_p + Vector3(1.0, 0.0, 1.6), face, S)
+	_put_parts("Barrel", forge_p + Vector3(0.8, 0.0, -2.6), 0.0, S)
+	_put_parts("Crate_Wooden", forge_p + Vector3(1.9, 0.0, -2.9), 0.3, S)
+	if true:                                                                  # Karren mit Heu neben der Werkstatt an der Mauer
+		_put_parts("Prop_Wagon", Vector3(wall_x + 1.8, 0.0, z0 + 9.5), 0.05, 1.3)
+		_nat_scatter("Grass_Wheat", [_t(wall_x + 1.6, z0 + 8.9, 1.5), _t(wall_x + 2.1, z0 + 9.6, 1.4)], false)
+		_put_parts("Bag", Vector3(wall_x + 3.4, 0.0, z0 + 8.6), 0.4, S)
+	for e in [[anvil_p, 1.4], [forge_p, 2.0], [rack_p, 1.6], [bench_p, 2.0], [smith_p, 1.2], [Vector3(wall_x + 3.0, 0.0, z0 + 2.0), 5.5]]:
 		_reserve(e[0].x, e[0].z, e[1])
 	var fl := _light(forge_p + Vector3(0, 1.0, 0), Color("#ff7a2a"), 2.0, 9.0)            # Glut der Esse flackert
 	var tw := fl.create_tween().set_loops()
 	tw.tween_property(fl, "light_energy", 1.4 * Data.user.light_factor(), 0.3).set_trans(Tween.TRANS_SINE)
 	tw.tween_property(fl, "light_energy", 2.4 * Data.user.light_factor(), 0.4).set_trans(Tween.TRANS_SINE)
 	_motes(forge_p + Vector3(0, 1.2, 0), Vector3(0.5, 0.1, 0.5), 26, Color("#ffaa40"), 0.2, 1.6, 2.0)
+	var smoke := _fog_particles(forge_p + Vector3(-0.9, 3.2, 0.0), 18, 4.5, 0.4, 0.9, false)   # Rauch aus dem Esse-Schornstein
+	smoke.color = Color(0.45, 0.43, 0.42, 0.28)
+	smoke.direction = Vector3(0.3, 1.0, 0.1)
+	smoke.spread = 12.0
+	smoke.gravity = Vector3(0.2, 0.15, 0.0)
+	smoke.emission_box_extents = Vector3(0.15, 0.05, 0.15)
+	smoke.emitting = true
+	var work_yaw: float = atan2(anvil_p.x - smith_p.x, anvil_p.z - smith_p.z)
 	var fig: Dictionary = g._make_figure("res://assets/heroes/Smith.glb", 2.9)
 	if not fig.is_empty():
 		var n: Node3D = fig["model"]
 		n.position = smith_p
-		(fig["inner"] as Node3D).rotation.y = PI / 2.0 + 0.2                    # Blick zum Amboss
+		(fig["inner"] as Node3D).rotation.y = work_yaw                          # Blick zum Amboss
 		g.add_child(n)
 		var ap: AnimationPlayer = fig["anim"]
 		if ap != null:
@@ -513,7 +527,7 @@ func build_camp(cx: float, cz: float) -> void:
 					ap.get_animation(an).loop_mode = Animation.LOOP_LINEAR
 			if ap.has_animation("Work"):
 				ap.play("Work")
-		smith = {"fig": fig, "state": "work", "t": 0.0, "anvil": anvil_p, "sparks_t": 0.0}
+		smith = {"fig": fig, "state": "work", "t": 0.0, "anvil": anvil_p, "sparks_t": 0.0, "yaw": work_yaw}
 	var pst: Label3D = g._label3d("Psst! Waffen und Tränke!", 40, Color("#ffe066"))
 	pst.position = smith_p + Vector3(0.0, 3.4, 0.0)
 	pst.modulate.a = 0.0
@@ -525,6 +539,24 @@ func build_camp(cx: float, cz: float) -> void:
 	tag.outline_modulate.a = 0.0
 	g.add_child(tag)
 	g.merchant = {"goblin": smith_p, "wagon": rack_p, "counter": anvil_p, "armor": forge_p, "pst": pst, "tag": tag, "near": false, "pst_t": 0.0, "hover": false}
+
+
+## Rußiger, festgetretener Erdboden unter der Werkstatt (weicher Rand, liegt über dem Pflaster)
+func _soot(c: Vector3, size: Vector2) -> void:
+	var q := PlaneMesh.new()
+	q.size = size
+	var sm := ShaderMaterial.new()
+	var sh := Shader.new()
+	sh.code = "shader_type spatial;\nrender_mode diffuse_lambert, specular_disabled;\nuniform vec2 size;\nvarying vec3 lp;\nfloat h(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5);}\nfloat n(vec2 p){vec2 i=floor(p);vec2 f=fract(p);vec2 u=f*f*(3.0-2.0*f);return mix(mix(h(i),h(i+vec2(1,0)),u.x),mix(h(i+vec2(0,1)),h(i+vec2(1,1)),u.x),u.y);}\nvoid vertex(){lp=VERTEX;}\nvoid fragment(){vec2 d=abs(lp.xz)/(size*0.5);float r=max(d.x,d.y);float e=1.0-smoothstep(0.62,1.0,r+0.25*n(lp.xz*1.3));vec3 c=mix(vec3(0.20,0.16,0.12),vec3(0.36,0.29,0.21),n(lp.xz*2.2));ALBEDO=c;ALPHA=e*0.95;ROUGHNESS=1.0;}\n"
+	sm.shader = sh
+	sm.set_shader_parameter("size", size)
+	sm.render_priority = -18
+	var mi := MeshInstance3D.new()
+	mi.mesh = q
+	mi.material_override = sm
+	mi.position = c + Vector3(0, 0.03, 0)
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	g.add_child(mi)
 
 
 ## Schmied: hämmert; kommt ein Held, dreht er sich um und nickt, danach wieder an die Arbeit. Funken im Takt der Schläge.
@@ -554,7 +586,7 @@ func _update_smith(delta: float) -> void:
 		smith["state"] = "work"
 		if ap.has_animation("Work"):
 			ap.play("Work", 0.3)
-	var want_yaw: float = PI / 2.0 + 0.2
+	var want_yaw: float = float(smith.get("yaw", PI / 2.0))
 	if st != "work" and not g.hero.is_empty():
 		var hp: Vector3 = (g.hero["node"] as Node3D).position
 		var sp: Vector3 = (fig["model"] as Node3D).position

@@ -3550,7 +3550,7 @@ func _cam_input(delta: float) -> void:
 		dir.y -= 1.0
 	if Input.is_key_pressed(KEY_DOWN):
 		dir.y += 1.0
-	if Data.user.edge_scroll and get_window().has_focus():
+	if Data.user.edge_scroll and get_window().has_focus() and cam_test_x < -99998.0:          # Testbilder mit --camx: Maus darf die Kamera nicht verschieben
 		var vp := get_viewport()
 		var mp := vp.get_mouse_position()
 		var sz := vp.get_visible_rect().size
