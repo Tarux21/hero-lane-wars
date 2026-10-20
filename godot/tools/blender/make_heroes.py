@@ -1181,7 +1181,7 @@ def place(o, arm, side, tip="down", lift=0.0):
     return attach(o, arm, "hand_" + side)
 
 
-def place_shield(o, arm, out=0.09, tilt=40):
+def place_shield(o, arm, out=0.14, tilt=40):
     """Schild am linken Unterarm: Vorderseite nach außen, Oberkante Richtung Schulter, etwas nach vorn gekippt."""
     from mathutils import Matrix
     o.data.transform(Matrix.Rotation(math.pi, 4, 'Z'))                  # Vorderseite (Wappen) nach außen, Griffe zum Arm
@@ -1243,24 +1243,30 @@ def hide_head(arm):
 
 
 def skull_head(arm, bone_m, eye_m):
-    """Totenschädel unter der Kapuze: Schädeldecke, Wangenknochen, tiefe Augenhöhlen mit Glutpunkten, Nasenloch, Zahnreihe, Unterkiefer."""
+    """Totenschädel tief in der Kapuze: dunkle Schattenzone dahinter, dunkler Knochen, schräge Brauenwülste (böser Blick),
+    tiefe Augenhöhlen mit kleiner, intensiver Glut, langer Kiefer mit dünnen Zähnen."""
     W = wmod()
     hb = arm.data.bones["Head"]
-    c = arm.matrix_world @ hb.head_local + Vector((0, -0.005, 0.1))
-    dark = mat("socket", (0.01, 0.01, 0.01), 0.0, 0.95)
-    bone_m = mat("necro_skull", (0.5, 0.47, 0.4), 0.0, 0.75)
+    c = arm.matrix_world @ hb.head_local + Vector((0, 0.012, 0.095))
+    void = mat("hood_void", (0.0, 0.0, 0.0), 0.0, 1.0)
+    dark = mat("socket", (0.005, 0.005, 0.005), 0.0, 1.0)
+    bone_m = mat("necro_skull2", (0.33, 0.31, 0.27), 0.0, 0.8)
+    eye_m = mat("necro_eye", (0.3, 1.0, 0.2), 0.0, 0.3, emit=(0.25, 1.0, 0.15))
+    eye_m.node_tree.nodes["Principled BSDF"].inputs["Emission Strength"].default_value = 9.0
     P = []
-    P.append(W.ball(bone_m, 0.08, c + Vector((0, 0.012, 0.02)), (0.88, 1.08, 1.02), seg=24))                 # Schädeldecke
-    P.append(W.ball(bone_m, 0.055, c + Vector((0, -0.03, -0.05)), (0.95, 0.95, 0.95), seg=20))                # Gesichtsschädel
+    P.append(W.ball(void, 0.105, c + Vector((0, 0.035, 0.005)), (1.0, 1.0, 1.1), seg=16))                      # Schatten in der Kapuze
+    P.append(W.ball(bone_m, 0.068, c + Vector((0, -0.012, 0.02)), (0.86, 1.0, 0.98), seg=24))                  # Schädeldecke
+    P.append(W.ball(bone_m, 0.048, c + Vector((0, -0.042, -0.04)), (0.92, 0.85, 0.95), seg=20))               # Gesicht
     for sx in (-1, 1):
-        P.append(W.ball(bone_m, 0.02, c + Vector((sx * 0.038, -0.055, -0.035)), (1.0, 1.0, 0.8), seg=12))     # Wangenknochen
-        P.append(W.cube(dark, c + Vector((sx * 0.028, -0.07, -0.006)), (0.034, 0.03, 0.028), rot=(0, 0, sx * 0.2)))      # Augenhöhle
-        P.append(W.ball(eye_m, 0.0045, c + Vector((sx * 0.028, -0.084, -0.008)), seg=8))                       # Glut im Auge
-    P.append(W.cyl(dark, 0.011, c + Vector((0, -0.07, -0.04)), c + Vector((0, -0.086, -0.046)), r2=0.002, verts=3))   # Nasenloch
-    for i in range(8):                                                                                   # Zahnreihe
-        x = -0.03 + i * 0.0086
-        P.append(W.cube(bone_m, c + Vector((x, -0.074 + abs(x) * 0.35, -0.075)), (0.0075, 0.008, 0.016)))
-    P.append(W.ball(bone_m, 0.045, c + Vector((0, -0.035, -0.095)), (1.05, 1.0, 0.45), seg=16))               # Unterkiefer
+        sk = W.ball(dark, 0.02, c + Vector((sx * 0.024, -0.072, -0.004)), (1.15, 0.8, 0.85), seg=12)          # Augenhöhle: schräg (außen höher)
+        sk.rotation_euler = (0, sx * 0.45, 0)
+        P.append(sk)
+        P.append(W.ball(eye_m, 0.006, c + Vector((sx * 0.023, -0.086, -0.006)), seg=8))                       # Glut
+    P.append(W.cyl(dark, 0.009, c + Vector((0, -0.074, -0.032)), c + Vector((0, -0.09, -0.038)), r2=0.002, verts=3))   # Nasenloch
+    for i in range(7):                                                                                        # dünne Zähne
+        x = -0.019 + i * 0.0063
+        P.append(W.cube(bone_m, c + Vector((x, -0.08 + abs(x) * 0.4, -0.062)), (0.0042, 0.006, 0.016)))
+    P.append(W.ball(bone_m, 0.032, c + Vector((0, -0.055, -0.08)), (0.95, 0.9, 0.55), seg=16))                # Unterkiefer (in der Kapuze)
     s_ = W.join(P, "skull_head", smooth=True)
     return attach(s_, arm, "Head")
 
@@ -1316,7 +1322,7 @@ HERO_LOOK = {
     "ranger": dict(gender="Female", outfit="Female_Ranger", parts=["Female_Ranger_Head_Hood", "Female_Ranger_Acc_Pauldrons"], hair=[], look=None, shrink=("Hood", 0.99)),
     "druid":  dict(gender="Female", outfit="Female_Wizard", parts=[], hair=["Hair_Long"], look={"Wizard": (0.5, 0.35, 1.0, (0.62, 0.8, 0.45))}),
     "necro":  dict(gender="Male", outfit="Male_Noble", parts=["Male_Ranger_Head_Hood", "Male_Knight_Acc_Pauldron_Spike"], hair=[], drop=["Lion", "Crown", "Noble_Acc_Pauldron"],
-                   look={"Hood": (0.5, 0.1, 0.12), "Knight": (0.5, 0.25, 0.4), "Noble": (0.75, 0.25, 0.33)}, shrink=("Hood", 0.95)),
+                   look={"Hood": (0.5, 0.1, 0.12), "Knight": (0.5, 0.25, 0.4), "Noble": (0.75, 0.25, 0.33)}, shrink=("Hood", 1.0)),
 }
 
 
