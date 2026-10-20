@@ -438,6 +438,7 @@ func build_spawns(lane_xs: Array, half: float, x_min: float, x_max: float) -> vo
 
 func update_spawns(delta: float) -> void:
 	_update_gates(delta)
+	_update_life(delta)
 	_update_smith(delta)
 
 
@@ -658,6 +659,149 @@ func _motes_burst(pos: Vector3) -> void:
 	tw.tween_callback(p.queue_free)
 
 
+# ---------------------------------------------------------------- Leben: Rauch, Vögel, Bewohner, Tiere (nur Optik, eigener Zufall)
+var npcs: Array = []                     # {"fig", "mode": "cycle"/"patrol", "anims", "t", "a", "b", "dir", "speed"}
+var birds: Array = []                    # {"node", "c", "r", "h", "w", "ph"}
+var chimneys: Dictionary = {}
+
+
+## Rauch aus dem Schornstein eines Paket-Hauses (Position aus assets/burg/kamine.json)
+func _house_smoke(kind: String, xf: Transform3D) -> void:
+	if chimneys.is_empty():
+		var f := FileAccess.open(DIR + "kamine.json", FileAccess.READ)
+		if f != null:
+			chimneys = JSON.parse_string(f.get_as_text())
+		if chimneys == null or chimneys.is_empty():
+			chimneys = {"_": []}
+	for p in chimneys.get(kind, []):
+		var top: Vector3 = xf * Vector3(float(p[0]), float(p[1]), float(p[2]))
+		var s := _fog_particles(top + Vector3(0, 0.3, 0), 10, 6.0, 0.5, 0.9, false)
+		s.color = Color(0.82, 0.8, 0.78, 0.22)
+		s.direction = Vector3(0.25, 1.0, 0.05)
+		s.spread = 10.0
+		s.gravity = Vector3(0.35, 0.12, 0.0)                              # Wind treibt den Rauch zur Seite
+		s.emission_box_extents = Vector3(0.12, 0.05, 0.12)
+		s.preprocess = 6.0
+		s.emitting = true
+
+
+## Bewohner/Tier setzen. mode "cycle": wechselt zufällig zwischen anims; "patrol": läuft zwischen a und b hin und her (Walk), wartet an den Enden (Idle)
+func _npc(path: String, h: float, pos: Vector3, yaw: float, anims: Array, mode: String = "cycle", b: Vector3 = Vector3.ZERO) -> void:
+	var fig: Dictionary = g._make_figure(path, h)
+	if fig.is_empty():
+		return
+	var n: Node3D = fig["model"]
+	n.position = pos
+	(fig["inner"] as Node3D).rotation.y = yaw
+	g.add_child(n)
+	var ap: AnimationPlayer = fig["anim"]
+	if ap != null:
+		for an in ap.get_animation_list():
+			ap.get_animation(an).loop_mode = Animation.LOOP_LINEAR
+		var first: String = anims[0] if mode == "cycle" else "Walk"
+		if ap.has_animation(first):
+			ap.play(first)
+			ap.seek(rng.randf() * ap.get_animation(first).length, true)
+	npcs.append({"fig": fig, "mode": mode, "anims": anims, "t": rng.randf_range(2.0, 8.0), "a": pos, "b": b, "dir": 1.0, "wait": 0.0, "speed": 1.6, "yaw": yaw})
+
+
+func _update_life(delta: float) -> void:
+	for e in npcs:
+		var fig: Dictionary = e["fig"]
+		var ap: AnimationPlayer = fig["anim"]
+		var n: Node3D = fig["model"]
+		if e["mode"] == "cycle":
+			e["t"] = float(e["t"]) - delta
+			if float(e["t"]) <= 0.0 and ap != null:
+				var nx: String = (e["anims"] as Array)[rng.randi() % (e["anims"] as Array).size()]
+				if ap.has_animation(nx) and nx != ap.current_animation:
+					ap.play(nx, 0.4)
+				e["t"] = rng.randf_range(5.0, 11.0)
+		else:
+			if float(e["wait"]) > 0.0:
+				e["wait"] = float(e["wait"]) - delta
+				if float(e["wait"]) <= 0.0 and ap != null and ap.has_animation("Walk"):
+					ap.play("Walk", 0.3)
+				continue
+			var tgt: Vector3 = e["b"] if float(e["dir"]) > 0.0 else e["a"]
+			var d := tgt - n.position
+			d.y = 0.0
+			if d.length() < 0.15:
+				e["dir"] = -float(e["dir"])
+				e["wait"] = rng.randf_range(2.0, 5.0)
+				if ap != null:
+					var idle: String = (e["anims"] as Array)[rng.randi() % (e["anims"] as Array).size()]
+					if ap.has_animation(idle):
+						ap.play(idle, 0.3)
+				continue
+			n.position += d.normalized() * minf(d.length(), float(e["speed"]) * delta)
+			var inner: Node3D = fig["inner"]
+			inner.rotation.y = lerp_angle(inner.rotation.y, atan2(d.x, d.z), 1.0 - exp(-delta * 6.0))
+	var t := Time.get_ticks_msec() / 1000.0
+	for bd in birds:                                                  # Vögel kreisen, jeder etwas versetzt
+		var a: float = t * float(bd["w"]) + float(bd["ph"])
+		var c: Vector3 = bd["c"]
+		var r: float = bd["r"]
+		var bn: Node3D = bd["node"]
+		bn.position = c + Vector3(cos(a) * r, float(bd["h"]) + sin(a * 2.3) * 0.6, sin(a) * r)
+		bn.rotation.y = -a + (PI if float(bd["w"]) > 0.0 else 0.0)
+
+
+## Vogelschwarm: einfache Vögel (zwei Flügel, schlagen per Shader), kreisen über c
+func _flock(c: Vector3, count: int, radius: float, height: float) -> void:
+	var mesh := ArrayMesh.new()
+	var v := PackedVector3Array([Vector3(0, 0, 0.18), Vector3(0, 0, -0.18), Vector3(-0.55, 0, -0.05),
+		Vector3(0, 0, -0.18), Vector3(0, 0, 0.18), Vector3(0.55, 0, -0.05)])
+	var arr := []
+	arr.resize(Mesh.ARRAY_MAX)
+	arr[Mesh.ARRAY_VERTEX] = v
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+	var sm := ShaderMaterial.new()
+	var sh := Shader.new()
+	sh.code = "shader_type spatial;\nrender_mode cull_disabled, unshaded;\ninstance uniform float ph = 0.0;\nvoid vertex(){ float f = sin(TIME * 9.0 + ph) * abs(VERTEX.x) * 0.9; VERTEX.y += f; }\nvoid fragment(){ ALBEDO = vec3(0.12, 0.11, 0.12); }\n"
+	sm.shader = sh
+	mesh.surface_set_material(0, sm)
+	var w := rng.randf_range(0.18, 0.3) * (1.0 if rng.randf() < 0.5 else -1.0)
+	for k in count:
+		var mi := MeshInstance3D.new()
+		mi.mesh = mesh
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		mi.set_instance_shader_parameter("ph", rng.randf() * TAU)
+		mi.scale = Vector3.ONE * rng.randf_range(0.9, 1.3)
+		g.add_child(mi)
+		birds.append({"node": mi, "c": c + Vector3(rng.randf_range(-2, 2), 0, rng.randf_range(-2, 2)), "r": radius + rng.randf_range(-2.0, 2.0),
+			"h": height + rng.randf_range(-1.0, 1.0), "w": w, "ph": float(k) * 0.35})
+
+
+## Bewohner und Tiere für eine Seite (Burghof, Burgmauer, Stadt, Felder)
+func _populate(team: int, cxt: float, hw: float, lxs: Array) -> void:
+	var H := "res://assets/heroes/"
+	var sgn := 1.0 if team == 0 else -1.0
+	var px := func(u: float) -> float: return cxt + sgn * u * hw / 16.0
+	# Burghof: Marktleute, Plaudernde, ein Bauer läuft mit Waren über den Hof
+	_npc(H + "Baeuerin.glb", 2.75, Vector3(px.call(-3.5), 0, 23.0), PI, ["Idle", "Talk"])
+	_npc(H + "Buergerin.glb", 2.8, Vector3(px.call(-3.0), 0, 19.6), 0.0, ["Talk", "Idle"])
+	_npc(H + "Buergerin.glb", 2.8, Vector3(px.call(1.5), 0, 19.0), 0.3, ["Idle", "Talk"])
+	_npc(H + "Bauer.glb", 2.85, Vector3(px.call(-5.5), 0, 27.0), PI * 0.8, ["Talk", "Idle"])
+	_npc(H + "Bauer.glb", 2.85, Vector3(px.call(4.0), 0, 26.0), 0.0, ["Idle"], "patrol", Vector3(px.call(10.0), 0, 14.0))
+	# Wachen: zwei am Tor (innen), eine läuft auf der Mauer am Tor entlang
+	for lx in lxs:
+		_npc(H + "Wache.glb", 2.95, Vector3(float(lx) - 4.6, 0, GATE_Z + 2.4), 0.0, ["Idle"])
+		_npc(H + "Wache.glb", 2.95, Vector3(float(lx) + 4.6, 0, GATE_Z + 2.4), 0.0, ["Idle"])
+	_npc(H + "Wache.glb", 2.95, Vector3(cxt - sgn * (hw - 3.0), 6.35, GATE_Z), PI / 2.0, ["Idle"], "patrol", Vector3(float(lxs[0]) - sgn * 9.5, 6.35, GATE_Z))
+	_flock(Vector3(cxt, 0, 14.0), 5, 9.0, 16.0)
+
+
+func _populate_fields(lx: float, sd: float, half: float, fz: float, hx: float) -> void:
+	var H := "res://assets/heroes/"
+	_npc(H + "Bauer.glb", 2.85, Vector3(lx + sd * (half + 5.0), 0, fz + 14.0), rng.randf() * TAU, ["Work", "Work2", "Idle"])
+	_npc(H + "Baeuerin.glb", 2.75, Vector3(lx + sd * (half + 9.0), 0, fz - 12.0), rng.randf() * TAU, ["Work", "Work2", "Idle"])
+	_npc(DIR + "Kuh.gltf", 2.3, Vector3(hx + sd * 2.0, 0, fz - 9.0), rng.randf() * TAU, ["Eating", "Idle", "Eating", "Idle_Headlow"])
+	_npc(DIR + "Kuh.gltf", 2.3, Vector3(hx + sd * 4.0, 0, fz - 11.5), rng.randf() * TAU, ["Eating", "Idle_2", "Eating"])
+	_npc(DIR + "Pferd.gltf", 2.6, Vector3(hx - sd * 3.0, 0, fz + 9.5), rng.randf() * TAU, ["Idle", "Eating", "Idle_2"])
+	_flock(Vector3(lx + sd * (half + 8.0), 0, fz), 4, 7.0, 13.0)
+
+
 # ---------------------------------------------------------------- Burg, Hof, Stadt, Felder, Wiese
 func decorate(wall_xs: Array, river_x: float, lane_xs: Array, half: float, x_min: float, x_max: float) -> void:
 	if g.test_mode:
@@ -668,6 +812,7 @@ func decorate(wall_xs: Array, river_x: float, lane_xs: Array, half: float, x_min
 		var cxt: float = (lane_xs[first] + lane_xs[first + lpt - 1]) / 2.0
 		var hw: float = (lane_xs[first + lpt - 1] - lane_xs[first]) / 2.0 + half + float(g.WALL) + 9.0
 		_castle(t, cxt, hw, lane_xs.slice(first, first + lpt), river_x)
+		_populate(t, cxt, hw, lane_xs.slice(first, first + lpt))
 		for k in lpt:
 			var lx: float = lane_xs[first + k]
 			_town(lx, half, t, k, lpt, river_x)
@@ -770,7 +915,11 @@ func _town(lx: float, half: float, team: int, k: int, lpt: int, river_x: float) 
 				kind = "Haus_Houses_D"
 				dep = depth[kind]
 			var w: float = width[kind]
-			_put(kind, Vector3(lx + sd * (half + 0.8 + dep / 2.0), 0.0, z - w / 2.0), yaw, 1.0)
+			var hmi := _put(kind, Vector3(lx + sd * (half + 0.8 + dep / 2.0), 0.0, z - w / 2.0), yaw, 1.0)
+			if hmi != null:
+				_house_smoke(kind, hmi.transform)
+			if rng.randf() < 0.3:                                      # Leute vor dem Haus (am Straßenrand, nicht auf der Lane)
+				_npc("res://assets/heroes/" + ["Bauer.glb", "Baeuerin.glb", "Buergerin.glb"][rng.randi() % 3], 2.8, Vector3(lx + sd * (half + 1.3), 0.0, z - w * 0.5), yaw + PI, ["Talk", "Idle"])
 			_reserve(lx + sd * (half + 0.8 + dep / 2.0), z - w / 2.0, maxf(w, dep) * 0.6)
 			z -= w + rng.randf_range(0.5, 2.0)
 			if rng.randf() < 0.5:
@@ -823,7 +972,10 @@ func _fields(lx: float, half: float, team: int, k: int, lpt: int, river_x: float
 		var fz := rng.randf_range(-100.0, -70.0)                         # Bauernhof
 		var hx: float = lx + sd * (half + minf(limit, 22.0) - 2.0)
 		if limit > 12.0:
-			_put("Haus_Houses_D", Vector3(hx, 0.0, fz), rng.randf() * TAU, 1.0)
+			var fmi := _put("Haus_Houses_D", Vector3(hx, 0.0, fz), rng.randf() * TAU, 1.0)
+			if fmi != null:
+				_house_smoke("Haus_Houses_D", fmi.transform)
+			_populate_fields(lx, sd, half, fz, hx)
 			_reserve(hx, fz, 7.0)
 			for j in 4:
 				_put_parts(["FarmCrate_Apple", "FarmCrate_Carrot", "FarmCrate_Radish", "Barrel", "Bucket_Wooden_2"][rng.randi() % 5],

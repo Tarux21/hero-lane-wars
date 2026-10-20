@@ -97,11 +97,32 @@ def _export_joined(objs, name, center=True):
 
 
 def houses():
+    """Häuser der Beispielszene; dazu kamine.json: Schornstein-Oberkanten je Haus (Godot-Koordinaten, für Rauch)."""
+    import json
     V = _village()
     gs = V.groups(V.parse_tscn(V.SCENE))
+    tops = {}
     for kind, items in gs.items():
         objs = V.build(items, kind)
-        _export_joined(objs, "Haus_" + kind.replace(" ", "_"))
+        bpy.context.view_layer.update()
+        pts = [o.matrix_world @ Vector(c) for o in objs for c in o.bound_box]
+        cx = (min(p.x for p in pts) + max(p.x for p in pts)) / 2
+        cy = (min(p.y for p in pts) + max(p.y for p in pts)) / 2
+        name = "Haus_" + kind.replace(" ", "_")
+        tops[name] = []
+        for res, M in items:
+            if "Chimney" not in res:
+                continue
+            Mb = V.C @ M @ V.C.inverted()
+            for me, mw in V.piece(res):
+                vs = [Mb @ mw @ v.co for v in me.vertices]
+                top = max(v.z for v in vs)
+                ax = sum(v.x for v in vs) / len(vs) - cx
+                ay = sum(v.y for v in vs) / len(vs) - cy
+                tops[name].append([round(ax, 2), round(top, 2), round(-ay, 2)])
+                break
+        _export_joined(objs, name)
+    json.dump(tops, open(os.path.join(OUT, "kamine.json"), "w"), indent=1)
 
 
 def _pieces(V, specs):

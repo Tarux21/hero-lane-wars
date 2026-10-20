@@ -959,6 +959,9 @@ def recolor(obj, hue=0.5, sat=1.0, val=1.0, mul=None):
         nt.links.new(out, p.inputs["Base Color"])
 
 
+HAIR_COL = {"Male_Peasant": (0.45, 0.30, 0.18), "Female_Peasant": (0.75, 0.45, 0.22), "Female_Noble": (0.35, 0.22, 0.14)}   # nur Stadtbewohner
+
+
 def figure(gender, outfit, parts=(), hair=(), look=None):
     """Heldenkörper (Kopf) + Outfit + Zusatzteile + Haare; look = {Name-Teil: (hue, sat, val)} färbt passende Teile um."""
     global BODY
@@ -971,6 +974,10 @@ def figure(gender, outfit, parts=(), hair=(), look=None):
     names = {o.name for o in arm.children}
     for o in [o for o in arm.children if o.type == 'MESH' and o.name[-4:-3] == "." and o.name[:-4] in names]:   # Teil steckt schon im Outfit: Doppel weg
         bpy.data.objects.remove(o, do_unlink=True)
+    hc = HAIR_COL.get(outfit)
+    if hc:                                                               # Haarfarbe (Haar-Textur ist grau und wird eingefärbt)
+        for o in [o for o in arm.children if o.type == 'MESH' and o.name.lower().startswith(("hair", "eyebrow"))]:
+            recolor(o, 0.5, 1.0, 1.0, hc)
     if look:
         skin = ("superhero", "eye", "hair", "brow")
         for o in [o for o in arm.children if o.type == 'MESH' and not o.name.lower().startswith(skin)]:
@@ -1501,6 +1508,10 @@ HERO_LOOK = {
     "caster": dict(gender="Male", outfit="Male_Wizard", parts=[], hair=["Hair_Long", "Hair_Beard"], look=None),
     "ranger": dict(gender="Female", outfit="Female_Ranger", parts=["Female_Ranger_Head_Hood", "Female_Ranger_Acc_Pauldrons"], hair=[], look=None, shrink=("Hood", 0.99)),
     "druid":  dict(gender="Female", outfit="Female_Wizard", parts=[], hair=["Hair_Long"], look={"Wizard": (0.5, 0.35, 1.0, (0.62, 0.8, 0.45))}),
+    "bauer":  dict(gender="Male", outfit="Male_Peasant", parts=[], hair=["Hair_SimpleParted"], look={"Peasant": (0.52, 0.9, 0.95)}),
+    "baeuerin": dict(gender="Female", outfit="Female_Peasant", parts=[], hair=["Hair_Buns"], look={"Peasant": (0.45, 0.9, 1.0)}),
+    "buergerin": dict(gender="Female", outfit="Female_Noble", parts=[], hair=["Hair_Long"], drop=["Crown"], look={"Noble": (0.6, 0.8, 1.0)}),
+    "wache":  dict(gender="Male", outfit="Male_Knight_Cloth", parts=["Male_Knight_Head_Armet"], hair=[], look={"Cloth": (0.5, 1.0, 0.9)}),
     "smith":  dict(gender="Male", outfit="Male_Peasant", parts=[], hair=["Hair_Buzzed", "Hair_Beard"], look={"Peasant": (0.47, 0.8, 0.8)}),
     "necro":  dict(gender="Male", outfit="Male_Noble", parts=["Male_Ranger_Head_Hood", "Male_Knight_Acc_Pauldron_Spike"], hair=[], drop=["Lion", "Crown", "Noble_Acc_Pauldron"],
                    look={"Hood": (0.5, 0.1, 0.12), "Knight": (0.5, 0.25, 0.4), "Noble": (0.75, 0.25, 0.33)}, shrink=("Hood", 1.0)),
@@ -1539,6 +1550,9 @@ def build_hero(cls):
         _grip(o, 0.35)
         place(o, arm, "r", tip="up")
         leaf_crown(arm, mat("leafcrown", (0.2, 0.5, 0.14), 0.0, 0.6))
+    elif cls == "wache":                                                # Burgwache mit Speer
+        sp_ = pack_weapon("Spear", {"Steel": STEEL, "LightSteel": ((0.6, 0.62, 0.66), 0.9, 0.25), "DarkWood": ((0.2, 0.12, 0.06), 0.0, 0.7), "LightWood": ((0.35, 0.2, 0.1), 0.0, 0.7)}, frac=0.35, length=2.3)
+        place(sp_, arm, "r", tip="up")
     elif cls == "smith":                                                # Schmied (Händler im Burghof): kleiner Hammer, Lederschürze
         h = pack_weapon("Hammer_Small", {"Steel": ((0.25, 0.25, 0.27), 0.85, 0.35), "DarkSteel": ((0.15, 0.15, 0.16), 0.8, 0.4),
                                          "DarkWood": ((0.22, 0.13, 0.07), 0.0, 0.7), "LightWood": ((0.35, 0.2, 0.1), 0.0, 0.7)}, frac=0.15, length=0.62)
@@ -1637,6 +1651,10 @@ HERO_ANIMS = {
                "Death": ("UAL1", "Death01"), "Hit": ("UAL1", "Hit_Chest")},
     "ranger": {"Idle": ("UAL1", "Idle_Loop"), "Run": ("UAL1", "Jog_Fwd_Loop"), "Attack": ("UAL1", "Spell_Simple_Shoot"),
                "Cast": ("UAL2", "OverhandThrow"), "Death": ("UAL1", "Death01"), "Hit": ("UAL1", "Hit_Chest")},
+    "bauer":  {"Idle": ("UAL1", "Idle_Loop"), "Walk": ("UAL1", "Walk_Loop"), "Talk": ("UAL1", "Idle_Talking_Loop"), "Work": ("UAL2", "Farm_Harvest"), "Work2": ("UAL2", "Farm_Watering")},
+    "baeuerin": {"Idle": ("UAL1", "Idle_Loop"), "Walk": ("UAL1", "Walk_Loop"), "Talk": ("UAL1", "Idle_Talking_Loop"), "Work": ("UAL2", "Farm_PlantSeed"), "Work2": ("UAL2", "Farm_Harvest")},
+    "buergerin": {"Idle": ("UAL1", "Idle_Loop"), "Walk": ("UAL1", "Walk_Formal_Loop"), "Talk": ("UAL1", "Idle_Talking_Loop")},
+    "wache":  {"Idle": ("UAL1", "Idle_Loop"), "Walk": ("UAL1", "Walk_Loop")},
     "smith":  {"Idle": ("UAL1", "Idle_Loop"), "Work": ("UAL2", "TreeChopping_Loop"), "Greet": ("UAL2", "Yes")},
     "druid":  {"Idle": ("UAL1", "Idle_Loop"), "Run": ("UAL1", "Jog_Fwd_Loop"), "Attack": ("UAL1", "Spell_Simple_Shoot"),
                "Cast": ("UAL2", "Farm_PlantSeed"), "Death": ("UAL1", "Death01"), "Hit": ("UAL1", "Hit_Chest")},
@@ -1718,7 +1736,7 @@ _OLD_UPPER = {"Abdomen": "spine_02", "Torso": "spine_03", "Neck": "neck_01", "He
 for _s, _t in (("L", "l"), ("R", "r")):
     _OLD_UPPER.update({"Shoulder." + _s: "clavicle_" + _t, "UpperArm." + _s: "upperarm_" + _t, "LowerArm." + _s: "lowerarm_" + _t, "Fist." + _s: "hand_" + _t})
 # Arm, der in Ruhe/Laufen/Zaubern fest hält (Pose aus UAL2 Idle_No_Loop, wie beim Ausrichten der Waffe): Held -> (Seite, Animationen)
-HERO_HOLD = {"caster": ("r", ("Run", "Cast"))}                            # Haltung aus der fertigen Ruhe-Animation (Bild HOLD_FRAME)
+HERO_HOLD = {"caster": ("r", ("Run", "Cast")), "wache": ("r", ("Walk",))}                            # Haltung aus der fertigen Ruhe-Animation (Bild HOLD_FRAME)
 HOLD_FRAME = 10
 LEG_BONES = ("thigh_l", "calf_l", "foot_l", "thigh_r", "calf_r", "foot_r")
 RUN_LEGS = float(os.environ.get("RUN_LEGS", "1.25"))                     # Laufen: Beinbewegung ausladender (von oben besser sichtbar)
@@ -1928,6 +1946,17 @@ def export_hero(cls, out):
         for t in arm.animation_data.nla_tracks:
             t.mute = True
         mage_staff(arm, bpy.data.actions["Idle"], HOLD_FRAME)
+        for t in arm.animation_data.nla_tracks:
+            t.mute = False
+    if cls == "wache":                                                  # Speer in Ruhe senkrecht neben dem Körper
+        for o in [o for o in arm.children if o.name.startswith("Spear")]:
+            bpy.data.objects.remove(o, do_unlink=True)
+        for t in arm.animation_data.nla_tracks:
+            t.mute = True
+        sp_ = pack_weapon("Spear", {"Steel": STEEL, "LightSteel": ((0.6, 0.62, 0.66), 0.9, 0.25), "DarkWood": ((0.2, 0.12, 0.06), 0.0, 0.7), "LightWood": ((0.35, 0.2, 0.1), 0.0, 0.7)}, frac=0.4, length=2.3)
+        bpy.ops.object.select_all(action="DESELECT"); sp_.select_set(True); bpy.context.view_layer.objects.active = sp_
+        bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
+        place_dir(sp_, arm, "r", d=(0.0, -0.08, 1.0), act=bpy.data.actions["Idle"], frame=HOLD_FRAME)
         for t in arm.animation_data.nla_tracks:
             t.mute = False
     bpy.ops.object.select_all(action='DESELECT')
