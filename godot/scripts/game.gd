@@ -144,7 +144,10 @@ var pool_test := 0                          # Test: so viele Monster zu Beginn s
 var death_test := -1.0                      # Test: Monster-Reihe, nach 1 s sterben alle; Bild N s danach, --deathtest=0.5
 var lineup_test := false                     # Test: alle Monstermodelle nebeneinander, --lineup
 var hero_lineup: PackedStringArray = []      # Test: Heldenmodell in mehreren Animationen nebeneinander, --herolineup=Idle,Run,... (Name:Anteil für die Stelle)
-var lineup_key := ""                          # Test: anderes Heldenmodell für --herolineup (auch Helden ohne Spielregeln, z. B. ranger, druid, necro)
+var run_shot := ""                            # Test: Echtzeit-Bilder des laufenden eigenen Helden, --runshot=Prefix (Prefix1.png …), danach Ende
+var run_shot_n := 10                          # Anzahl Bilder, --runshotn=N (jedes 3. Bild, solange der Held läuft)
+var run_shot_k := 0
+var lineup_key := ""                        # Test: anderes Heldenmodell für --herolineup (auch Helden ohne Spielregeln, z. B. ranger, druid, necro)
 var pool_release_test := false              # Test: nach 1 s startet die Gegner-Welle, --poolrelease
 var cam_test_dx := -9.0                    # Test: seitlicher Versatz der Testkamera in Metern, --camdx=0
 var cam_test_x := -99999.0                # Test: Kamera frei auf Lane-Position x (Spielwert), --camx=1500
@@ -203,6 +206,10 @@ func _ready() -> void:
 			lineup_test = true
 		elif a.begins_with("--lineupkey="):
 			lineup_key = a.substr(12)
+		elif a.begins_with("--runshot="):
+			run_shot = a.substr(10)
+		elif a.begins_with("--runshotn="):
+			run_shot_n = int(a.substr(11))
 		elif a.begins_with("--herolineup="):
 			hero_lineup = a.substr(13).split(",")
 			lineup_test = true
@@ -2359,7 +2366,7 @@ func _load_volume() -> float:
 ## Beim Start: gespeicherte Anzeige anwenden, aber nicht in Tests und Bild-Läufen (feste Auflösung)
 func _apply_saved_display() -> void:
 	for a in OS.get_cmdline_user_args():
-		for t in ["--sim", "--shot", "--selftest", "--golden", "--fxtest", "--menushot", "--menuclick", "--menu-test", "--shopshot", "--merchanttest", "--camx", "--camdx", "--pitch", "--shotwait", "--fxx", "--pooltest", "--lineup", "--herolineup", "--lineupkey", "--deathtest", "--poolrelease", "--spawndbg", "--map", "--uiscale", "--colorblind", "--gfxlow", "--itemcatalog", "--dbgshot", "--uimenu", "--uitip", "--botplay", "--autoplay"]:
+		for t in ["--sim", "--shot", "--selftest", "--golden", "--fxtest", "--menushot", "--menuclick", "--menu-test", "--shopshot", "--merchanttest", "--camx", "--camdx", "--pitch", "--shotwait", "--fxx", "--pooltest", "--lineup", "--herolineup", "--lineupkey", "--runshot", "--deathtest", "--poolrelease", "--spawndbg", "--map", "--uiscale", "--colorblind", "--gfxlow", "--itemcatalog", "--dbgshot", "--uimenu", "--uitip", "--botplay", "--autoplay"]:
 			if a.begins_with(t):
 				return
 	var cf := ConfigFile.new()
@@ -3152,6 +3159,12 @@ func _animate(e: Dictionary, node: Node3D, side_idx: int, delta: float, attack_a
 	var ap: AnimationPlayer = fig["anim"]
 	if ap != null:
 		ap.speed_scale = clampf(aspd / ref, 0.7, 2.0) if moving and anim == move_anim else (float(fig.get("force_speed", 1.0)) if force > 0.0 else 1.0)
+	if run_shot != "" and e == hero and moving and Engine.get_process_frames() % 3 == 0:     # Test --runshot: Laufen im echten Spiel als Bildfolge
+		run_shot_k += 1
+		get_viewport().get_texture().get_image().save_png("%s%d.png" % [run_shot, run_shot_k])
+		if run_shot_k >= run_shot_n:
+			print("Runshot: ", run_shot_k, " Bilder")
+			get_tree().quit()
 	var spin: float = fig.get("spin", 0.0)
 	if spin > 0.0:                                      # Drehung (Dolchfächer): einmal im Kreis
 		fig["spin"] = spin - delta
