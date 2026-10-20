@@ -1603,7 +1603,8 @@ HERO_ANIMS = {
              "Sword_Attack2": ("UAL2", "Sword_Regular_B"), "Punch": ("UAL2", "Shield_OneShot"), "Death": ("UAL1", "Death01"),
              "Hit": ("UAL1", "Hit_Chest"), "Roll": ("UAL1", "Roll")},
     "damage": {"Idle": ("UAL1", "Sword_Idle"), "Run": ("UAL1", "Jog_Fwd_Loop"), "Dagger_Attack": ("UAL1", "Sword_Attack"),
-               "Dagger_Attack2": ("UAL2", "Sword_Regular_B"), "Roll": ("UAL1", "Roll"), "Death": ("UAL1", "Death01"), "Hit": ("UAL1", "Hit_Chest")},
+               "Dagger_Attack2": ("UAL2", "Sword_Regular_B"), "Roll": ("UAL1", "Roll"), "Death": ("UAL1", "Death01"), "Hit": ("UAL1", "Hit_Chest"),
+               "Throw": ("UAL1", "Spell_Simple_Shoot")},                       # Throw: Wirbelwurf (Q)
     "caster": {"Idle": ("UAL1", "Idle_Loop"), "Run": ("UAL1", "Jog_Fwd_Loop"), "Staff_Attack": [("UAL1", "Idle_Loop", None), ("OLD", "Staff_Attack", None)], "Cast": ("UAL1", "Spell_Simple_Shoot"),
                "Death": ("UAL1", "Death01"), "Hit": ("UAL1", "Hit_Chest")},
     "ranger": {"Idle": ("UAL1", "Idle_Loop"), "Run": ("UAL1", "Jog_Fwd_Loop"), "Attack": ("UAL1", "Spell_Simple_Shoot"),

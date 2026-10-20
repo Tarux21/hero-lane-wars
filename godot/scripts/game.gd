@@ -3166,9 +3166,13 @@ func _animate(e: Dictionary, node: Node3D, side_idx: int, delta: float, attack_a
 			print("Runshot: ", run_shot_k, " Bilder")
 			get_tree().quit()
 	var spin: float = fig.get("spin", 0.0)
-	if spin > 0.0:                                      # Drehung (Dolchfächer): einmal im Kreis
+	if spin > 0.0:                                      # Drehung (Dolchfächer): gleichmäßig einmal im Kreis (fx.gd wirft im Takt)
+		if not fig.has("spin_yaw0"):
+			fig["spin_yaw0"] = fig["yaw"]
 		fig["spin"] = spin - delta
-		fig["yaw"] += TAU * delta / 0.35
+		var st: float = fig.get("spin_T", 0.35)
+		var el := clampf(st - float(fig["spin"]), 0.0, st)
+		fig["yaw"] = float(fig["spin_yaw0"]) + TAU * el / st
 		(fig["inner"] as Node3D).rotation.y = fig["yaw"]
 	var lp: Variant = e.get("leap", null)
 	if fig.has("model"):                                # Sprung: die Figur steigt im Bogen (der Boden-Ring bleibt unten)
@@ -4046,6 +4050,10 @@ func _fxtest(which: String, prefix: String) -> void:
 		cam_free = false
 		cam_dist = 9.0
 		cam_pitch = 18.0
+	if which == "qclose":                               # Fähigkeit Q aus der Nähe (Figur und Würfe)
+		cam_focus = _wp(fx_base, 0.0, 0)
+		cam_dist = 9.0
+		cam_pitch = 38.0
 	if which == "levelup":                              # Level-Aufstieg: Kamera auf den Helden
 		cam_focus = _wp(fx_base, 0.0, 0)
 		cam_dist = 16.0
@@ -4055,7 +4063,7 @@ func _fxtest(which: String, prefix: String) -> void:
 	if which.begins_with("r"):
 		hero["last_elem"] = which.substr(1)
 		m["wx"] = fx_base
-	var slot: int = {"q": 0, "w": 1, "e": 2}.get(which, 3)
+	var slot: int = {"q": 0, "qclose": 0, "w": 1, "e": 2}.get(which, 3)
 	if which == "q" and fx_rank >= 5:
 		m["wx"] = fx_base + 280.0
 	if which == "lookside" and not hero["fig"].is_empty():
@@ -4096,6 +4104,8 @@ func _fxtest(which: String, prefix: String) -> void:
 	var marks := [0.12, 0.3, 0.55, 0.9, 1.4, 2.2, 3.2]
 	if which == "wauto" or which == "auto":
 		marks = [0.1, 0.25, 0.4, 0.55, 0.7, 0.85, 1.0]
+	if which == "qclose":
+		marks = [0.04, 0.12, 0.2, 0.28, 0.36, 0.44, 0.52, 0.62, 0.8]
 	if which == "spit":
 		marks = [0.15, 0.25, 0.35, 0.5, 1.15, 1.25, 1.4]
 	while k < marks.size():

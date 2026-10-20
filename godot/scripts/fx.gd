@@ -1744,16 +1744,28 @@ func dagger_fan(p: Dictionary, radius_units: float, rank: int) -> void:
 	_glow_sprite(Color(1, 1, 1, 0.8), 3.0, 0.16, origin + Vector3(0, 1.2, 0), 1.5)
 	_light(Color(0.8, 0.9, 1.0), 2.0, 9.0, 0.3, origin + Vector3(0, 1.5, 0))
 	var fig: Dictionary = p.get("fig", {})
-	if not fig.is_empty():
-		fig["spin"] = 0.35
+	var spin_t := 0.45                                  # Wirbelwurf: eine Drehung, Dolche fliegen nacheinander aus der ausgestreckten Hand
+	if not fig.is_empty():                              # Figur dreht sich (game.gd) und spielt die Wurf-Animation
+		fig["spin"] = spin_t
+		fig["spin_T"] = spin_t
+		fig.erase("spin_yaw0")
+		var ap: AnimationPlayer = fig.get("anim")
+		if ap != null and ap.has_animation("Throw"):
+			fig["force_anim"] = "Throw"
+			fig["force"] = spin_t
+			fig["force_speed"] = clampf(ap.get_animation("Throw").length / spin_t, 0.5, 4.0)
+			fig["cur"] = ""
 	for i in n:
 		var a := TAU * i / n + 0.3
 		var dir := Vector3(cos(a), 0.0, sin(a))
 		var d := _dagger_mesh(0.85)
 		var start := origin + Vector3(0, 1.3, 0)
-		_put(d, start, 1.6)
+		_put(d, start, 2.2)
 		d.basis = Basis.looking_at(dir, Vector3.UP)
 		d.visible = false
+		if not fig.is_empty():                          # aus der Hand werfen, wenn sie gerade in diese Richtung zeigt
+			_dagger_throw(d, fig, origin, r_m, spin_t * float(i) / float(n))
+			continue
 		var trail := _ps({"amount": 14, "life": 0.22, "local": false, "shape": "sphere", "radius": 0.05, "vmin": 0.0, "vmax": 0.3, "spread": 180.0,
 			"smin": 0.18, "smax": 0.32, "curve": _curve([1.0, 0.0]),
 			"ramp": _ramp([[0.0, Color(1, 1, 1, 0.9)], [0.5, Color(0.7, 0.85, 1.0, 0.5)], [1.0, Color(0.6, 0.8, 1.0, 0.0)]])})
@@ -1777,6 +1789,41 @@ func dagger_fan(p: Dictionary, radius_units: float, rank: int) -> void:
 			_put(sp, land, 0.5))
 		tw.tween_interval(0.45)
 		tw.tween_property(d, "scale", Vector3.ONE * 0.01, 0.25)
+
+
+const DAGGER_HAND := Vector2(0.9, 2.0)        # Wurfhand beim Dolchfächer: Abstand vor der Figur, Höhe (m)
+
+
+## Ein Dolch des Dolchfächers fliegt nach `delay` s aus der Hand: Richtung = aktuelle Blickrichtung der (drehenden) Figur.
+func _dagger_throw(d: Node3D, fig: Dictionary, origin: Vector3, r_m: float, delay: float) -> void:
+	var trail := _ps({"amount": 14, "life": 0.22, "local": false, "shape": "sphere", "radius": 0.05, "vmin": 0.0, "vmax": 0.3, "spread": 180.0,
+		"smin": 0.18, "smax": 0.32, "curve": _curve([1.0, 0.0]),
+		"ramp": _ramp([[0.0, Color(1, 1, 1, 0.9)], [0.5, Color(0.7, 0.85, 1.0, 0.5)], [1.0, Color(0.6, 0.8, 1.0, 0.0)]])})
+	trail.emitting = false
+	d.add_child(trail)
+	var path := {"a": origin, "b": origin}
+	var tw := d.create_tween()
+	tw.tween_interval(delay)
+	tw.tween_callback(func():
+		var yaw: float = fig.get("yaw", 0.0)
+		var dir := Vector3(sin(yaw), 0.0, cos(yaw))
+		path["a"] = origin + dir * DAGGER_HAND.x + Vector3(0, DAGGER_HAND.y, 0)
+		path["b"] = origin + dir * r_m * 0.95 + Vector3(0, 0.35, 0)
+		d.position = path["a"]
+		d.basis = Basis.looking_at(dir, Vector3.UP)
+		d.visible = true
+		trail.restart())
+	tw.tween_method(func(f: float):
+		d.position = (path["a"] as Vector3).lerp(path["b"], f)
+		d.rotate_object_local(Vector3.BACK, 0.5), 0.0, 1.0, 0.28).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
+	tw.tween_callback(func():
+		trail.emitting = false
+		var sp := _ps({"amount": 6, "life": 0.3, "once": true, "explo": 1.0, "shape": "sphere", "radius": 0.05, "dir": Vector3.UP, "spread": 120.0,
+			"vmin": 1.5, "vmax": 4.0, "smin": 0.05, "smax": 0.11, "grav": Vector3(0, -6.0, 0),
+			"ramp": _ramp([[0.0, Color(1, 1, 1, 1.0)], [1.0, Color(0.7, 0.85, 1.0, 0.0)]])})
+		_put(sp, path["b"], 0.5))
+	tw.tween_interval(0.45)
+	tw.tween_property(d, "scale", Vector3.ONE * 0.01, 0.25)
 
 
 ## kleiner Schnitt am Ziel (Autoangriff des Schurken)
