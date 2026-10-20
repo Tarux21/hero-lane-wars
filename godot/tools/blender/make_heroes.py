@@ -1256,6 +1256,10 @@ def skull_head(arm, bone_m=None, eye_m=None):
             ec.append(sum(side, Vector()) / len(side))
     else:
         ec = [Vector((-0.032, -0.085, 1.665)), Vector((0.032, -0.085, 1.665))]
+    ez = (ec[0].z + ec[1].z) / 2
+    cloth = mat("necro_mask", (0.045, 0.05, 0.045), 0.0, 0.92)
+    plate(arm, head, "facemask", lambda q: ez - 0.135 <= q.z <= ez - 0.016 and q.y < 0.035 and abs(q.x) < 0.085,     # Mundschutz aus der Kopfform
+          cloth, 0.008, 0.004, None, flat=12, bevel=0.0)
     hide_head(arm)
     mw = head.matrix_world
     inv = mw.inverted()
