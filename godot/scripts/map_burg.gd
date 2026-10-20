@@ -23,6 +23,7 @@ var noise_tex: Texture2D
 var wind_tex: Texture2D
 var gates: Array = []                   # {"team", "lx", "left", "right", "open", "stage"}
 var camp_c := Vector3.ZERO
+var courts: Dictionary = {}               # Team -> begehbarer Burghof in Spielwerten (game.gd _court)
 
 
 func _init(game: Node) -> void:
@@ -591,6 +592,8 @@ func build_camp(cx: float, cz: float) -> void:
 			smith["donkey_t"] = 6.0
 	for e in [[anvil_p, 1.4], [forge_p, 2.0], [rack_p, 1.6], [bench_p, 2.0], [smith_p, 1.2], [Vector3(wall_x + 3.0, 0.0, z0 + 2.0), 5.5]]:
 		_reserve(e[0].x, e[0].z, e[1])
+	_block(Vector3(wall_x + 1.8, 0.0, z0 - 0.5), 2.6)                       # Werkstatt unter dem Dach
+	_block(anvil_p, 1.0)
 	var fl := _light(forge_p + Vector3(0, 1.0, 0), Color("#ff7a2a"), 2.0, 9.0)            # Glut der Esse flackert
 	var tw := fl.create_tween().set_loops()
 	tw.tween_property(fl, "light_energy", 1.4 * Data.user.light_factor(), 0.3).set_trans(Tween.TRANS_SINE)
@@ -906,29 +909,52 @@ func _riverside(team: int, cxt: float, hw: float, river_x: float) -> void:
 	var edge: float = cxt + rs * (hw + 1.0)                                   # Linie der Hofmauer zum Fluss
 	var face: float = -PI / 2.0 * rs                                          # Vorderseite in den Hof
 	var S := 1.4
-	# Taverne: Fachwerkhaus mit Rückwand zur Mauerlinie, Schild, Tische und Bänke davor
-	var tz := GATE_Z + 6.2
-	var tav := _put("Haus_Houses_D", Vector3(edge - rs * 5.2, 0.0, tz), face, 1.0)
-	if tav != null:
-		tav.transform.basis = Basis(Vector3.UP, face).scaled(Vector3.ONE * 0.85)
-		_house_smoke("Haus_Houses_D", tav.transform)
-	_put_parts("Sign_Pub", Vector3(edge - rs * 10.8, 0.0, tz + 4.6), face, S)
-	for e in [[-12.6, tz - 1.0, 0.0], [-12.6, tz + 2.8, 0.0]]:
-		var p := Vector3(edge + rs * float(e[0]), 0.0, float(e[1]))
-		_put_parts("Table_Large", p, PI / 2.0, S)
-		_put_parts("Stool", p + Vector3(0.0, 0.0, -1.3), 0.3, S)
-		_put_parts("Stool", p + Vector3(0.0, 0.0, 1.3), 2.0, S)
-		_put_parts("Bench", p + Vector3(-rs * 1.2, 0.0, 0.0), PI / 2.0, S)
-	_put_parts("Barrel", Vector3(edge - rs * 10.6, 0.0, tz - 4.2), 0.0, S)
-	_put_parts("Barrel_Holder", Vector3(edge - rs * 10.2, 0.0, tz - 3.0), face, S)
-	_put_parts("Torch_Metal", Vector3(edge - rs * 10.4, 0.0, tz + 5.8), face, S)
-	_light(Vector3(edge - rs * 10.4, 2.6, tz + 5.8), Color("#ffc070"), 0.6, 6.0)
-	_reserve(edge - rs * 7.0, tz, 7.0)
+	# Ecke am Tor: Lagerplatz unter kleinem Dach, mit Abstand zum Torturm
+	var ecke := 3                                                             # Lagerplatz (gewählt; 1 Biergarten, 2 Pferdestall)
+	var boote := 3                                                            # Lastkahn (gewählt; 1 zwei Ruderboote, 2 ein Ruderboot)
+	var tz := GATE_Z + 9.0
+	var cx_: float = edge - rs * 5.0                                          # Mitte der Ecke, 4 m von der Mauerlinie
 	var H := "res://assets/heroes/"
-	_npc(H + "Bauer.glb", 2.85, Vector3(edge - rs * 13.8, 0, tz - 1.0), -face, ["Talk", "Idle"])
-	_npc(H + "Buergerin.glb", 2.8, Vector3(edge - rs * 11.4, 0, tz + 2.8), face, ["Talk", "Idle"])
+	if ecke == 1:                                                             # Biergarten: Ausschank-Stand mit Fässern, Tische unter freiem Himmel
+		_put_parts("Stall_Empty", Vector3(edge - rs * 1.8, 0.0, tz), face, S)
+		_put_parts("Barrel_Holder", Vector3(edge - rs * 1.6, 0.0, tz - 2.4), face, S)
+		_put_parts("Barrel", Vector3(edge - rs * 1.4, 0.0, tz + 2.3), 0.0, S)
+		_put_parts("Barrel", Vector3(edge - rs * 2.2, 0.0, tz + 2.9), 0.0, S)
+		_put_parts("Sign_Pub", Vector3(edge - rs * 3.6, 0.0, tz - 3.4), face, S)
+		for e in [[-6.0, -1.6], [-6.0, 2.4]]:
+			var p := Vector3(edge + rs * float(e[0]), 0.0, tz + float(e[1]))
+			_put_parts("Table_Large", p, PI / 2.0, S)
+			_put_parts("Bench", p + Vector3(-rs * 1.3, 0.0, 0.0), PI / 2.0, S)
+			_put_parts("Bench", p + Vector3(rs * 1.3, 0.0, 0.0), PI / 2.0, S)
+		_put_parts("Torch_Metal", Vector3(edge - rs * 8.0, 0.0, tz + 0.4), face, S)
+		_light(Vector3(edge - rs * 8.0, 2.6, tz + 0.4), Color("#ffc070"), 0.6, 6.0)
+		_npc(H + "Bauer.glb", 2.85, Vector3(edge - rs * 7.4, 0, tz - 1.6), -face, ["Talk", "Idle"])
+		_npc(H + "Buergerin.glb", 2.8, Vector3(edge - rs * 4.6, 0, tz + 2.4), face, ["Talk", "Idle"])
+		_npc(H + "Baeuerin.glb", 2.75, Vector3(edge - rs * 3.0, 0, tz - 0.4), face, ["Idle", "Talk"])
+	elif ecke == 2:                                                           # Pferdestall: Unterstand an der Mauer, Pferde, Heu, Tröge
+		_put_parts("Unterstand", Vector3(edge - rs * 0.3, 0.0, tz - 3.4), face, 1.0)
+		_npc(DIR + "Pferd.gltf", 2.6, Vector3(edge - rs * 2.2, 0, tz - 2.0), face + PI / 2.0, ["Idle", "Eating", "Idle_2"])
+		_npc(DIR + "Pferd.gltf", 2.6, Vector3(edge - rs * 2.2, 0, tz + 1.4), face - PI / 2.0, ["Eating", "Idle", "Idle_Headlow"])
+		_nat_scatter("Grass_Wheat", [_t(edge - rs * 1.0, tz + 3.4, 1.6), _t(edge - rs * 1.6, tz + 4.0, 1.4), _t(edge - rs * 0.8, tz - 4.4, 1.5)], false)
+		_put_parts("Bucket_Wooden_2", Vector3(edge - rs * 4.0, 0.0, tz - 0.4), 0.0, S)
+		_put_parts("Bucket_Wooden_1", Vector3(edge - rs * 4.2, 0.0, tz + 0.6), 0.0, S)
+		_put_parts("Prop_Wagon", Vector3(edge - rs * 7.0, 0.0, tz + 1.0), 0.0, 1.3)
+		_npc(H + "Bauer.glb", 2.85, Vector3(edge - rs * 4.8, 0, tz - 2.0), -face, ["Idle", "Work2"])
+	else:                                                                      # Lagerplatz: gestapelte Waren unter einem kleinen Dach, Waage, Händler
+		_put_parts("Unterstand", Vector3(edge - rs * 0.3, 0.0, tz - 3.4), face, 1.0)
+		for e in [["Crate_Wooden", -1.5, -2.0], ["Crate_Wooden", -1.5, -0.8], ["Crate_Wooden", -2.6, -1.4], ["Barrel", -1.4, 0.8], ["Barrel", -2.3, 1.3],
+			["Bag", -1.6, 2.5], ["Pouch_Large", -2.4, 2.9], ["FarmCrate_Apple", -4.2, -2.6], ["FarmCrate_Carrot", -4.8, -1.6], ["Crate_Wooden", -4.4, 1.8]]:
+			_put_parts(str(e[0]), Vector3(edge + rs * float(e[1]), 0.0, tz + float(e[2])), rng.randf() * 0.6, S)
+		_put_parts("Table_Large", Vector3(edge - rs * 7.0, 0.0, tz), PI / 2.0, S)
+		_npc(H + "Buergerin.glb", 2.8, Vector3(edge - rs * 8.4, 0, tz), -face, ["Talk", "Idle"])
+		_npc(H + "Bauer.glb", 2.85, Vector3(edge - rs * 3.4, 0, tz + 0.4), face, ["Idle", "Work2"], "patrol", Vector3(edge - rs * 3.4, 0, tz + 12.0))
+	_reserve(cx_, tz, 6.0)
+	if team == 0:                                                             # Hindernisse gelten in Team-Koordinaten (wie Statue/Brunnen)
+		_block(Vector3(edge - rs * 2.6, 0.0, tz), 3.4)
+		_block(Vector3(edge - rs * 7.0, 0.0, tz), 1.6)
+		_block(Vector3(edge - rs * 2.6, 0.0, (tz + 6.0 + COURT_DEPTH - 6.0) / 2.0 + 5.5), 2.2)
 	# Hafen: offene Kaikante, Steg in den Bach, zwei Boote, Lastenkran, Warenstapel
-	var hz0 := tz + 7.0
+	var hz0 := tz + 6.0
 	var hz1 := COURT_DEPTH - 6.0
 	var z := hz0
 	while z < hz1:                                                            # flache Kaikante aus Steinplatten
@@ -937,15 +963,28 @@ func _riverside(team: int, cxt: float, hw: float, river_x: float) -> void:
 			k.transform.basis = Basis(Vector3.UP, PI / 2.0).scaled(Vector3(0.5, 0.07, 1.0))
 		z += 2.0
 	var hm := (hz0 + hz1) / 2.0
-	_pier_long(edge, hm - 2.0, rs)
-	_put_parts("Boot", Vector3(river_x - rs * 0.4, 0.05, hm - 6.0), 0.15, 1.0)
-	_put_parts("Boot", Vector3(river_x + rs * 0.3, 0.05, hm + 2.5), -0.25, 1.0)
+	var bz: float = hm + (8.0 if team == 1 else 0.0)                          # Gegenseite des Bachs: Steg und Boote versetzt (sonst liegen beide Häfen nebeneinander)
+	_pier_long(edge, bz - 2.0, rs)
+	if boote == 1:                                                         # ein Ruderboot am Steg, eins weiter oben am Ufer
+		_put_parts("Boot", Vector3(edge + rs * 1.4, 0.05, bz - 4.8), 0.0, 1.0)
+		_put_parts("Boot", Vector3(edge + rs * 1.2, 0.05, bz + 13.0), 0.35, 1.0)
+	elif boote == 2:                                                       # nur ein Boot am Steg
+		_put_parts("Boot", Vector3(edge + rs * 1.4, 0.05, bz - 4.8), 0.0, 1.0)
+	else:                                                                  # Lastkahn: großes flaches Boot mit Ladung längs am Kai
+		var kahn := _put_parts("Boot", Vector3(edge + rs * 1.0, 0.0, bz + 9.0), 0.0, 1.0, Vector3(1.3, 1.0, 2.6))
+		for e in [["Crate_Wooden", 0.0, 3.6], ["Crate_Wooden", 0.4, 4.8], ["Barrel", -0.4, 6.8], ["Barrel", 0.4, 7.4], ["Bag", 0.0, 8.6]]:
+			_put_parts(str(e[0]), Vector3(edge + rs * 1.0 + float(e[1]) * 0.6, 0.35, bz + 3.0 + float(e[2])), rng.randf(), 1.1)
 	_put_parts("Kran", Vector3(edge - rs * 1.2, 0.0, hm + 5.5), -rs * PI / 2.0, 1.0)
 	for e in [["Crate_Wooden", -2.2, -4.0], ["Crate_Wooden", -3.0, -3.2], ["Barrel", -2.4, -1.6], ["Barrel", -3.2, -1.0], ["Bag", -2.0, 1.5],
 		["Pouch_Large", -2.6, 2.2], ["FarmCrate_Apple", -3.6, 3.4], ["Rope_1", -1.6, 0.4]]:
 		_put_parts(str(e[0]), Vector3(edge + rs * float(e[1]), 0.0, hm + float(e[2])), rng.randf() * TAU, S)
-	_npc(H + "Bauer.glb", 2.85, Vector3(edge - rs * 4.0, 0, hm - 2.5), -face, ["Idle", "Work2"], "patrol", Vector3(edge - rs * 4.0, 0, hm + 4.0))
+	_npc("res://assets/heroes/Bauer.glb", 2.85, Vector3(edge - rs * 4.0, 0, hm - 2.5), -face, ["Idle", "Work2"], "patrol", Vector3(edge - rs * 4.0, 0, hm + 4.0))
 	_reserve(edge - rs * 3.0, hm, 6.0)
+
+
+## Hindernis im Burghof: Held läuft um das Objekt herum (Spielwerte; nur Optik-Kollision, wie Statue/Brunnen)
+func _block(p: Vector3, r: float) -> void:
+	g.obstacles.append(Vector3(-p.z / g.S, (p.x - g.lane_xs[0]) / g.S, r / g.S))
 
 
 ## Langer Holzsteg vom Kai in den Bach
@@ -974,6 +1013,12 @@ func _pier_long(edge: float, z: float, rs: float) -> void:
 
 
 func _castle(team: int, cxt: float, hw: float, lxs: Array, river_x: float) -> void:
+	var lane0: float = g.lane_xs[team * int(g.lanes_per_team)]
+	var gate: Array = []
+	for lx in lxs:
+		gate.append([(float(lx) - lane0 - 2.4) / g.S, (float(lx) - lane0 + 2.4) / g.S])
+	courts[team] = {"x_min": -(COURT_DEPTH - 8.0) / g.S, "y_min": (cxt - hw + 1.6 - lane0) / g.S, "y_max": (cxt + hw - 1.6 - lane0) / g.S,
+		"gate_x0": -(GATE_Z + 1.6) / g.S, "gate_x1": -(GATE_Z - 1.6) / g.S, "gate": gate}
 	var x := cxt - hw
 	while x < cxt + hw:                                                  # Mauer quer, Lücken an den Toren
 		var skip := false

@@ -119,4 +119,5 @@ Alte Wiese zum Vergleichen: Start mit `--map=gras`. Eigene Modelle (z. B. aus Bl
 - Testbild aller Monster nebeneinander: `--sim=1 --lineup --shot=pfad.png --zoom=12 --pitch=40 --shotwait=1.5`.
 - Testbild eines Helden in mehreren Animationen (neue Heldenmodelle, `assets/heroes/`): `-- --hero=tank --team=1 --herolineup=Idle:0.3,Run:0.25,Sword_Attack:0.45,Punch:0.4 --sim=1 --zoom=12 --pitch=50 --shotwait=1 --shot=pfad.png` (Name:Anteil = Stelle der Animation). Modell erzeugen: `blender -b -P tools/blender/make_heroes.py -- export tank assets/heroes/Tank.glb`.
 - Laufen im echten Spiel prüfen (Echtzeit, ohne `--sim`): `-- --hero=damage --team=1 --autoplay --zoom=9 --pitch=45 --runshot=pfad/r --runshotn=10` speichert jedes 3. Bild, solange der eigene Held läuft (`r1.png` …), und beendet das Spiel danach. Helden ohne Spielregeln: `--lineupkey=ranger` usw. nur mit `--herolineup`.
+- Held zu einer Spielposition laufen lassen (z. B. in den Burghof): `--walkto=x,y`, kombinierbar mit `--runshot`.
 - Giftklumpen der Dornspinne (`fx.gd`, `poison_glob`, nur Anzeige): Bildertest `-- --hero=tank --team=1 --fxtest=spit --shot=Prefix`.

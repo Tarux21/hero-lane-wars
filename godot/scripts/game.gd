@@ -149,6 +149,7 @@ var run_shot := ""                            # Test: Echtzeit-Bilder des laufen
 var run_shot_n := 10                          # Anzahl Bilder, --runshotn=N (jedes 3. Bild, solange der Held läuft)
 var run_shot_k := 0
 var lineup_key := ""                        # Test: anderes Heldenmodell für --herolineup (auch Helden ohne Spielregeln, z. B. ranger, druid, necro)
+var walk_test := Vector2.INF                 # Test: eigener Held läuft zu Spielposition x,y (z. B. in den Burghof), --walkto=-500,200
 var pool_release_test := false              # Test: nach 1 s startet die Gegner-Welle, --poolrelease
 var cam_test_dx := -9.0                    # Test: seitlicher Versatz der Testkamera in Metern, --camdx=0
 var cam_test_x := -99999.0                # Test: Kamera frei auf Lane-Position x (Spielwert), --camx=1500
@@ -207,6 +208,9 @@ func _ready() -> void:
 			lineup_test = true
 		elif a.begins_with("--lineupkey="):
 			lineup_key = a.substr(12)
+		elif a.begins_with("--walkto="):
+			var wt := a.substr(9).split(",")
+			walk_test = Vector2(float(wt[0]), float(wt[1]))
 		elif a.begins_with("--runshot="):
 			run_shot = a.substr(10)
 		elif a.begins_with("--runshotn="):
@@ -1284,7 +1288,7 @@ func _mini_map() -> Dictionary:
 	var x_max: float = lane_xs[n - 1] + half + WALL
 	var lane_len: float = cfg["laneLen"] * S
 	var z_top := -(lane_len + 8.0)
-	var z_bot := 8.0
+	var z_bot := 8.0 if map_theme != "burg" else 30.0
 	var top := 18.0                       # oben Platz für die Monster-Zahlen
 	return {"x_min": x_min, "z_top": z_top, "z_bot": z_bot, "top": top,
 		"sx": MINI_W / (x_max - x_min), "sy": (MINI_H - top) / (z_bot - z_top)}
@@ -2372,7 +2376,7 @@ func _load_volume() -> float:
 ## Beim Start: gespeicherte Anzeige anwenden, aber nicht in Tests und Bild-Läufen (feste Auflösung)
 func _apply_saved_display() -> void:
 	for a in OS.get_cmdline_user_args():
-		for t in ["--sim", "--shot", "--selftest", "--golden", "--fxtest", "--menushot", "--menuclick", "--menu-test", "--shopshot", "--merchanttest", "--camx", "--camdx", "--pitch", "--shotwait", "--fxx", "--pooltest", "--lineup", "--herolineup", "--lineupkey", "--runshot", "--deathtest", "--poolrelease", "--spawndbg", "--map", "--uiscale", "--colorblind", "--gfxlow", "--itemcatalog", "--dbgshot", "--uimenu", "--uitip", "--botplay", "--autoplay"]:
+		for t in ["--sim", "--shot", "--selftest", "--golden", "--fxtest", "--menushot", "--menuclick", "--menu-test", "--shopshot", "--merchanttest", "--camx", "--camdx", "--pitch", "--shotwait", "--fxx", "--pooltest", "--lineup", "--herolineup", "--lineupkey", "--runshot", "--walkto", "--deathtest", "--poolrelease", "--spawndbg", "--map", "--uiscale", "--colorblind", "--gfxlow", "--itemcatalog", "--dbgshot", "--uimenu", "--uitip", "--botplay", "--autoplay"]:
 			if a.begins_with(t):
 				return
 	var cf := ConfigFile.new()
@@ -2718,15 +2722,15 @@ func _step_hero(p: Dictionary, dt: float) -> void:
 			var step_len := minf(d, skills.h_spd(p) * dt)
 			p["x"] += dv.x / d * step_len
 			p["y"] += dv.y / d * step_len
-	p["x"] = clampf(p["x"], float(cfg["minX"]), float(cfg["maxX"]))
-	p["y"] = _clamp_y(p["x"], p["y"], old_y)
+	p["x"] = clampf(p["x"], _min_x(p), float(cfg["maxX"]))
+	p["y"] = _clamp_y(p["x"], p["y"], old_y, p)
 	for ob in obstacles:                    # Statue und Brunnen: der Held läuft darum herum, nicht hindurch
 		var ov: Vector2 = Vector2(p["x"] - ob.x, p["y"] - ob.y)
 		var od: float = ov.length()
 		if od < ob.z:
 			var push: Vector2 = (ov / od if od > 0.001 else Vector2(0.0, 1.0)) * ob.z
 			p["x"] = ob.x + push.x
-			p["y"] = _clamp_y(p["x"], ob.y + push.y, old_y)
+			p["y"] = _clamp_y(p["x"], ob.y + push.y, old_y, p)
 	# Auto-Angriff: auch im Laufen, sobald ein Gegner in Reichweite ist
 	p["atk_t"] -= dt
 	var tgt: Variant = p["target"]
@@ -2815,8 +2819,32 @@ func _start_backport(p: Dictionary) -> void:
 	p["target"] = null
 
 
+## Burgkarte: hinter dem Tor ist der ganze Burghof begehbar (Abweichung vom Prototyp, nur Optik/Bewegung, siehe docs/Teststand.md).
+## court = {"x_min", "y_min", "y_max", "gate": [[y_lo, y_hi], ...]} in Spielwerten relativ zur ersten Lane des Teams (map_burg.gd).
+func _court(p: Variant) -> Dictionary:
+	if map_theme != "burg" or test_mode or not (p is Dictionary) or decor == null:
+		return {}
+	return decor.courts.get(int(p["side"]["idx"]), {})
+
+
+func _min_x(p: Variant) -> float:
+	var c := _court(p)
+	return float(c["x_min"]) if not c.is_empty() else float(cfg["minX"])
+
+
 ## Doppel-Lane (4v4): Die Wand zwischen den Lanes ist nur in der Basis offen.
-func _clamp_y(x: float, y: float, old_y: float) -> float:
+func _clamp_y(x: float, y: float, old_y: float, p: Variant = null) -> float:
+	var c := _court(p)
+	if not c.is_empty() and x < float(c["gate_x1"]):
+		if x > float(c["gate_x0"]):                                  # im Torbogen: nur durch die Toröffnung
+			var best: Array = c["gate"][0]
+			for gr in c["gate"]:
+				if y >= float(gr[0]) and y <= float(gr[1]):
+					return y
+				if absf(y - (float(gr[0]) + float(gr[1])) / 2.0) < absf(y - (float(best[0]) + float(best[1])) / 2.0):
+					best = gr
+			return clampf(y, float(best[0]), float(best[1]))
+		return clampf(y, float(c["y_min"]), float(c["y_max"]))
 	var ly := lane_half_g - 10.0
 	y = clampf(y, -ly, lane_off_g[lanes_per_team - 1] + ly)
 	if lanes_per_team == 2 and x >= WALL_OPEN_BASE:
@@ -3658,7 +3686,11 @@ func _unhandled_input(event: InputEvent) -> void:
 		else:
 			hero["target"] = null
 			var ly: float = lane_half_g - 10.0
-			hero["move_to"] = Vector2(maxf(float(cfg["minX"]), gx), clampf(gy, -ly, lane_off_g[lanes_per_team - 1] + ly))
+			var cc := _court(hero)
+			if not cc.is_empty() and gx < float(cc["gate_x0"]):           # Burghof: Ziel überall im Hof
+				hero["move_to"] = Vector2(maxf(float(cc["x_min"]), gx), clampf(gy, float(cc["y_min"]), float(cc["y_max"])))
+			else:
+				hero["move_to"] = Vector2(maxf(float(cfg["minX"]), gx), clampf(gy, -ly, lane_off_g[lanes_per_team - 1] + ly))
 
 
 # ---------------------------------------------------------------- Szenario-Runner (--golden): Vergleich mit dem Prototyp
@@ -4212,6 +4244,8 @@ func _run_simulation(secs: float, shot_path: String) -> void:
 		hero["y"] = -100.0
 		_sync_visuals(0.4)
 		_sync_visuals(0.2)
+	if walk_test != Vector2.INF:
+		hero["move_to"] = walk_test
 	if lives_test >= 0:
 		team_lives[0] = lives_test
 		team_lives[1] = lives_test_b

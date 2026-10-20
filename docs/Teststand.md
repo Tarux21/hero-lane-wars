@@ -16,5 +16,6 @@ Quellen der Vergleichswerte: `regelwerk/golden-*.json` (aus dem Prototyp erzeugt
 ## Bekannte, bewusste Unterschiede zum Prototyp
 - **Mehrere Spieler/Lanes:** Monster jagen den nächsten Helden, Aura/Bots/Boss arbeiten pro Seite (im Prototyp gibt es nur einen Helden und eine Lane).
 - **Senden bei Doppel-Lane:** Ein gesendetes Monster erscheint auf beiden Gegner-Lanes, kostet aber nur einmal (Entscheidung des Projektmanagers).
+- **Burgkarte (`--map=burg`): begehbarer Burghof.** Hinter dem Tor darf der Held im ganzen Burghof laufen (statt nur im Lane-Streifen bis `minX`), durch das Tor nur in der Toröffnung. Gilt nur auf der Burgkarte und nicht in den Vergleichstests (Entscheidung des Projektleiters, 20.10.2026). Code: `game.gd` `_court`/`_min_x`/`_clamp_y`, Hofmaße aus `map_burg.gd` (`courts`).
 - **Rechengenauigkeit:** Godot rechnet Vektor-Längen in 32 Bit, JavaScript in 64 Bit. Die Angriffs-Reichweite der Monster ist deshalb auf 64 Bit umgestellt; an anderen Grenzfällen kann es theoretisch Abweichungen von 1 Frame geben.
 - **Kettenblitz ohne Ziel** startet im Prototyp trotzdem die Abklingzeit (vermutlich ein Versehen). Godot macht es 1:1 nach. Entscheidung offen.
