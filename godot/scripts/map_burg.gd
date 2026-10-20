@@ -389,9 +389,22 @@ func gate_hit(side_idx: int, wpos: Vector3) -> void:
 			return
 
 
-## Heilbrunnen im Burghof (wie im Nachtwald, nur weiter hinten im größeren Hof)
+## Heilbrunnen im Burghof: Steinbecken mit Mittelschale, plätscherndes Wasser; leuchtet sanft, wenn geheilt wird (heal_lights)
 func place_fountain(cx: float, z: float) -> void:
-	super(cx, z)
+	var c := Vector3(cx, 0.0, z)
+	_put_parts("Brunnen", c, 0.0, 1.0)
+	var l := _light(c + Vector3(0, 1.8, 0), Color("#9ad8ff"), 0.5, 8.0)
+	g.heal_lights.append(l)
+	var spray := _fog_particles(c + Vector3(0, 2.15, 0), 26, 0.9, 0.6, 1.4, false)       # Wasser sprudelt aus der Schale
+	spray.color = Color(0.75, 0.9, 1.0, 0.35)
+	spray.direction = Vector3.UP
+	spray.spread = 40.0
+	spray.gravity = Vector3(0, -6.0, 0)
+	spray.mesh.size = Vector2(0.35, 0.35)
+	spray.emission_box_extents = Vector3(0.2, 0.05, 0.2)
+	spray.emitting = true
+	_motes(c + Vector3(0, 1.0, 0), Vector3(2.0, 0.4, 2.0), 14, Color("#bfe8ff"), 0.14, 0.4, 3.0)
+	g.obstacles.append(Vector3(-z / g.S, (cx - g.lane_xs[0]) / g.S, 50.0))
 
 
 # ---------------------------------------------------------------- Wald am Spawn (verdeckt die Öffnung) und Tor-Animation
@@ -473,6 +486,13 @@ func build_camp(cx: float, cz: float) -> void:
 	_put_parts("Barrel", bench_p + Vector3(2.2, 0.0, 0.4), 0.0, 1.5)
 	_put_parts("Whetstone", anvil_p + Vector3(1.8, 0.0, 1.6), 0.8, 1.6)
 	_put_parts("Sign_Blacksmith", Vector3(cx + 0.5, 0.0, cz - 2.6), 0.0, 1.6)
+	var shed_p := Vector3(cx - 1.0, 0.0, cz + 9.0)                         # Unterstand hinter der Schmiede: Karren, Heu, Säcke
+	_put_parts("Unterstand", shed_p, PI, 1.0)
+	_put_parts("Prop_Wagon", shed_p + Vector3(-1.4, 0.0, -0.4), PI / 2.0 + 0.15, 1.3)
+	_nat_scatter("Grass_Wheat", [_t(shed_p.x + 1.4, shed_p.z - 0.6, 1.6), _t(shed_p.x + 2.0, shed_p.z - 1.2, 1.4), _t(shed_p.x + 1.0, shed_p.z - 1.6, 1.5)], false)
+	for e in [["Bag", 2.6, 0.2], ["Pouch_Large", 2.2, -0.6], ["Barrel", 3.0, -1.8], ["Bucket_Metal", 0.6, -2.2], ["FarmCrate_GreenApples", -3.0, -2.2]]:
+		_put_parts(str(e[0]), shed_p + Vector3(float(e[1]), 0.0, float(e[2])), rng.randf() * TAU, 1.4)
+	_reserve(shed_p.x, shed_p.z - 1.5, 4.0)
 	for e in [[anvil_p, 1.4], [forge_p, 2.0], [rack_p, 2.2], [bench_p, 2.0], [smith_p, 1.2], [Vector3(cx + 0.5, 0.0, cz + 1.5), 6.0]]:
 		_reserve(e[0].x, e[0].z, e[1])
 	var fl := _light(forge_p + Vector3(0, 1.0, 0), Color("#ff7a2a"), 2.0, 9.0)            # Glut der Esse flackert
@@ -641,6 +661,22 @@ func _castle(team: int, cxt: float, hw: float, lxs: Array, river_x: float) -> vo
 			_put_parts("Torch_Metal", tp - Vector3(0, 2.4, 0), PI / 2.0 * -sd, 1.6)
 			_light(tp + Vector3(0, 0.8, 0), Color("#ffb060"), 0.6, 6.0)
 	_reserve(cxt, (GATE_Z + COURT_DEPTH) / 2.0, hw)
+	var sh := load("res://shaders/burg_lane.gdshader") as Shader       # ganzer Hof gepflastert
+	if sh != null:
+		var q := PlaneMesh.new()
+		q.size = Vector2(hw * 2.0, COURT_DEPTH - GATE_Z)
+		var sm := ShaderMaterial.new()
+		sm.shader = sh
+		sm.set_shader_parameter("center_x", cxt)
+		sm.set_shader_parameter("half_w", hw)
+		sm.set_shader_parameter("court_z", -1000.0)
+		sm.render_priority = -19
+		var mi := MeshInstance3D.new()
+		mi.mesh = q
+		mi.material_override = sm
+		mi.position = Vector3(cxt, 0.015, (GATE_Z + COURT_DEPTH) / 2.0)
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		g.add_child(mi)
 
 
 ## Häuserzeilen an der Stadtstraße: Vorderseite zur Straße, Lücken mit Bäumen, Fässern, Karren, Laternen

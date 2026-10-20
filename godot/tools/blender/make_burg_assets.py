@@ -24,7 +24,7 @@ PROP_LIST = ["Barrel", "Barrel_Apples", "Barrel_Holder", "Crate_Wooden", "Bag", 
              "Banner_1", "Banner_2", "Banner_Vertical_1", "Banner_Vertical_2", "Banner_SmallTriangles_Long", "FarmCrate_Apple", "FarmCrate_Carrot",
              "FarmCrate_Radish", "FarmCrate_Empty", "Leek", "Carrot", "Radish", "Anvil", "WeaponStand", "Sign_Pub", "Sign_Blacksmith", "Sign_Potions",
              "Table_Large", "Stool", "CampfireTripod", "FirePit", "Pot_1", "Cauldron", "Dummy", "Ladder", "Rope_1",
-             "Anvil_Log", "Bellows", "Hammer_Rack", "Workbench", "Workbench_Vice", "Shield_Metal", "Shield_Wooden", "Sword_Steel", "Axe_Steel", "Whetstone", "Chain_Coil"]
+             "Anvil_Log", "Bellows", "Hammer_Rack", "Workbench", "Workbench_Vice", "Bucket_Metal", "Pouch_Large", "FarmCrate_GreenApples", "Shield_Metal", "Shield_Wooden", "Sword_Steel", "Axe_Steel", "Whetstone", "Chain_Coil"]
 SMALL = ("normal", "rough", "orm")
 
 
@@ -166,6 +166,67 @@ def castle():
         _export_joined(objs, variant, center=False)
 
 
+def _vmat(V, piece_name, contains):
+    """Material eines Dorfpaket-Teils (z. B. Stein-, Holztextur) für eigene Formen."""
+    for me, mw in V.piece(piece_name + ".gltf"):
+        for m in me.materials:
+            if m and contains.lower() in m.name.lower():
+                return m
+    return me.materials[0]
+
+
+def extras():
+    """Burgbrunnen (Heilbrunnen im Hof) und Unterstand der Schmiede (Holzpfosten, Bretterdach aus dem Dorfpaket)."""
+    V = _village()
+    stone = _vmat(V, "Wall_UnevenBrick_Straight", "brick")
+    wood = _vmat(V, "Prop_Support", "")
+    objs = []
+    # Brunnen: achteckiges Steinbecken, Wasser, Mittelsäule mit Schale
+    walls = []
+    for k in range(8):                                                 # Beckenrand aus 8 Mauerstücken mit Abdeckplatte
+        a = (k + 0.5) / 8 * math.tau
+        L = 2 * 2.2 * math.tan(math.pi / 8) + 0.05
+        bpy.ops.mesh.primitive_cube_add(size=1, location=(math.cos(a) * 2.2, math.sin(a) * 2.2, 0.36))
+        o = bpy.context.object; o.scale = (0.4, L, 0.72); o.rotation_euler.z = a; walls.append(o)
+        bpy.ops.mesh.primitive_cube_add(size=1, location=(math.cos(a) * 2.2, math.sin(a) * 2.2, 0.78))
+        o = bpy.context.object; o.scale = (0.58, L + 0.12, 0.14); o.rotation_euler.z = a; walls.append(o)
+    bpy.ops.mesh.primitive_cylinder_add(vertices=8, radius=0.32, depth=1.8, location=(0, 0, 0.9))
+    col = bpy.context.object
+    bpy.ops.mesh.primitive_cone_add(vertices=8, radius1=0.25, radius2=0.85, depth=0.35, location=(0, 0, 1.95))
+    bowl = bpy.context.object
+    for o in walls + [col, bowl]:
+        o.data.materials.append(stone)
+        bpy.context.view_layer.objects.active = o
+        bpy.ops.object.mode_set(mode='EDIT'); bpy.ops.mesh.select_all(action='SELECT')
+        bpy.ops.uv.cube_project(cube_size=3.0); bpy.ops.object.mode_set(mode='OBJECT')
+        objs.append(o)
+    water = bpy.data.materials.new("Wasser"); water.use_nodes = True
+    p = water.node_tree.nodes["Principled BSDF"]; p.inputs["Base Color"].default_value = (0.05, 0.22, 0.34, 1); p.inputs["Roughness"].default_value = 0.35; p.inputs["Emission Color"].default_value = (0.06, 0.25, 0.32, 1); p.inputs["Emission Strength"].default_value = 0.6
+    bpy.ops.mesh.primitive_cylinder_add(vertices=8, radius=2.05, depth=0.05, location=(0, 0, 0.55))
+    w1 = bpy.context.object; w1.data.materials.append(water); objs.append(w1)
+    bpy.ops.mesh.primitive_cylinder_add(vertices=8, radius=0.8, depth=0.04, location=(0, 0, 2.08))
+    w2 = bpy.context.object; w2.data.materials.append(water); objs.append(w2)
+    _export_joined(objs, "Brunnen", center=False)
+    # Unterstand: 6,8 m breit, 3,4 m tief; hinten 3,4 m hoch, vorn 2,6 m (Pultdach fällt nach vorn = -y)
+    objs = []
+    for x in (-3.0, 0.0, 3.0):
+        for y, h in ((0.0, 3.3), (-3.0, 2.5)):
+            bpy.ops.mesh.primitive_cube_add(size=1, location=(x, y, h / 2))
+            o = bpy.context.object; o.scale = (0.22, 0.22, h); o.data.materials.append(wood); objs.append(o)
+    for y, h in ((0.0, 3.3), (-3.0, 2.5)):
+        bpy.ops.mesh.primitive_cube_add(size=1, location=(0, y, h - 0.1))
+        o = bpy.context.object; o.scale = (6.6, 0.2, 0.22); o.data.materials.append(wood); objs.append(o)
+    M = lambda x: Matrix.Translation((x, 0.35, 2.35)) @ Matrix.Rotation(-0.06, 4, 'X') @ Matrix.Diagonal((1.0, 2.6, 1.0, 1.0))
+    for x in (-2.25, 0.0, 2.25):
+        objs += _pieces(V, [("Roof_Wooden_2x1", M(x))])
+    for o in objs:
+        bpy.context.view_layer.objects.active = o
+        if o.type == 'MESH' and not o.data.uv_layers:
+            bpy.ops.object.mode_set(mode='EDIT'); bpy.ops.mesh.select_all(action='SELECT')
+            bpy.ops.uv.cube_project(cube_size=2.0); bpy.ops.object.mode_set(mode='OBJECT')
+    _export_joined(objs, "Unterstand", center=False)
+
+
 def nature():
     for n in NATURE:
         copy_gltf(NAT, n)
@@ -188,4 +249,4 @@ if __name__ == "__main__":
     todo = argv or ["nature", "props", "houses", "castle"]
     for step in todo:
         bpy.ops.wm.read_factory_settings(use_empty=True)
-        {"nature": nature, "props": props, "houses": houses, "castle": castle}[step]()
+        {"nature": nature, "props": props, "houses": houses, "castle": castle, "extras": extras}[step]()
