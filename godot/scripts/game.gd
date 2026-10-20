@@ -143,6 +143,7 @@ var fx_base := 1000.0                        # Test: Lane-Position (Spielwert) d
 var pool_test := 0                          # Test: so viele Monster zu Beginn senden, --pooltest=20
 var death_test := -1.0                      # Test: Monster-Reihe, nach 1 s sterben alle; Bild N s danach, --deathtest=0.5
 var lineup_test := false                     # Test: alle Monstermodelle nebeneinander, --lineup
+var hero_lineup: PackedStringArray = []      # Test: Heldenmodell in mehreren Animationen nebeneinander, --herolineup=Idle,Run,... (Name:Anteil für die Stelle)
 var pool_release_test := false              # Test: nach 1 s startet die Gegner-Welle, --poolrelease
 var cam_test_dx := -9.0                    # Test: seitlicher Versatz der Testkamera in Metern, --camdx=0
 var cam_test_x := -99999.0                # Test: Kamera frei auf Lane-Position x (Spielwert), --camx=1500
@@ -198,6 +199,9 @@ func _ready() -> void:
 			lineup_test = true
 			shot_wait = 1.0 + death_test
 		elif a == "--lineup":
+			lineup_test = true
+		elif a.begins_with("--herolineup="):
+			hero_lineup = a.substr(13).split(",")
 			lineup_test = true
 		elif a.begins_with("--pooltest="):
 			pool_test = int(a.substr(11))
@@ -1402,7 +1406,10 @@ func _make_player(key: String, side_idx: int, slot: int, bot: bool) -> Dictionar
 	var fig: Dictionary = {}
 	if not test_mode and HERO_MODEL.has(key):
 		fig = _make_figure(HERO_MODEL[key][0], float(HERO_MODEL[key][4]))
-		if not fig.is_empty() and key == "tank":          # Tank: breiter und mit Schild am linken Arm
+		var own_shield: Node = null if fig.is_empty() else (fig["inner"] as Node).find_child("tower_shield", true, false)
+		if own_shield != null:                              # neues Heldenmodell: Schild ist schon im Modell (für Schildwurf ausblenden)
+			fig["shield"] = own_shield
+		elif not fig.is_empty() and key == "tank":          # altes Modell: breiter und mit Schild am linken Arm
 			(fig["inner"] as Node3D).scale *= Vector3(1.12, 1.0, 1.12)
 			vfx.attach_shield(fig)
 		if not fig.is_empty() and key == "damage":          # Schurke: zweiter Dolch in der linken Hand
@@ -1697,6 +1704,8 @@ func _attack_anim(p: Dictionary, tx: float, ty: float) -> void:
 const TorsoTwist = preload("res://scripts/torso_twist.gd")
 const UPPER_BONES := ["Abdomen", "Torso", "Neck", "Head", "Shoulder.L", "UpperArm.L", "LowerArm.L", "Fist.L", "Fist1.L", "Fist2.L", "Thumb1.L", "Thumb2.L",
 	"Shoulder.R", "UpperArm.R", "LowerArm.R", "Fist.R", "Fist1.R", "Fist2.R", "Weapon.R", "Thumb1.R", "Thumb2.R"]
+## dasselbe für die neuen Heldenmodelle (Skelett im Unreal-Stil)
+const UPPER_BONES_UE := ["spine_02", "spine_03", "neck_01", "Head", "clavicle_l", "upperarm_l", "lowerarm_l", "hand_l", "clavicle_r", "upperarm_r", "lowerarm_r", "hand_r"]
 
 
 ## Zweite Animations-Schicht für Helden (einmal je Figur angelegt): Laufen für den ganzen Körper, darüber ein Schlag nur für den Oberkörper.
@@ -1716,7 +1725,8 @@ func _upper_tree(fig: Dictionary, run_anim: String, atk_anim: String) -> Animati
 	os.filter_enabled = true
 	var sk := ap.get_parent().find_child("Skeleton3D", true, false) as Skeleton3D
 	var sk_path: String = str(ap.get_parent().get_path_to(sk)) if sk != null else "CharacterArmature/Skeleton3D"
-	for b in UPPER_BONES:
+	var ue := sk != null and sk.find_bone("spine_02") >= 0
+	for b in (UPPER_BONES_UE if ue else UPPER_BONES):
 		os.set_filter_path(NodePath(sk_path + ":" + str(b)), true)
 	bt.add_node("run", run)
 	bt.add_node("seek", AnimationNodeTimeSeek.new())
@@ -1737,6 +1747,11 @@ func _upper_tree(fig: Dictionary, run_anim: String, atk_anim: String) -> Animati
 	tr.active = false
 	fig["tree"] = tr
 	fig["tree_run"] = run_anim
+	if ue:                                                              # neues Skelett: Drehung über die beiden oberen Wirbel
+		var twu := TorsoTwist.new()
+		twu.bones = [[sk.find_bone("spine_02"), 0.4], [sk.find_bone("spine_03"), 0.6]]
+		sk.add_child(twu)
+		fig["twist"] = twu
 	if sk != null and sk.find_bone("Torso") >= 0:                          # Oberkörper dreht sich beim Laufschlag zum Ziel
 		var tw := TorsoTwist.new()
 		tw.bones = [[sk.find_bone("Abdomen"), 0.4], [sk.find_bone("Torso"), 0.6]] if sk.find_bone("Abdomen") >= 0 else [[sk.find_bone("Torso"), 1.0]]
@@ -1959,7 +1974,7 @@ func unit_model_path(type: String) -> String:
 ## Figuren (Quaternius, CC0, als Platzhalter): werden zur Laufzeit aus den glTF-Dateien geladen und gemerkt.
 const MODEL_DIR := "res://assets/quaternius/"
 ## Held-Modelle: [Datei, Angriffsanimation, Laufanimation, Ruheanimation, Höhe in m]
-const HERO_MODEL := {"tank": ["rpg/Warrior.gltf", "Sword_Attack", "Run_Weapon", "Idle_Weapon", 3.0], "damage": ["rpg/Rogue.gltf", "Dagger_Attack", "Run", "Idle", 2.8], "caster": ["rpg/Wizard.gltf", "Staff_Attack", "Run", "Idle", 2.8]}
+const HERO_MODEL := {"tank": ["res://assets/heroes/Tank.glb", "Sword_Attack", "Run", "Idle", 3.0], "damage": ["rpg/Rogue.gltf", "Dagger_Attack", "Run", "Idle", 2.8], "caster": ["rpg/Wizard.gltf", "Staff_Attack", "Run", "Idle", 2.8]}
 const UNIT_MODEL := {"grunt": "res://assets/monsters/Pilzling.glb", "tank": "res://assets/monsters/Borkengolem.glb", "archer": "res://assets/monsters/Dornspinne.glb", "fast": "res://assets/monsters/Pestratte.glb", "elite": "res://assets/monsters/Sumpftroll.glb", "boss": "res://assets/monsters/Gifthydra.glb"}
 const LOOP_ANIMS := ["Idle", "Walk", "Run", "Flying", "Attacking_Idle", "Run_Weapon", "Idle_Weapon"]
 var model_cache: Dictionary = {}
@@ -2340,7 +2355,7 @@ func _load_volume() -> float:
 ## Beim Start: gespeicherte Anzeige anwenden, aber nicht in Tests und Bild-Läufen (feste Auflösung)
 func _apply_saved_display() -> void:
 	for a in OS.get_cmdline_user_args():
-		for t in ["--sim", "--shot", "--selftest", "--golden", "--fxtest", "--menushot", "--menuclick", "--menu-test", "--shopshot", "--merchanttest", "--camx", "--camdx", "--pitch", "--shotwait", "--fxx", "--pooltest", "--lineup", "--deathtest", "--poolrelease", "--spawndbg", "--map", "--uiscale", "--colorblind", "--gfxlow", "--itemcatalog", "--dbgshot", "--uimenu", "--uitip", "--botplay", "--autoplay"]:
+		for t in ["--sim", "--shot", "--selftest", "--golden", "--fxtest", "--menushot", "--menuclick", "--menu-test", "--shopshot", "--merchanttest", "--camx", "--camdx", "--pitch", "--shotwait", "--fxx", "--pooltest", "--lineup", "--herolineup", "--deathtest", "--poolrelease", "--spawndbg", "--map", "--uiscale", "--colorblind", "--gfxlow", "--itemcatalog", "--dbgshot", "--uimenu", "--uitip", "--botplay", "--autoplay"]:
 			if a.begins_with(t):
 				return
 	var cf := ConfigFile.new()
@@ -4170,6 +4185,9 @@ func _run_simulation(secs: float, shot_path: String) -> void:
 			s["units"].clear()
 		hero["x"] = 600.0
 		var types := ["grunt", "tank", "archer", "fast", "elite", "boss"]
+		if not hero_lineup.is_empty():
+			types = []
+			_hero_lineup()
 		for k in types.size():
 			_spawn_unit(types[k], 0.0, 1.0, 0)
 			var lu: Dictionary = units[units.size() - 1]
@@ -4200,6 +4218,28 @@ func _run_simulation(secs: float, shot_path: String) -> void:
 		print("Screenshot: ", shot_path)
 	get_tree().quit()
 
+
+## Test: das Modell des eigenen Helden mehrfach nebeneinander, jedes in einer anderen Animation angehalten (Name oder Name:Anteil 0..1).
+func _hero_lineup() -> void:
+	var hm: Array = HERO_MODEL.get(hero["key"], [])
+	if hm.is_empty():
+		return
+	(hero["node"] as Node3D).visible = false
+	hero["x"] = 400.0
+	for k in hero_lineup.size():
+		var parts := hero_lineup[k].split(":")
+		var fig := _make_figure(str(hm[0]), float(hm[4]))
+		if fig.is_empty():
+			return
+		var n: Node3D = fig["model"]
+		(hero["node"] as Node3D).get_parent().add_child(n)
+		n.position = _wp(1000.0, -105.0 + k * 210.0 / maxf(1.0, hero_lineup.size() - 1.0), 0)
+		(fig["inner"] as Node3D).rotation.y = -0.5
+		var ap: AnimationPlayer = fig["anim"]
+		if ap != null and ap.has_animation(parts[0]):
+			ap.play(parts[0])
+			ap.seek(ap.get_animation(parts[0]).length * (float(parts[1]) if parts.size() > 1 else 0.3), true)
+			ap.pause()
 
 ## Bosswelle? (cfg.bossWaves, wie isBossWave im Prototyp)
 func _is_boss_wave(n: int) -> bool:

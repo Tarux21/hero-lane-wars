@@ -4,7 +4,7 @@
 #   blender -b -P make_heroes.py -- preview <bild.png> [tank_v1 tank_v2 tank_v3]     (Vorschaubild, Helden nebeneinander in Pose)
 # Rüstungsteile hängen starr an Knochen (Bone-Parent), damit sie mit jeder Animation des gemeinsamen Skeletts mitgehen.
 import bpy, bmesh, sys, math, os
-from mathutils import Vector
+from mathutils import Vector, Matrix
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 A = os.path.join(ROOT, "tools-extern", "assets")
@@ -968,6 +968,9 @@ def figure(gender, outfit, parts=(), hair=(), look=None):
         _rebind(_import(os.path.join(PARTS, p_ + ".gltf")), arm)
     for h in hair:
         _rebind(_import(os.path.join(HAIR, h + ".gltf")), arm)
+    names = {o.name for o in arm.children}
+    for o in [o for o in arm.children if o.type == 'MESH' and o.name[-4:-3] == "." and o.name[:-4] in names]:   # Teil steckt schon im Outfit: Doppel weg
+        bpy.data.objects.remove(o, do_unlink=True)
     if look:
         skin = ("superhero", "eye", "hair", "brow")
         for o in [o for o in arm.children if o.type == 'MESH' and not o.name.lower().startswith(skin)]:
@@ -1187,6 +1190,7 @@ def place_shield(o, arm, out=0.12, tilt=40):
     o.data.transform(Matrix.Rotation(math.pi, 4, 'Z'))                  # Vorderseite (Wappen) nach außen, Griffe zum Arm
     R = Matrix(((0, 1, 0), (0, 0, 1), (1, 0, 0))).transposed()         # lokal Z -> +X (bei hängendem Arm oben), lokal -Y -> -Z (außen)
     o.data.transform(R.to_4x4())
+    o.data.transform(Matrix.Rotation(math.pi, 4, 'Z'))                  # Spitze nach unten (bei hängendem Arm), Vorderseite bleibt außen
     o.data.transform(Matrix.Rotation(math.radians(-tilt), 4, 'X'))
     b = arm.data.bones["lowerarm_l"]
     mid = (arm.matrix_world @ b.head_local).lerp(arm.matrix_world @ b.tail_local, 0.55)
@@ -1198,7 +1202,7 @@ def place_shield(o, arm, out=0.12, tilt=40):
 def tower_from_heater(colors):
     """Set-Schild Nr. 16 (Wappenschild) zum Turmschild gestreckt, mit Stacheln im Stil des Sets (kantig, flach schattiert)."""
     W = wmod()
-    s = pack_weapon("Shield_Heater", colors, frac=0.5, stretch=(1.15, 0.45, 1.55), length=1.3)
+    s = pack_weapon("Shield_Heater", colors, frac=0.5, stretch=(1.15, 0.45, 1.55), length=SHIELD_LEN)
     zs = [v.co.z for v in s.data.vertices]
     xs = [v.co.x for v in s.data.vertices]
     ys = [v.co.y for v in s.data.vertices]
@@ -1537,8 +1541,249 @@ def preview_all(out, order=None):
     bpy.ops.render.render(write_still=True)
 
 
+# ---------------------------------------------------------------- Export nach Godot (GLB mit Animationen)
+UAL1 = os.path.join(A, "quaternius-anim1", "Animation Library[Standard]", "Godot", "AnimationLibrary_Godot_Standard.glb")
+# UAL1 hat ein Rigify-Skelett (DEF-…); Namen auf unser Skelett (UE-Stil) abbilden
+_RIG_MAP = {"DEF-hips": "pelvis", "DEF-spine.001": "spine_01", "DEF-spine.002": "spine_02", "DEF-spine.003": "spine_03",
+            "DEF-neck": "neck_01", "DEF-head": "Head"}
+for _s, _t in (("L", "l"), ("R", "r")):
+    _RIG_MAP.update({"DEF-shoulder." + _s: "clavicle_" + _t, "DEF-upper_arm." + _s: "upperarm_" + _t, "DEF-forearm." + _s: "lowerarm_" + _t,
+                     "DEF-hand." + _s: "hand_" + _t, "DEF-thigh." + _s: "thigh_" + _t, "DEF-shin." + _s: "calf_" + _t,
+                     "DEF-foot." + _s: "foot_" + _t, "DEF-toe." + _s: "ball_" + _t})
+# Animationen je Held: Name im Spiel -> (Bibliothek, Aktion). Namen wie im Spielcode (Angriff, Laufen, Ruhe, Fähigkeiten-Posen).
+# Schild: Länge (m) und ob der Schildarm in Ruhe und beim Laufen seitlich hängt (statt das Schild vor den Körper zu halten)
+SHIELD_LEN = float(os.environ.get("SHIELD_LEN", "1.3"))
+SHIELD_SIDE = os.environ.get("SHIELD_SIDE", "1") == "1"
+SHIELD_ARM = ("clavicle_l", "upperarm_l", "lowerarm_l", "hand_l")
+HERO_ANIMS = {
+    "tank": {"Idle": ("UAL1", "Sword_Idle"), "Run": ("UAL1", "Jog_Fwd_Loop"), "Sword_Attack": ("UAL2", "Sword_Regular_A"),
+             "Sword_Attack2": ("UAL2", "Sword_Regular_B"), "Punch": ("UAL2", "Shield_OneShot"), "Death": ("UAL1", "Death01"),
+             "Hit": ("UAL1", "Hit_Chest"), "Roll": ("UAL1", "Roll")},
+}
+_FINGERS = ("index", "middle", "ring", "pinky", "thumb")
+
+
+def _fist_q(name):
+    """Faust-Rotation eines Fingerknochens (wie fist()), als Quaternion; None für andere Knochen."""
+    from mathutils import Euler
+    if "leaf" in name or not any(k in name for k in _FINGERS):
+        return None
+    sgn = 1 if name.endswith("_r") else -1
+    return Euler((0, 0, (0.5 if "thumb" in name else 1.25) * sgn)).to_quaternion()
+
+
+def _posed(arm, action, frame):
+    """Welt-Matrizen aller Knochen bei Aktion/Bild."""
+    arm.animation_data_create()
+    arm.animation_data.action = action
+    bpy.context.scene.frame_set(int(frame))
+    return {pb.name: arm.matrix_world @ pb.matrix for pb in arm.pose.bones}
+
+
+def _bake(arm, name, frames, world_of, fixed=None):
+    """Aktion `name` auf `arm` schreiben: world_of(f) liefert gewünschte Welt-Matrizen (nur Rotation zählt; Becken auch Position).
+    Nicht gelieferte Knochen bleiben in Ruhelage, Finger immer zur Faust; fixed = {Knochen: feste lokale Matrix} (z. B. Schildarm)."""
+    fixed = fixed or {}
+    act = bpy.data.actions.new(name)
+    inv = arm.matrix_world.inverted()
+    bones = [b for b in arm.data.bones]                                  # Eltern stehen vor Kindern
+    prev = {}
+    for i, f in enumerate(frames):
+        want = world_of(f)
+        M = {}
+        for b in bones:
+            rest = b.matrix_local
+            par = b.parent
+            rel = (par.matrix_local.inverted() @ rest) if par else rest
+            chain = (M[par.name] @ rel) if par else rel
+            q = _fist_q(b.name)
+            if b.name in fixed:
+                basis = fixed[b.name]
+                Mb = chain @ basis
+            elif b.name in want and q is None:
+                w = inv @ want[b.name]
+                loc = w.to_translation() if b.name == "pelvis" else chain.to_translation()
+                Mb = Matrix.Translation(loc) @ w.to_quaternion().to_matrix().to_4x4()
+                basis = rel.inverted() @ (M[par.name].inverted() if par else Matrix()) @ Mb
+            else:
+                basis = q.to_matrix().to_4x4() if q else Matrix()
+                Mb = chain @ basis
+            M[b.name] = Mb
+            bq = basis.to_quaternion()
+            if b.name in prev:
+                bq.make_compatible(prev[b.name])
+            prev[b.name] = bq
+            pth = 'pose.bones["%s"].' % b.name
+            for k in range(4):
+                fc = act.fcurves.find(pth + "rotation_quaternion", index=k) or act.fcurves.new(pth + "rotation_quaternion", index=k, action_group=b.name)
+                fc.keyframe_points.insert(i, bq[k], options={'FAST'})
+            if b.name == "pelvis":
+                bt = basis.to_translation()
+                for k in range(3):
+                    fc = act.fcurves.find(pth + "location", index=k) or act.fcurves.new(pth + "location", index=k, action_group=b.name)
+                    fc.keyframe_points.insert(i, bt[k], options={'FAST'})
+    return act
+
+
+def add_anims(arm, cls):
+    """Animationen aus beiden Bibliotheken auf das Heldenskelett übertragen (als NLA-Spuren mit den Spielnamen).
+    Übertragung über die gemeinsame Bezugspose A_TPose beider Bibliotheken: Welt-Drehung je Knochen relativ zu dieser Pose."""
+    for pb in arm.pose.bones:
+        pb.rotation_mode = 'QUATERNION'
+    libs = {}
+    for key, path in (("UAL1", UAL1), ("UAL2", UAL2)):
+        new = _import(path)
+        src = next(o for o in new if o.type == 'ARMATURE')
+        acts = {a.name.rsplit("_", 1)[0]: a for a in bpy.data.actions if a.name.endswith("_Rig" if key == "UAL1" else "_Armature")}
+        libs[key] = (src, new, acts)
+    ref_t = _posed(arm, libs["UAL2"][2]["A_TPose"], 0)
+    for key, (src, new, acts) in libs.items():
+        src.animation_data_create()
+    ref_s = {}
+    for key, (src, new, acts) in libs.items():
+        ref_s[key] = _posed(src, acts["A_TPose"], 0)
+    arm.animation_data_create()
+    arm.animation_data.action = libs["UAL2"][2]["Idle_No_Loop"]          # Schildarm wie im Vorschaubild (seitlich)
+    bpy.context.scene.frame_set(5)
+    side_arm = {n: arm.pose.bones[n].matrix_basis.copy() for n in SHIELD_ARM}
+    arm.animation_data_create()
+    arm.animation_data.action = None
+    for game_name, (lib, aname) in HERO_ANIMS[cls].items():
+        src, new, acts = libs[lib]
+        act = acts[aname]
+        f0, f1 = int(act.frame_range[0]), int(act.frame_range[1])
+        bmap = _RIG_MAP if lib == "UAL1" else {n: n for n in arm.pose.bones.keys() if n != "root"}
+        hk = "DEF-hips" if lib == "UAL1" else "pelvis"
+        h0, h1 = _posed(src, act, f0)[hk].to_translation(), _posed(src, act, f1)[hk].to_translation()
+        drift = Vector((h1.x - h0.x, h1.y - h0.y, 0))                  # Vorwärtsbewegung im Clip herausrechnen (Held bleibt am Platz)
+        hip_s = ref_s[lib]["DEF-hips" if lib == "UAL1" else "pelvis"].to_translation()
+        hip_t = ref_t["pelvis"].to_translation()
+        sc = hip_t.z / max(0.01, hip_s.z)
+
+        def world_of(f, src=src, act=act, bmap=bmap, lib=lib, f0=f0, f1=f1, drift=drift):
+            P = _posed(src, act, f)
+            dr = drift * ((f - f0) / max(1, f1 - f0))
+            out = {}
+            for sn, tn in bmap.items():
+                if sn not in P or tn not in ref_t:
+                    continue
+                rs = ref_s[lib][sn]
+                rot = P[sn].to_quaternion() @ rs.to_quaternion().inverted() @ ref_t[tn].to_quaternion()
+                loc = ref_t[tn].to_translation() + (P[sn].to_translation() - dr - rs.to_translation()) * sc
+                out[tn] = Matrix.Translation(loc) @ rot.to_matrix().to_4x4()
+            return out
+        a = _bake(arm, game_name, range(f0, f1 + 1), world_of, side_arm if SHIELD_SIDE and game_name in ("Idle", "Run") else None)
+        tr = arm.animation_data.nla_tracks.new()
+        tr.name = game_name
+        tr.strips.new(game_name, 0, a)
+        tr.mute = False
+    for key, (src, new, acts) in libs.items():
+        for n in [o.name for o in new]:
+            if n in bpy.data.objects:
+                bpy.data.objects.remove(bpy.data.objects[n], do_unlink=True)
+    arm.animation_data.action = None
+    return arm
+
+
+def _hsv_bake(img, hue, sat, val, mul):
+    """Umfärbung (wie recolor) fest ins Bild rechnen, damit glTF sie mitnimmt."""
+    import numpy as np
+    w, h = img.size
+    px = np.array(img.pixels[:], dtype=np.float32).reshape(-1, 4)
+    rgb = px[:, :3]
+    mx, mn = rgb.max(1), rgb.min(1)
+    d = mx - mn
+    hh = np.zeros_like(mx)
+    nz = d > 1e-6
+    r, g, b = rgb[:, 0], rgb[:, 1], rgb[:, 2]
+    i0 = nz & (mx == r); i1 = nz & (mx == g) & ~i0; i2 = nz & ~i0 & ~i1
+    hh[i0] = ((g - b)[i0] / d[i0]) % 6
+    hh[i1] = (b - r)[i1] / d[i1] + 2
+    hh[i2] = (r - g)[i2] / d[i2] + 4
+    hh = (hh / 6 + hue - 0.5) % 1.0
+    s = np.where(mx > 1e-6, d / np.maximum(mx, 1e-6), 0) * sat
+    s = np.clip(s, 0, 1)
+    v = mx * val
+    k = lambda n: (n + hh * 6) % 6
+    f = lambda n: v - v * s * np.clip(np.minimum(k(n), 4 - k(n)), 0, 1)
+    out = np.stack([f(5), f(3), f(1)], 1)
+    if mul:
+        out *= np.array(mul, dtype=np.float32)
+    px[:, :3] = np.clip(out, 0, 1)
+    ni = bpy.data.images.new(img.name + "_hsv", w, h, alpha=True)
+    ni.pixels[:] = px.ravel()
+    ni.pack()
+    return ni
+
+
+def bake_recolors(arm):
+    """Farbknoten (Farbton/Sättigung/Multiplizieren) aller Materialien ins Bild backen und die Knoten entfernen."""
+    for o in [o for o in arm.children if o.type == 'MESH']:
+        for slot in o.material_slots:
+            m = slot.material
+            if m is None or not m.use_nodes:
+                continue
+            nt = m.node_tree
+            hs = next((n for n in nt.nodes if n.type == 'HUE_SAT'), None)
+            p = next((n for n in nt.nodes if n.type == 'BSDF_PRINCIPLED'), None)
+            if hs is None or p is None:
+                continue
+            mx = next((n for n in nt.nodes if n.type == 'MIX'), None)
+            mul = tuple(mx.inputs[7].default_value)[:3] if mx else None
+            src = next((l.from_node for l in nt.links if l.to_socket == hs.inputs["Color"]), None)
+            args = [hs.inputs[k].default_value for k in ("Hue", "Saturation", "Value")]
+            if src is not None and src.type == 'TEX_IMAGE' and src.image:
+                src.image = _hsv_bake(src.image, *args, mul)
+                nt.links.new(src.outputs["Color"], p.inputs["Base Color"])
+            else:
+                import colorsys
+                c = hs.inputs["Color"].default_value
+                h, s, v = colorsys.rgb_to_hsv(*c[:3])
+                c2 = colorsys.hsv_to_rgb((h + args[0] - 0.5) % 1, min(1, s * args[1]), v * args[2])
+                if mul:
+                    c2 = [a * b for a, b in zip(c2, mul)]
+                p.inputs["Base Color"].default_value = (*c2, 1)
+            nt.nodes.remove(hs)
+            if mx:
+                nt.nodes.remove(mx)
+
+
+def export_hero(cls, out):
+    """Held bauen, Animationen übertragen, Umfärbungen backen und als GLB speichern (für Godot)."""
+    bpy.ops.wm.read_factory_settings(use_empty=True)
+    sc = bpy.context.scene
+    sc.render.fps = 30
+    arm = build_hero(cls)
+    arm.name = "Hero"
+    bake_recolors(arm)
+    for img in list(bpy.data.images):                                  # gleiche Textur nur einmal, höchstens 1024 px (Held ist im Spiel klein)
+        base = bpy.data.images.get(img.name[:-4]) if img.name[-4:-3] == "." else None
+        if base is not None:
+            img.user_remap(base)
+            bpy.data.images.remove(img)
+    for img in bpy.data.images:
+        if img.size[0] > 1024:
+            img.scale(1024, 1024)
+    add_anims(arm, cls)
+    bpy.ops.object.select_all(action='DESELECT')
+    keep = [arm] + [o for o in bpy.data.objects if o.parent == arm]
+    for o in list(bpy.data.objects):
+        if o not in keep:
+            bpy.data.objects.remove(o, do_unlink=True)
+    for o in keep:
+        o.select_set(True)
+    bpy.context.view_layer.objects.active = arm
+    os.makedirs(os.path.dirname(out), exist_ok=True)
+    bpy.ops.export_scene.gltf(filepath=out, export_format='GLB', use_selection=True, export_animation_mode='NLA_TRACKS',
+                              export_force_sampling=True, export_optimize_animation_size=True, export_def_bones=False,
+                              export_apply=False, export_yup=True)
+    print("EXPORT", out)
+
+
 if __name__ == "__main__":
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
+    if argv and argv[0] == "export":
+        export_hero(argv[1], argv[2])
     if argv and argv[0] == "preview":
         preview(argv[1], argv[2:])
     elif argv and argv[0] == "all":
