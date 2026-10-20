@@ -1236,6 +1236,83 @@ def shrink(arm, key, k=0.88, dz=-0.01):
         o.data.update()
 
 
+MASK_VARIANT = 1
+
+
+def face_mask(arm, head, ec, variant=1):
+    """Mundschutz des Nekromanten als glatte Hülle um den Kopf (Nase und Mund zeichnen sich nicht ab):
+    Kopf kugelförmig abgetastet, stark geglättet; oberer Rand ein weicher Bogen unter den Augen (Spitze am Nasenrücken).
+    1 = Stofftuch, 2 = Tuch, das vorn über Hals und Brust fällt, 3 = eiserne Halbmaske mit Atemschlitzen."""
+    W = wmod()
+    ez = (ec[0].z + ec[1].z) / 2
+    c = Vector((0, (ec[0].y + ec[1].y) / 2 + 0.085, ez - 0.02))
+    mw = head.matrix_world
+    pts = [mw @ v.co - c for v in head.data.vertices]
+    naz, nel = 26, 12
+    az0, az1, el0 = -105.0, 105.0, -62.0
+    top = lambda az: 2.0 - 16.0 * (abs(az) / 105.0) ** 1.3 + 4.0 * max(0.0, 1 - abs(az) / 14)
+    r = [[0.0] * naz for _ in range(nel)]
+    for q in pts:
+        rr = q.length
+        if rr < 1e-4 or rr > 0.2:
+            continue
+        el = math.degrees(math.asin(max(-1, min(1, q.z / rr))))
+        az = math.degrees(math.atan2(q.x, -q.y))
+        if not (az0 <= az <= az1):
+            continue
+        t = (el - el0) / (top(az) - el0)
+        j = round(t * (nel - 1))
+        i = round((az - az0) / (az1 - az0) * (naz - 1))
+        if 0 <= j < nel and 0 <= i < naz:
+            r[j][i] = max(r[j][i], rr)
+    for j in range(nel):
+        cand = [x for x in r[j] if x > 0]
+        for i in range(naz):
+            if r[j][i] == 0:
+                r[j][i] = sum(cand) / len(cand) if cand else 0.1
+    r = _smooth_grid(r, 14)                                             # stark glätten: keine Nase, kein Mund
+    off = 0.016 if variant != 3 else 0.02
+    grid = []
+    for j in range(nel):
+        row = []
+        for i in range(naz):
+            az = az0 + (az1 - az0) * i / (naz - 1)
+            el = el0 + (top(az) - el0) * j / (nel - 1)
+            d = Vector((math.sin(math.radians(az)) * math.cos(math.radians(el)), -math.cos(math.radians(az)) * math.cos(math.radians(el)), math.sin(math.radians(el))))
+            row.append(c + d * (r[j][i] + off))
+        grid.append(row)
+    grid = grid[::-1]                                                   # oben zuerst
+    if variant == 2:                                                    # Tuch fällt vorn über Hals und Brust, mit Falten
+        last = grid[-1]
+        for k in range(1, 7):
+            t = k / 6
+            row = []
+            for i, q in enumerate(last):
+                u = i / (naz - 1) - 0.5
+                w_ = 1.0 - 0.55 * t                                     # läuft nach unten spitz zu
+                row.append(Vector((q.x * w_, min(q.y, -0.1) - 0.05 * t + 0.01 * math.sin(u * math.tau * 3) * t, q.z - 0.22 * t - 0.06 * abs(u) * t)))
+            grid.append(row)
+    if variant == 3:
+        m = mat("necro_iron", (0.12, 0.12, 0.13), 0.85, 0.45)
+        rim = mat("necro_iron_rim", (0.22, 0.22, 0.24), 0.9, 0.35)
+    else:
+        m = mat("necro_mask", (0.045, 0.05, 0.045), 0.0, 0.92)
+        rim = m
+    o = _grid_mesh("facemask", grid, m, rim, 0.004 if variant != 3 else 0.007, sub=2, bevel=0.0)
+    skin_from(o, [head])
+    if variant == 3:                                                    # Atemschlitze und Nieten
+        slit = mat("necro_slit", (0.0, 0.0, 0.0), 0.0, 1.0)
+        mid = grid[int(len(grid) * 0.55)][naz // 2]
+        parts = []
+        for k in range(4):
+            parts.append(W.cube(slit, mid + Vector((-0.024 + k * 0.016, -0.004, 0.0)), (0.005, 0.008, 0.026)))
+        for i in (2, naz - 3):
+            for jj in (1, len(grid) - 2):
+                parts.append(W.ball(rim, 0.005, grid[jj][i] + (grid[jj][i] - c).normalized() * 0.006, seg=8))
+        skin_from(W.join(parts, "maskdetail", smooth=True), [head])
+    return o
+
+
 def hide_head(arm):
     """Augen und Brauen entfernen (für den Schädelkopf)."""
     for o in [o for o in arm.children if o.type == 'MESH' and o.name.lower().startswith(("eye",))]:
@@ -1257,9 +1334,7 @@ def skull_head(arm, bone_m=None, eye_m=None):
     else:
         ec = [Vector((-0.032, -0.085, 1.665)), Vector((0.032, -0.085, 1.665))]
     ez = (ec[0].z + ec[1].z) / 2
-    cloth = mat("necro_mask", (0.045, 0.05, 0.045), 0.0, 0.92)
-    plate(arm, head, "facemask", lambda q: ez - 0.135 <= q.z <= ez - 0.016 and q.y < 0.035 and abs(q.x) < 0.085,     # Mundschutz aus der Kopfform
-          cloth, 0.008, 0.004, None, flat=12, bevel=0.0)
+    face_mask(arm, head, ec, MASK_VARIANT)
     hide_head(arm)
     mw = head.matrix_world
     inv = mw.inverted()
