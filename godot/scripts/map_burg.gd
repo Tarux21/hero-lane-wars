@@ -64,6 +64,8 @@ func _parts(name: String, natur: bool) -> Array:
 			var mesh: Mesh = (mi as MeshInstance3D).mesh
 			if natur:
 				mesh = _natur_mesh(mesh, name)
+			else:
+				mesh = _vertex_color_fix(mesh)
 			out.append([mesh, xf])
 		root.free()
 	parts_cache[key] = out
@@ -154,10 +156,10 @@ func _natur_mesh(src: Mesh, model: String) -> Mesh:
 
 
 ## Naturmodell vielfach zeichnen (je Teil ein MultiMesh), Transformliste in Welt-Koordinaten
-func _nat_scatter(name: String, xf: Array, shadows: bool = true) -> void:
+func _nat_scatter(name: String, xf: Array, shadows: bool = true, natur: bool = true) -> void:
 	if xf.is_empty():
 		return
-	for part in _parts(name, true):
+	for part in _parts(name, natur):
 		var mm := MultiMesh.new()
 		mm.transform_format = MultiMesh.TRANSFORM_3D
 		mm.mesh = part[0]
@@ -279,6 +281,13 @@ func build_river(river_x: float, lane_len: float) -> void:
 			z -= 2.0
 		z = TOWN_END
 	while z > z1:                                                             # natürliches Ufer: Kiesel, Schilf (Bach: überall, dazu Felsen und Seerosen)
+		var at_bridge := false
+		for b in BRIDGES:
+			if absf(z - float(b)) < 3.2:                                    # an den Brücken kein Schilf, keine Steine
+				at_bridge = true
+		if at_bridge:
+			z -= 1.6
+			continue
 		for sd in [-1.0, 1.0]:
 			var e: float = half_w + (0.3 if stil == 2 else 0.0)
 			if rng.randf() < 0.55:
@@ -302,6 +311,8 @@ func build_river(river_x: float, lane_len: float) -> void:
 		elif stil == 2:                                                     # gewölbte Holzbrücke, Rampen aus Kies an beiden Enden
 			var mz: float = sin(bz * 0.09) * 0.7 + sin(bz * 0.23 + 1.7) * 0.3   # wie der Mäander im Shader
 			_put_parts("Bruecke", Vector3(river_x + mz, 0.0, bz), 0.0, 1.0)
+			for sx in [-1.0, 1.0]:                                          # Brückenenden frei von Wiese und Blumen
+				_reserve(river_x + mz + sx * 4.6, bz, 2.4)
 			_reserve(river_x, bz, 5.0)
 		else:
 			_bridge_wood(river_x, bz, 2.6)
@@ -1182,17 +1193,21 @@ func _fields(lx: float, half: float, team: int, k: int, lpt: int, river_x: float
 						xx += 0.75
 					zz -= 0.75
 			elif kind < 0.85:                                            # Gemüsebeet
-				var veg: String = ["Leek", "Carrot", "Radish"][rng.randi() % 3]
+				var veg: String = ["Kohl", "Carrot"][rng.randi() % 2]           # Kohl oder Karotten (Karotte steckt im Boden, nur das Kraut schaut heraus)
 				var beds: Array = []
 				var zz := z - 0.6
 				while zz > z - L:
 					var xx := x0 + 0.4
 					while xx < x1:
-						beds.append(_t(lx + sd * xx, zz, 2.6))
+						beds.append(_t(lx + sd * xx, zz, 3.4, -1.0, -0.75) if veg == "Carrot" else _t(lx + sd * xx, zz, rng.randf_range(1.8, 2.3)))
 						xx += 1.0
 					zz -= 0.9
-				_nat_scatter(veg, beds)
-			_reserve(lx + sd * (x0 + x1) / 2.0, z - L / 2.0, (x1 - x0) * 0.55)
+				_nat_scatter(veg, beds, true, false)                             # Gemüse: eigene Materialien (nicht die Wind-Shader)
+				_bed_soil(Vector3(lx + sd * (x0 + x1) / 2.0, 0.0, z - L / 2.0), Vector2(x1 - x0 + 0.6, L + 0.4))
+			var rz: float = z - 1.0
+			while rz > z - L:                                                # ganze Ackerfläche freihalten (Wiese wächst nicht hinein)
+				_reserve(lx + sd * (x0 + x1) / 2.0, rz, (x1 - x0) * 0.6)
+				rz -= 3.0
 			z -= L + 2.0
 		var fz := rng.randf_range(-100.0, -70.0)                         # Bauernhof
 		var hx: float = lx + sd * (half + minf(limit, 22.0) - 2.0)
@@ -1251,3 +1266,38 @@ func _meadow(x_min: float, x_max: float, half: float, lane_xs: Array, river_x: f
 		_nat_scatter(nm, lists[nm], str(nm).begins_with("Bush") or str(nm).begins_with("Rock"))
 	for nm in trees:
 		_nat_scatter(nm, trees[nm])
+
+
+## Ackerboden unter einem Gemüsebeet: dunkle Erde mit Furchen in Längsrichtung, weicher Rand zur Wiese
+func _bed_soil(c: Vector3, size: Vector2) -> void:
+	var q := PlaneMesh.new()
+	q.size = size
+	var sm := ShaderMaterial.new()
+	var sh := Shader.new()
+	sh.code = "shader_type spatial;\nrender_mode diffuse_lambert, specular_disabled;\nuniform vec2 size;\nvarying vec3 lp;\nvarying vec3 wp;\nfloat h(vec2 p){vec3 q=fract(vec3(p.xyx)*0.1031);q+=dot(q,q.yzx+33.33);return fract((q.x+q.y)*q.z);}\nfloat n(vec2 p){vec2 i=floor(p);vec2 f=fract(p);vec2 u=f*f*(3.0-2.0*f);return mix(mix(h(i),h(i+vec2(1,0)),u.x),mix(h(i+vec2(0,1)),h(i+vec2(1,1)),u.x),u.y);}\nvoid vertex(){lp=VERTEX;wp=(MODEL_MATRIX*vec4(VERTEX,1.0)).xyz;}\nvoid fragment(){vec2 d=abs(lp.xz)/(size*0.5);float r=max(d.x,d.y);if(r+0.08*n(wp.xz*2.0)>1.0){discard;}float furrow=0.5+0.5*sin(wp.x*6.2832);vec3 c=mix(vec3(0.20,0.13,0.07),vec3(0.36,0.25,0.14),furrow)*(0.85+0.3*n(wp.xz*3.0));ALBEDO=c;ROUGHNESS=1.0;}\n"
+	sm.shader = sh
+	sm.set_shader_parameter("size", size)
+	sm.render_priority = -18
+	var mi := MeshInstance3D.new()
+	mi.mesh = q
+	mi.material_override = sm
+	mi.position = c + Vector3(0, 0.025, 0)
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	g.add_child(mi)
+
+
+## Paket-Materialien "…_Vertex" färben über Vertex-Farben (die Textur ist nur grau): in Godot muss das eingeschaltet werden
+func _vertex_color_fix(src: Mesh) -> Mesh:
+	var mesh: Mesh = src
+	var copied := false
+	for s in src.get_surface_count():
+		var m := src.surface_get_material(s)
+		if m is StandardMaterial3D and m.resource_name.ends_with("_Vertex") and not (m as StandardMaterial3D).vertex_color_use_as_albedo:
+			if not copied:
+				mesh = src.duplicate() as Mesh
+				copied = true
+			var m2 := (m as StandardMaterial3D).duplicate() as StandardMaterial3D
+			m2.vertex_color_use_as_albedo = true
+			m2.vertex_color_is_srgb = true
+			mesh.surface_set_material(s, m2)
+	return mesh

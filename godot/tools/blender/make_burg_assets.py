@@ -328,6 +328,26 @@ def extras():
         bpy.ops.object.mode_set(mode='EDIT'); bpy.ops.mesh.select_all(action='SELECT')
         bpy.ops.uv.cube_project(cube_size=2.0); bpy.ops.object.mode_set(mode='OBJECT')
     _export_joined(objs, "Bruecke", center=False)
+    # Kohlkopf: fester Kern, darum gewölbte Außenblätter (blaugrün), flach schattiert wie die Paket-Pflanzen
+    objs = []
+    kohl = bpy.data.materials.new("Kohl"); kohl.use_nodes = True
+    kohl.node_tree.nodes["Principled BSDF"].inputs["Base Color"].default_value = (0.16, 0.34, 0.12, 1)
+    kohl.node_tree.nodes["Principled BSDF"].inputs["Roughness"].default_value = 0.7
+    kern = bpy.data.materials.new("Kohlkern"); kern.use_nodes = True
+    kern.node_tree.nodes["Principled BSDF"].inputs["Base Color"].default_value = (0.34, 0.50, 0.22, 1)
+    bpy.ops.mesh.primitive_uv_sphere_add(segments=12, ring_count=8, radius=0.16, location=(0, 0, 0.15))
+    o = bpy.context.object; o.data.materials.append(kern); objs.append(o)
+    for k in range(7):
+        a = k / 7 * math.tau
+        bpy.ops.mesh.primitive_uv_sphere_add(segments=10, ring_count=6, radius=0.17, location=(math.cos(a) * 0.14, math.sin(a) * 0.14, 0.11))
+        o = bpy.context.object
+        o.scale = (0.95, 0.65, 0.22)
+        o.rotation_euler = (0, -0.9, a)
+        o.data.materials.append(kohl); objs.append(o)
+    for o in objs:
+        bpy.context.view_layer.objects.active = o
+        bpy.ops.object.shade_smooth()
+    _export_joined(objs, "Kohl", center=False)
 
 
 def nature():

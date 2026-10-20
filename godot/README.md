@@ -92,7 +92,7 @@ Helden (Krieger, Schurke, Magier) und Monster (GreenDemon, Cyclops, Skull, Bat, 
 ## Karte "Giftiger Nachtwald" (Prototyp)
 Standard-Karte. Dunkler Wald statt Felswänden, Lava als Fluss, Knochensäulen, leuchtende Pilze, Feuerschalen, Nebel. Die Modelle werden mit Blender per Skript gebaut
 (`godot/tools/blender/make_nachtwald_props.py`, Aufruf steht im Skript) und liegen als GLB in `godot/assets/props/`. Platzierung und Licht: `godot/scripts/map_nachtwald.gd`.
-Alte Wiese zum Vergleichen: Start mit `--map=gras`. Eigene Modelle (z. B. aus Blender) ersetzt man, indem man die GLB-Datei mit gleichem Namen austauscht.
+Standardkarte ist die **Burgkarte** (`map_burg.gd`: Wald am Spawn, Felder, Stadt, Burg mit Tor und begehbarem Hof, Bach mit Brücken). Zum Vergleichen: `--map=nachtwald` (alter Giftwald) oder `--map=gras` (alte Wiese). Eigene Modelle (z. B. aus Blender) ersetzt man, indem man die GLB-Datei mit gleichem Namen austauscht.
 
 ### Monster-Spawn im Nachtwald
 - Je Lane steht am Lane-Ende ein hohler, toter Giftbaum (`spawn_tree.glb`) mit Dornenwand links und rechts (`thorn_wall_0..2.glb`); alle Wellen starten dort (Regel: `rampStart = spawnX`).

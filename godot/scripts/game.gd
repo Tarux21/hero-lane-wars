@@ -111,7 +111,7 @@ var statues: Array = []                # Wächterstatuen der Teams (map_nachtwal
 var obstacles: Array = []              # Hindernisse für Helden (Statue, Brunnen): Vector3(x, y, Radius) in Spielwerten
 var heal_lights: Array = []            # Lichter der Heilbrunnen (leuchten stärker, wenn geheilt wird)
 var merchant: Dictionary = {}          # Goblin-Händler an der Basis (map_nachtwald.gd): Positionen und Beschriftungen
-var map_theme := "nachtwald"            # Karte: nachtwald (giftiger Nachtwald), burg (Burg und Stadt, Entwurf) oder gras (alte Wiese), Test: --map=burg
+var map_theme := "burg"                 # Karte: burg (Standard: Burg, Stadt, Felder, Wald), nachtwald (alter giftiger Nachtwald) oder gras (alte Wiese), Test: --map=nachtwald
 var decor                              # Dekoration der Karte (map_nachtwald.gd)
 var mc: Dictionary = {}                # Farben der Karte
 var sun: DirectionalLight3D            # Sonne (Schatten je nach Grafikqualität)
