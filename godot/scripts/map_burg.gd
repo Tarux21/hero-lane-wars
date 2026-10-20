@@ -499,6 +499,20 @@ func build_camp(cx: float, cz: float) -> void:
 		_put_parts("Prop_Wagon", Vector3(wall_x + 1.8, 0.0, z0 + 9.5), 0.05, 1.3)
 		_nat_scatter("Grass_Wheat", [_t(wall_x + 1.6, z0 + 8.9, 1.5), _t(wall_x + 2.1, z0 + 9.6, 1.4)], false)
 		_put_parts("Bag", Vector3(wall_x + 3.4, 0.0, z0 + 8.6), 0.4, S)
+		var don: Dictionary = g._make_figure("res://assets/burg/Esel.gltf", 2.1)   # Esel am Karren: frisst Heu, schaut sich um
+		if not don.is_empty():
+			var dn: Node3D = don["model"]
+			dn.position = Vector3(wall_x + 3.4, 0.0, z0 + 11.2)
+			(don["inner"] as Node3D).rotation.y = PI * 0.85
+			g.add_child(dn)
+			var dap: AnimationPlayer = don["anim"]
+			if dap != null:
+				for an in ["Eating", "Idle", "Idle_2", "Idle_Headlow"]:
+					if dap.has_animation(an):
+						dap.get_animation(an).loop_mode = Animation.LOOP_LINEAR
+				dap.play("Eating" if dap.has_animation("Eating") else "Idle")
+			smith["donkey"] = don
+			smith["donkey_t"] = 6.0
 	for e in [[anvil_p, 1.4], [forge_p, 2.0], [rack_p, 1.6], [bench_p, 2.0], [smith_p, 1.2], [Vector3(wall_x + 3.0, 0.0, z0 + 2.0), 5.5]]:
 		_reserve(e[0].x, e[0].z, e[1])
 	var fl := _light(forge_p + Vector3(0, 1.0, 0), Color("#ff7a2a"), 2.0, 9.0)            # Glut der Esse flackert
@@ -527,7 +541,7 @@ func build_camp(cx: float, cz: float) -> void:
 					ap.get_animation(an).loop_mode = Animation.LOOP_LINEAR
 			if ap.has_animation("Work"):
 				ap.play("Work")
-		smith = {"fig": fig, "state": "work", "t": 0.0, "anvil": anvil_p, "sparks_t": 0.0, "yaw": work_yaw}
+		smith.merge({"fig": fig, "state": "work", "t": 0.0, "anvil": anvil_p, "sparks_t": 0.0, "yaw": work_yaw}, true)
 	var pst: Label3D = g._label3d("Psst! Waffen und Tränke!", 40, Color("#ffe066"))
 	pst.position = smith_p + Vector3(0.0, 3.4, 0.0)
 	pst.modulate.a = 0.0
@@ -562,6 +576,17 @@ func _soot(c: Vector3, size: Vector2) -> void:
 ## Schmied: hämmert; kommt ein Held, dreht er sich um und nickt, danach wieder an die Arbeit. Funken im Takt der Schläge.
 func _update_smith(delta: float) -> void:
 	if smith.is_empty() or g.merchant.is_empty():
+		return
+	if smith.has("donkey"):                                                 # Esel wechselt zwischen Fressen und Umschauen
+		smith["donkey_t"] = float(smith["donkey_t"]) - delta
+		if float(smith["donkey_t"]) <= 0.0:
+			var dap: AnimationPlayer = (smith["donkey"] as Dictionary)["anim"]
+			if dap != null:
+				var nx: String = "Eating" if dap.current_animation != "Eating" else ["Idle", "Idle_2", "Idle_Headlow"][rng.randi() % 3]
+				if dap.has_animation(nx):
+					dap.play(nx, 0.4)
+			smith["donkey_t"] = rng.randf_range(4.0, 9.0)
+	if not smith.has("fig"):
 		return
 	var fig: Dictionary = smith["fig"]
 	var ap: AnimationPlayer = fig["anim"]
@@ -826,7 +851,7 @@ func _meadow(x_min: float, x_max: float, half: float, lane_xs: Array, river_x: f
 			for lx in lane_xs:
 				if absf(px - float(lx)) < half + 0.6:
 					on_lane = true
-			if on_lane or absf(px - river_x) < 3.4 or (pz > GATE_Z - 2.0 and px > x_min - 6.0 and px < x_max + 6.0):
+			if on_lane or absf(px - river_x) < 3.4 or (pz > GATE_Z - 2.5 and px > x_min - 12.5 and px < x_max + 12.5):
 				continue
 			if not _free(px, pz, 0.6):
 				continue
