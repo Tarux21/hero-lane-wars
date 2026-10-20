@@ -1181,7 +1181,7 @@ def place(o, arm, side, tip="down", lift=0.0):
     return attach(o, arm, "hand_" + side)
 
 
-def place_shield(o, arm, out=0.14, tilt=40):
+def place_shield(o, arm, out=0.12, tilt=40):
     """Schild am linken Unterarm: Vorderseite nach außen, Oberkante Richtung Schulter, etwas nach vorn gekippt."""
     from mathutils import Matrix
     o.data.transform(Matrix.Rotation(math.pi, 4, 'Z'))                  # Vorderseite (Wappen) nach außen, Griffe zum Arm
@@ -1190,7 +1190,7 @@ def place_shield(o, arm, out=0.14, tilt=40):
     o.data.transform(Matrix.Rotation(math.radians(-tilt), 4, 'X'))
     b = arm.data.bones["lowerarm_l"]
     mid = (arm.matrix_world @ b.head_local).lerp(arm.matrix_world @ b.tail_local, 0.55)
-    o.location = mid + Vector((0, 0, -out))
+    o.location = mid + Vector((0, 0, out))
     bpy.context.view_layer.update()
     return attach(o, arm, "lowerarm_l")
 
@@ -1237,38 +1237,91 @@ def shrink(arm, key, k=0.88, dz=-0.01):
 
 
 def hide_head(arm):
-    """Gesicht weg (Nekromant): Kopf-, Augen- und Brauen-Mesh entfernen."""
-    for o in [o for o in arm.children if o.type == 'MESH' and o.name.lower().startswith(("superhero", "eye"))]:
+    """Augen und Brauen entfernen (für den Schädelkopf)."""
+    for o in [o for o in arm.children if o.type == 'MESH' and o.name.lower().startswith(("eye",))]:
         bpy.data.objects.remove(o, do_unlink=True)
 
 
-def skull_head(arm, bone_m, eye_m):
-    """Totenschädel tief in der Kapuze: dunkle Schattenzone dahinter, dunkler Knochen, schräge Brauenwülste (böser Blick),
-    tiefe Augenhöhlen mit kleiner, intensiver Glut, langer Kiefer mit dünnen Zähnen."""
+def skull_head(arm, bone_m=None, eye_m=None):
+    """Nekromant: der echte Heldenkopf wird zum Schädel umgeformt (Form und Größe eines Kopfes bleiben).
+    Augenhöhlen und Nase tief eingedrückt, Wangen eingefallen, Ohren angelegt, Kiefer kantiger. Farbe als Vertex-Farbe:
+    alter Knochen, dunkle Höhlen, Zahnreihe, feine Risse. Kleine grüne Glut tief in den Augenhöhlen."""
+    head = max((o for o in arm.children if o.type == 'MESH' and o.name.lower().startswith("superhero")), key=lambda o: len(o.data.vertices))
+    eyes = [o for o in arm.children if o.type == 'MESH' and o.name.lower().startswith("eye") and "brow" not in o.name.lower()]
+    ec = []
+    if eyes:
+        pts = [eyes[0].matrix_world @ v.co for v in eyes[0].data.vertices]
+        for sx in (-1, 1):
+            side = [q for q in pts if q.x * sx > 0]
+            ec.append(sum(side, Vector()) / len(side))
+    else:
+        ec = [Vector((-0.032, -0.085, 1.665)), Vector((0.032, -0.085, 1.665))]
+    hide_head(arm)
+    mw = head.matrix_world
+    inv = mw.inverted()
+    bm = bmesh.new()
+    bm.from_mesh(head.data)
+    bm.normal_update()
+    nose = Vector((0, (ec[0].y + ec[1].y) / 2 - 0.02, ec[0].z - 0.035))
+    mouth_z = ec[0].z - 0.068
+    dark = {}
+    for v in bm.verts:
+        w = mw @ v.co
+        n = (mw.to_3x3() @ v.normal).normalized()
+        push = 0.0
+        shade = 0.0
+        for c in ec:                                                     # Augenhöhlen
+            d = ((w.x - c.x) / 0.026) ** 2 + ((w.z - c.z) / 0.022) ** 2
+            if w.y < c.y + 0.03 and d < 1.0:
+                push += 0.022 * (1 - d) ** 0.7
+                shade = max(shade, (1 - d) ** 0.5)
+        dn = ((w.x - nose.x) / 0.014) ** 2 + ((w.z - nose.z) / 0.016) ** 2  # Nasenloch (Dreieck: unten breiter)
+        if w.y < nose.y + 0.03 and dn < 1.0:
+            push += 0.012 * (1 - dn)
+            shade = max(shade, (1 - dn) ** 0.6)
+        if 0.035 < abs(w.x) < 0.07 and ec[0].z - 0.075 < w.z < ec[0].z - 0.02 and w.y < -0.03:   # eingefallene Wangen
+            push += 0.01
+            shade = max(shade, 0.25)
+        if abs(w.x) > 0.07 and ec[0].z - 0.06 < w.z < ec[0].z + 0.03:      # Ohren anlegen
+            v.co = inv @ Vector((w.x * 0.88, w.y, w.z))
+            w = mw @ v.co
+        if abs(w.z - mouth_z) < 0.018 and abs(w.x) < 0.034 and w.y < -0.05:   # Lippen weg: Zähne liegen frei
+            push += 0.007
+        if push:
+            v.co = inv @ (w - n * push)
+        dark[v.index] = shade
+    col = bm.loops.layers.color.new("Col")
+    for f in bm.faces:
+        for lp in f.loops:
+            w = mw @ lp.vert.co
+            base = Vector((0.62, 0.58, 0.48))
+            sh = dark.get(lp.vert.index, 0.0)
+            if abs(w.z - mouth_z) < 0.016 and abs(w.x) < 0.034 and w.y < -0.05:   # Zahnreihe: helle Zähne mit dunklen Fugen, Mittelspalt
+                gap = abs(math.sin(w.x * 300)) < 0.3 or abs(w.z - mouth_z) < 0.0025 or abs(w.z - mouth_z) > 0.013
+                sh = max(sh, 0.85 if gap else 0.0)
+                base = Vector((0.75, 0.72, 0.62))
+            crack = abs(math.sin(w.x * 90 + w.z * 140 + math.sin(w.y * 60) * 3)) < 0.03 and w.z > ec[0].z + 0.02   # feine Risse
+            if crack:
+                sh = max(sh, 0.6)
+            c = base * (1 - 0.95 * sh)
+            lp[col] = (c.x, c.y, c.z, 1.0)
+    bm.to_mesh(head.data)
+    bm.free()
+    m = bpy.data.materials.new("skull_bone")
+    m.use_nodes = True
+    nt = m.node_tree
+    pb = nt.nodes["Principled BSDF"]
+    vc = nt.nodes.new("ShaderNodeVertexColor"); vc.layer_name = "Col"
+    nt.links.new(vc.outputs["Color"], pb.inputs["Base Color"])
+    pb.inputs["Roughness"].default_value = 0.8
+    head.data.materials.clear()
+    head.data.materials.append(m)
     W = wmod()
-    hb = arm.data.bones["Head"]
-    c = arm.matrix_world @ hb.head_local + Vector((0, 0.012, 0.095))
-    void = mat("hood_void", (0.0, 0.0, 0.0), 0.0, 1.0)
-    dark = mat("socket", (0.005, 0.005, 0.005), 0.0, 1.0)
-    bone_m = mat("necro_skull2", (0.33, 0.31, 0.27), 0.0, 0.8)
-    eye_m = mat("necro_eye", (0.3, 1.0, 0.2), 0.0, 0.3, emit=(0.25, 1.0, 0.15))
-    eye_m.node_tree.nodes["Principled BSDF"].inputs["Emission Strength"].default_value = 9.0
-    P = []
-    P.append(W.ball(void, 0.105, c + Vector((0, 0.035, 0.005)), (1.0, 1.0, 1.1), seg=16))                      # Schatten in der Kapuze
-    P.append(W.ball(bone_m, 0.068, c + Vector((0, -0.012, 0.02)), (0.86, 1.0, 0.98), seg=24))                  # Schädeldecke
-    P.append(W.ball(bone_m, 0.048, c + Vector((0, -0.042, -0.04)), (0.92, 0.85, 0.95), seg=20))               # Gesicht
-    for sx in (-1, 1):
-        sk = W.ball(dark, 0.02, c + Vector((sx * 0.024, -0.072, -0.004)), (1.15, 0.8, 0.85), seg=12)          # Augenhöhle: schräg (außen höher)
-        sk.rotation_euler = (0, sx * 0.45, 0)
-        P.append(sk)
-        P.append(W.ball(eye_m, 0.006, c + Vector((sx * 0.023, -0.086, -0.006)), seg=8))                       # Glut
-    P.append(W.cyl(dark, 0.009, c + Vector((0, -0.074, -0.032)), c + Vector((0, -0.09, -0.038)), r2=0.002, verts=3))   # Nasenloch
-    for i in range(7):                                                                                        # dünne Zähne
-        x = -0.019 + i * 0.0063
-        P.append(W.cube(bone_m, c + Vector((x, -0.08 + abs(x) * 0.4, -0.062)), (0.0042, 0.006, 0.016)))
-    P.append(W.ball(bone_m, 0.032, c + Vector((0, -0.055, -0.08)), (0.95, 0.9, 0.55), seg=16))                # Unterkiefer (in der Kapuze)
-    s_ = W.join(P, "skull_head", smooth=True)
-    return attach(s_, arm, "Head")
+    glow = mat("necro_eye", (0.3, 1.0, 0.2), 0.0, 0.3, emit=(0.25, 1.0, 0.15))
+    glow.node_tree.nodes["Principled BSDF"].inputs["Emission Strength"].default_value = 9.0
+    for c in ec:
+        attach(W.ball(glow, 0.006, c + Vector((0, 0.012, 0)), seg=8), arm, "Head")
+    return head
 
 
 def leaf_crown(arm, leaf_m):
@@ -1365,8 +1418,7 @@ def build_hero(cls):
         place(sc_, arm, "r", tip="up")
         bone = mat("necro_bone", (0.78, 0.74, 0.62), 0.0, 0.6)
         soul = mat("necro_soul", (0.4, 1.0, 0.45), 0.0, 0.3, emit=(0.4, 1.0, 0.45))
-        hide_head(arm)
-        skull_head(arm, bone, soul)
+        skull_head(arm)
     return arm
 
 
