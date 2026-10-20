@@ -1176,10 +1176,39 @@ def place(o, arm, side, tip="down", lift=0.0):
     from mathutils import Matrix
     c = hand(arm, side)
     away = -1 if side == "r" else 1                                     # Richtung vom Körper weg (T-Pose, entlang X)
+    if tip == "cross":                                                  # quer durch die Faust: nach vorn und etwas Richtung Ellbogen (hängender Arm: schräg nach oben vorn)
+        ax = Vector((-away * 0.55, -1.0, 0.0)).normalized()
+        o.data.transform(Vector((0, 0, 1)).rotation_difference(ax).to_matrix().to_4x4())
+        o.location = c
+        bpy.context.view_layer.update()
+        return attach(o, arm, "hand_" + side)
     d = -away if tip == "down" else away
     o.data.transform(Matrix.Rotation(math.radians(90 * d), 4, 'Y'))
     o.data.transform(Matrix.Translation((d * lift, 0, 0)))
     o.location = c
+    bpy.context.view_layer.update()
+    return attach(o, arm, "hand_" + side)
+
+
+def place_dir(o, arm, side, d=(0, -0.35, 1.0)):
+    """Waffe so in die Hand, dass sie in der Ruhepose (UAL2 Idle_No_Loop) in Richtung d (Welt) zeigt; in der T-Pose zurückgerechnet."""
+    new = _import(UAL2)
+    act = next(a for a in bpy.data.actions if a.name.startswith("Idle_No_Loop"))
+    for n in [x.name for x in new]:
+        if n in bpy.data.objects:
+            bpy.data.objects.remove(bpy.data.objects[n], do_unlink=True)
+    arm.animation_data_create(); arm.animation_data.action = act
+    bpy.context.scene.frame_set(5)
+    pb = arm.pose.bones["hand_" + side]
+    rp = (arm.matrix_world @ pb.matrix).to_quaternion()
+    rr = (arm.matrix_world @ pb.bone.matrix_local).to_quaternion()
+    arm.animation_data.action = None
+    for p_ in arm.pose.bones:
+        p_.matrix_basis = Matrix()
+    bpy.context.view_layer.update()
+    ax = (rr @ rp.inverted()) @ Vector(d).normalized()
+    o.data.transform(Vector((0, 0, 1)).rotation_difference(ax).to_matrix().to_4x4())
+    o.location = hand(arm, side)
     bpy.context.view_layer.update()
     return attach(o, arm, "hand_" + side)
 
@@ -1484,8 +1513,8 @@ def build_hero(cls):
         place(pack_weapon("Dagger_2", cols, frac=0.14, length=0.48), arm, "l", tip="up")
     elif cls == "caster":                                               # eigenes Kristallzepter (M3) im Set-Stil, Gold wie die Magierrobe
         o = W.mage_weapon(None, 3)
-        _grip(o, 0.12)
-        place(o, arm, "r", tip="down")
+        _grip(o, 0.3)                                                   # Griff im unteren Schaftdrittel, Kristall über der Hand
+        place_dir(o, arm, "r", d=(0, 0.35, -1.0))                       # Kristall (-Z) in Ruhe schräg nach oben vorn
     elif cls == "ranger":                                               # 7 Holzbogen, Holz wie das Lederzeug
         b = pack_weapon("Bow_Wooden", {"DarkWood": ((0.16, 0.08, 0.04), 0.0, 0.7), "LightWood": ((0.3, 0.16, 0.07), 0.0, 0.7)}, frac=0.5, length=1.3)
         place(b, arm, "l", tip="up")
@@ -1497,7 +1526,7 @@ def build_hero(cls):
         leaf_crown(arm, mat("leafcrown", (0.2, 0.5, 0.14), 0.0, 0.6))
     elif cls == "necro":                                                # 14 Sense (schwarz, Knochen), Kapuze mit Totenschädel, Totenkopf-Schulterplatten
         sc_ = pack_weapon("Scythe", {"Steel": ((0.12, 0.13, 0.14), 0.85, 0.3), "LightSteel": ((0.3, 0.42, 0.32), 0.9, 0.25),
-                                     "DarkWood": ((0.05, 0.04, 0.05), 0.0, 0.7), "LightWood": ((0.12, 0.1, 0.1), 0.0, 0.7)}, frac=0.38, length=1.8, flip=True)
+                                     "DarkWood": ((0.05, 0.04, 0.05), 0.0, 0.7), "LightWood": ((0.12, 0.1, 0.1), 0.0, 0.7)}, frac=0.62, length=1.8)
         place(sc_, arm, "r", tip="up")
         bone = mat("necro_bone", (0.78, 0.74, 0.62), 0.0, 0.6)
         soul = mat("necro_soul", (0.4, 1.0, 0.45), 0.0, 0.3, emit=(0.4, 1.0, 0.45))
@@ -1559,6 +1588,16 @@ HERO_ANIMS = {
     "tank": {"Idle": ("UAL1", "Sword_Idle"), "Run": ("UAL1", "Jog_Fwd_Loop"), "Sword_Attack": ("UAL2", "Sword_Regular_A"),
              "Sword_Attack2": ("UAL2", "Sword_Regular_B"), "Punch": ("UAL2", "Shield_OneShot"), "Death": ("UAL1", "Death01"),
              "Hit": ("UAL1", "Hit_Chest"), "Roll": ("UAL1", "Roll")},
+    "damage": {"Idle": ("UAL1", "Sword_Idle"), "Run": ("UAL1", "Sprint_Loop"), "Dagger_Attack": ("UAL1", "Sword_Attack"),
+               "Dagger_Attack2": ("UAL2", "Sword_Regular_B"), "Roll": ("UAL1", "Roll"), "Death": ("UAL1", "Death01"), "Hit": ("UAL1", "Hit_Chest")},
+    "caster": {"Idle": ("UAL1", "Idle_Loop"), "Run": ("UAL1", "Jog_Fwd_Loop"), "Staff_Attack": ("UAL1", "Spell_Simple_Shoot"),
+               "Death": ("UAL1", "Death01"), "Hit": ("UAL1", "Hit_Chest")},
+    "ranger": {"Idle": ("UAL1", "Idle_Loop"), "Run": ("UAL1", "Jog_Fwd_Loop"), "Attack": ("UAL1", "Spell_Simple_Shoot"),
+               "Cast": ("UAL2", "OverhandThrow"), "Death": ("UAL1", "Death01"), "Hit": ("UAL1", "Hit_Chest")},
+    "druid":  {"Idle": ("UAL1", "Idle_Loop"), "Run": ("UAL1", "Jog_Fwd_Loop"), "Attack": ("UAL1", "Spell_Simple_Shoot"),
+               "Cast": ("UAL2", "Farm_PlantSeed"), "Death": ("UAL1", "Death01"), "Hit": ("UAL1", "Hit_Chest")},
+    "necro":  {"Idle": ("UAL1", "Idle_Loop"), "Run": ("UAL1", "Jog_Fwd_Loop"), "Attack": ("UAL2", "Sword_Regular_A"),
+               "Cast": ("UAL1", "Spell_Simple_Shoot"), "Death": ("UAL1", "Death01"), "Hit": ("UAL1", "Hit_Chest")},
 }
 _FINGERS = ("index", "middle", "ring", "pinky", "thumb")
 
@@ -1672,7 +1711,7 @@ def add_anims(arm, cls):
                 loc = ref_t[tn].to_translation() + (P[sn].to_translation() - dr - rs.to_translation()) * sc
                 out[tn] = Matrix.Translation(loc) @ rot.to_matrix().to_4x4()
             return out
-        a = _bake(arm, game_name, range(f0, f1 + 1), world_of, side_arm if SHIELD_SIDE and game_name in ("Idle", "Run") else None)
+        a = _bake(arm, game_name, range(f0, f1 + 1), world_of, side_arm if SHIELD_SIDE and cls == "tank" and game_name in ("Idle", "Run") else None)
         tr = arm.animation_data.nla_tracks.new()
         tr.name = game_name
         tr.strips.new(game_name, 0, a)
@@ -1728,13 +1767,16 @@ def bake_recolors(arm):
             p = next((n for n in nt.nodes if n.type == 'BSDF_PRINCIPLED'), None)
             if hs is None or p is None:
                 continue
-            mx = next((n for n in nt.nodes if n.type == 'MIX'), None)
+            mx = next((l.to_node for l in nt.links if l.from_node == hs and l.to_node.type == 'MIX'), None)     # nur unser Multiplizieren (hinter hs), nicht der Original-Mix Textur x Vertexfarbe
             mul = tuple(mx.inputs[7].default_value)[:3] if mx else None
-            src = next((l.from_node for l in nt.links if l.to_socket == hs.inputs["Color"]), None)
+            inl = next((l for l in nt.links if l.to_socket == hs.inputs["Color"]), None)
+            src = inl.from_node if inl else None
+            while src is not None and src.type != 'TEX_IMAGE':                  # Textur vor einem Original-Mix suchen
+                src = next((l.from_node for l in nt.links if l.to_node == src and l.from_node.type in ('TEX_IMAGE', 'MIX')), None)
             args = [hs.inputs[k].default_value for k in ("Hue", "Saturation", "Value")]
             if src is not None and src.type == 'TEX_IMAGE' and src.image:
                 src.image = _hsv_bake(src.image, *args, mul)
-                nt.links.new(src.outputs["Color"], p.inputs["Base Color"])
+                nt.links.new(inl.from_socket, p.inputs["Base Color"])
             else:
                 import colorsys
                 c = hs.inputs["Color"].default_value

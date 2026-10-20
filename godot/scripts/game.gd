@@ -144,6 +144,7 @@ var pool_test := 0                          # Test: so viele Monster zu Beginn s
 var death_test := -1.0                      # Test: Monster-Reihe, nach 1 s sterben alle; Bild N s danach, --deathtest=0.5
 var lineup_test := false                     # Test: alle Monstermodelle nebeneinander, --lineup
 var hero_lineup: PackedStringArray = []      # Test: Heldenmodell in mehreren Animationen nebeneinander, --herolineup=Idle,Run,... (Name:Anteil für die Stelle)
+var lineup_key := ""                          # Test: anderes Heldenmodell für --herolineup (auch Helden ohne Spielregeln, z. B. ranger, druid, necro)
 var pool_release_test := false              # Test: nach 1 s startet die Gegner-Welle, --poolrelease
 var cam_test_dx := -9.0                    # Test: seitlicher Versatz der Testkamera in Metern, --camdx=0
 var cam_test_x := -99999.0                # Test: Kamera frei auf Lane-Position x (Spielwert), --camx=1500
@@ -200,6 +201,8 @@ func _ready() -> void:
 			shot_wait = 1.0 + death_test
 		elif a == "--lineup":
 			lineup_test = true
+		elif a.begins_with("--lineupkey="):
+			lineup_key = a.substr(12)
 		elif a.begins_with("--herolineup="):
 			hero_lineup = a.substr(13).split(",")
 			lineup_test = true
@@ -1412,7 +1415,7 @@ func _make_player(key: String, side_idx: int, slot: int, bot: bool) -> Dictionar
 		elif not fig.is_empty() and key == "tank":          # altes Modell: breiter und mit Schild am linken Arm
 			(fig["inner"] as Node3D).scale *= Vector3(1.12, 1.0, 1.12)
 			vfx.attach_shield(fig)
-		if not fig.is_empty() and key == "damage":          # Schurke: zweiter Dolch in der linken Hand
+		if not fig.is_empty() and key == "damage" and str(HERO_MODEL[key][0]).begins_with("rpg/"):          # altes Schurkenmodell: zweiter Dolch in der linken Hand
 			vfx.attach_offhand_dagger(fig)
 	if fig.is_empty():
 		var body := MeshInstance3D.new()
@@ -1974,7 +1977,8 @@ func unit_model_path(type: String) -> String:
 ## Figuren (Quaternius, CC0, als Platzhalter): werden zur Laufzeit aus den glTF-Dateien geladen und gemerkt.
 const MODEL_DIR := "res://assets/quaternius/"
 ## Held-Modelle: [Datei, Angriffsanimation, Laufanimation, Ruheanimation, Höhe in m]
-const HERO_MODEL := {"tank": ["res://assets/heroes/Tank.glb", "Sword_Attack", "Run", "Idle", 3.0], "damage": ["rpg/Rogue.gltf", "Dagger_Attack", "Run", "Idle", 2.8], "caster": ["rpg/Wizard.gltf", "Staff_Attack", "Run", "Idle", 2.8]}
+const HERO_MODEL := {"tank": ["res://assets/heroes/Tank.glb", "Sword_Attack", "Run", "Idle", 3.0], "damage": ["res://assets/heroes/Rogue.glb", "Dagger_Attack", "Run", "Idle", 2.9], "caster": ["res://assets/heroes/Mage.glb", "Staff_Attack", "Run", "Idle", 2.9],
+	"ranger": ["res://assets/heroes/Ranger.glb", "Attack", "Run", "Idle", 2.8], "druid": ["res://assets/heroes/Druid.glb", "Attack", "Run", "Idle", 2.8], "necro": ["res://assets/heroes/Necro.glb", "Attack", "Run", "Idle", 2.9]}
 const UNIT_MODEL := {"grunt": "res://assets/monsters/Pilzling.glb", "tank": "res://assets/monsters/Borkengolem.glb", "archer": "res://assets/monsters/Dornspinne.glb", "fast": "res://assets/monsters/Pestratte.glb", "elite": "res://assets/monsters/Sumpftroll.glb", "boss": "res://assets/monsters/Gifthydra.glb"}
 const LOOP_ANIMS := ["Idle", "Walk", "Run", "Flying", "Attacking_Idle", "Run_Weapon", "Idle_Weapon"]
 var model_cache: Dictionary = {}
@@ -2355,7 +2359,7 @@ func _load_volume() -> float:
 ## Beim Start: gespeicherte Anzeige anwenden, aber nicht in Tests und Bild-Läufen (feste Auflösung)
 func _apply_saved_display() -> void:
 	for a in OS.get_cmdline_user_args():
-		for t in ["--sim", "--shot", "--selftest", "--golden", "--fxtest", "--menushot", "--menuclick", "--menu-test", "--shopshot", "--merchanttest", "--camx", "--camdx", "--pitch", "--shotwait", "--fxx", "--pooltest", "--lineup", "--herolineup", "--deathtest", "--poolrelease", "--spawndbg", "--map", "--uiscale", "--colorblind", "--gfxlow", "--itemcatalog", "--dbgshot", "--uimenu", "--uitip", "--botplay", "--autoplay"]:
+		for t in ["--sim", "--shot", "--selftest", "--golden", "--fxtest", "--menushot", "--menuclick", "--menu-test", "--shopshot", "--merchanttest", "--camx", "--camdx", "--pitch", "--shotwait", "--fxx", "--pooltest", "--lineup", "--herolineup", "--lineupkey", "--deathtest", "--poolrelease", "--spawndbg", "--map", "--uiscale", "--colorblind", "--gfxlow", "--itemcatalog", "--dbgshot", "--uimenu", "--uitip", "--botplay", "--autoplay"]:
 			if a.begins_with(t):
 				return
 	var cf := ConfigFile.new()
@@ -4221,7 +4225,7 @@ func _run_simulation(secs: float, shot_path: String) -> void:
 
 ## Test: das Modell des eigenen Helden mehrfach nebeneinander, jedes in einer anderen Animation angehalten (Name oder Name:Anteil 0..1).
 func _hero_lineup() -> void:
-	var hm: Array = HERO_MODEL.get(hero["key"], [])
+	var hm: Array = HERO_MODEL.get(lineup_key if lineup_key != "" else str(hero["key"]), [])
 	if hm.is_empty():
 		return
 	(hero["node"] as Node3D).visible = false
