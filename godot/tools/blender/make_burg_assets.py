@@ -18,7 +18,7 @@ NATURE = ["CommonTree_1", "CommonTree_2", "CommonTree_3", "CommonTree_4", "Commo
           "Bush_Common", "Bush_Common_Flowers", "Bush_Large", "Bush_Large_Flowers", "Bush_Long_1",
           "Grass_Common_Short", "Grass_Common_Tall", "Grass_Wispy_Short", "Grass_Wispy_Tall", "Grass_Wide_Short", "Grass_Wheat",
           "Flower_1_Group", "Flower_2_Group", "Flower_3_Group", "Flower_4_Group", "Flower_7_Group", "Clover_1", "Fern_1", "Plant_1",
-          "Rock_Medium_1", "Rock_Medium_2", "Rock_Medium_3", "Rock_Big_1", "Pebble_Round_1", "Pebble_Round_3", "Mushroom_Common"]
+          "Rock_Medium_1", "Rock_Medium_2", "Rock_Medium_3", "Rock_Big_1", "RockPath_Round_Wide", "RockPath_Round_Small_1", "Pebble_Round_1", "Pebble_Round_3", "Mushroom_Common"]
 PROP_LIST = ["Barrel", "Barrel_Apples", "Barrel_Holder", "Crate_Wooden", "Bag", "Bench", "Bucket_Wooden_1", "Bucket_Wooden_2",
              "Stall_Blacksmith", "Stall_Vegetables_Full", "Stall_Potions", "Stall_Cart_Empty", "Stall_Empty", "Wagon", "Lantern_Wall", "Torch_Metal",
              "Banner_1", "Banner_2", "Banner_Vertical_1", "Banner_Vertical_2", "Banner_SmallTriangles_Long", "FarmCrate_Apple", "FarmCrate_Carrot",
@@ -294,6 +294,40 @@ def extras():
         bpy.ops.object.mode_set(mode='EDIT'); bpy.ops.mesh.select_all(action='SELECT')
         bpy.ops.uv.cube_project(cube_size=2.0); bpy.ops.object.mode_set(mode='OBJECT')
     _export_joined(objs, "Kran", center=False)
+    # Holzbrücke: leicht gewölbter Bohlenbelag quer über den Bach (entlang x, 9 m), 3 m breit, Pfosten mit Handlauf, Stützbalken unten
+    objs = []
+    L, Wd = 9.0, 3.0
+    n = 22
+    for i in range(n):
+        x = -L / 2 + (i + 0.5) * L / n
+        z = 0.35 + 0.55 * math.cos(x / (L / 2) * math.pi / 2)            # Wölbung: Mitte 0,9 m hoch, Enden 0,35 m
+        bpy.ops.mesh.primitive_cube_add(size=1, location=(x, 0, z))
+        o = bpy.context.object; o.scale = (L / n * 0.92, Wd * (0.97 + 0.06 * ((i * 7) % 3) / 2), 0.12)
+        o.rotation_euler.y = -math.atan(0.55 * math.pi / L * math.sin(x / (L / 2) * math.pi / 2)) + ((i * 13) % 5 - 2) * 0.01
+        o.data.materials.append(wood); objs.append(o)
+    for sy in (-1, 1):
+        for k in range(5):                                                 # Pfosten
+            x = -L / 2 + 0.4 + k * (L - 0.8) / 4
+            z0 = 0.35 + 0.55 * math.cos(x / (L / 2) * math.pi / 2)
+            bpy.ops.mesh.primitive_cube_add(size=1, location=(x, sy * (Wd / 2 - 0.1), z0 + 0.5))
+            o = bpy.context.object; o.scale = (0.16, 0.16, 1.0); o.data.materials.append(wood); objs.append(o)
+        for k in range(4):                                                 # Handlauf in Stücken (folgt der Wölbung)
+            xa = -L / 2 + 0.4 + k * (L - 0.8) / 4
+            xb = xa + (L - 0.8) / 4
+            za = 0.35 + 0.55 * math.cos(xa / (L / 2) * math.pi / 2) + 0.95
+            zb = 0.35 + 0.55 * math.cos(xb / (L / 2) * math.pi / 2) + 0.95
+            bpy.ops.mesh.primitive_cube_add(size=1, location=((xa + xb) / 2, sy * (Wd / 2 - 0.1), (za + zb) / 2))
+            o = bpy.context.object; o.scale = (math.hypot(xb - xa, zb - za), 0.1, 0.1)
+            o.rotation_euler.y = -math.atan2(zb - za, xb - xa); o.data.materials.append(wood); objs.append(o)
+    for x in (-2.6, 2.6):                                                  # Stützbalken im Wasser
+        for sy in (-1, 1):
+            bpy.ops.mesh.primitive_cylinder_add(vertices=8, radius=0.14, depth=1.6, location=(x, sy * (Wd / 2 - 0.35), 0.1))
+            o = bpy.context.object; o.data.materials.append(wood); objs.append(o)
+    for o in objs:
+        bpy.context.view_layer.objects.active = o
+        bpy.ops.object.mode_set(mode='EDIT'); bpy.ops.mesh.select_all(action='SELECT')
+        bpy.ops.uv.cube_project(cube_size=2.0); bpy.ops.object.mode_set(mode='OBJECT')
+    _export_joined(objs, "Bruecke", center=False)
 
 
 def nature():

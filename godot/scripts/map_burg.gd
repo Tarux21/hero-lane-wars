@@ -14,6 +14,7 @@ const DIR := "res://assets/burg/"
 const GATE_Z := -1.5                    # Tor auf der Durchbruchlinie (leakX = 30 -> 1,5 m vor der Basis)
 const TOWN_END := -52.0                 # Stadt bis hier, danach Felder
 const FIELD_END := -118.0               # Felder bis hier, danach Wald
+const BRIDGES := [-17.0, -45.0, -82.0]   # Brücken über den Bach (Welt-z): Stadt, Stadtrand, Felder
 const COURT_DEPTH := 34.0               # Burghof: so tief hinter dem Tor (größer als die alte Basis, Platz für Leben)
 const POOL_R := [2.3, 3.5]              # Ringe der wartenden Monster ums Lagerfeuer
 
@@ -248,15 +249,15 @@ func build_river(river_x: float, lane_len: float) -> void:
 	var half_w := 2.5 if stil != 2 else 3.0
 	if sh != null:
 		var q := PlaneMesh.new()
-		q.size = Vector2(half_w * 2.0 + (1.6 if stil == 2 else 0.0), z0 - z1)
+		q.size = Vector2(half_w * 2.0 + (6.0 if stil == 2 else 0.0), z0 - z1)        # Bach: Platz für Mäander und Kiesufer
 		var sm := ShaderMaterial.new()
 		sm.shader = sh
 		sm.set_shader_parameter("river_x", river_x)
 		sm.set_shader_parameter("half_w", half_w)
 		if stil == 2:                                                         # Bach: klar, flach, grünlich, Kiesgrund am Rand
-			sm.set_shader_parameter("deep_c", Color(0.10, 0.30, 0.32))
-			sm.set_shader_parameter("shallow_c", Color(0.42, 0.50, 0.36))
 			sm.set_shader_parameter("soft_edge", 1.0)
+		else:
+			sm.set_shader_parameter("soft_edge", 0.0)
 		sm.render_priority = -21
 		var mi := MeshInstance3D.new()
 		mi.mesh = q
@@ -295,11 +296,13 @@ func build_river(river_x: float, lane_len: float) -> void:
 		_nat_scatter("Rock_Medium_2", rocks)
 		_nat_scatter("Clover_1", pads, false)                                # Seerosenblätter
 	# Brücken bzw. Stege
-	for bz in [-14.0, -38.0, -80.0]:
+	for bz in BRIDGES:
 		if stil == 1:
 			_bridge_stone(river_x, bz)
-		elif stil == 2:
-			_bridge_wood(river_x, bz, 3.4)
+		elif stil == 2:                                                     # gewölbte Holzbrücke, Rampen aus Kies an beiden Enden
+			var mz: float = sin(bz * 0.09) * 0.7 + sin(bz * 0.23 + 1.7) * 0.3   # wie der Mäander im Shader
+			_put_parts("Bruecke", Vector3(river_x + mz, 0.0, bz), 0.0, 1.0)
+			_reserve(river_x, bz, 5.0)
 		else:
 			_bridge_wood(river_x, bz, 2.6)
 	if stil == 3:                                                             # Holzstege mit Fässern und Kisten an der Kaimauer
@@ -1098,6 +1101,24 @@ func _town(lx: float, half: float, team: int, k: int, lpt: int, river_x: float) 
 		var z := GATE_Z - 3.0
 		var yaw: float = -PI / 2.0 * sd                                       # Vorderseite (glTF +z) zur Straße
 		while z > TOWN_END + 4.0:
+			var near_bridge := false
+			for bz in BRIDGES:
+				if toward_river and float(bz) > z - 9.0 and float(bz) < z + 1.0:
+					near_bridge = true
+			if near_bridge:                                             # Gasse zur Brücke: Trittsteine von der Straße bis ans Ufer
+				var bzz: float = z - 4.0
+				for b in BRIDGES:
+					if float(b) > z - 9.0 and float(b) < z + 1.0:
+						bzz = float(b)
+				var steps: Array = []
+				var xx: float = half + 0.6
+				while xx < absf(river_x - lx) - 4.2:
+					steps.append(_t(lx + sd * xx, bzz + rng.randf_range(-0.6, 0.6), rng.randf_range(0.7, 0.95)))
+					xx += 1.5
+				_nat_scatter("RockPath_Round_Wide", steps, false)
+				_reserve(lx + sd * (half + 4.0), bzz, 3.0)
+				z = bzz - 4.0
+				continue
 			if rng.randf() < 0.22:
 				_nat_scatter("CommonTree_%d" % (1 + rng.randi() % 4), [_t(lx + sd * (half + 5.0), z - 2.5, rng.randf_range(0.9, 1.2))])
 				for j in 3:
@@ -1112,8 +1133,14 @@ func _town(lx: float, half: float, team: int, k: int, lpt: int, river_x: float) 
 			if toward_river and dep > 11.0 and absf(river_x - lx) - half - 2.8 < 11.6:
 				kind = "Haus_Houses_D"
 				dep = depth[kind]
-			var w: float = width[kind]
+			var hs := 1.0
+			if toward_river:                                           # zum Bach hin: Haus so klein, dass es nicht über das Ufer ragt
+				hs = clampf((absf(river_x - lx) - half - 0.8 - 4.8) / dep, 0.6, 1.0)
+				dep *= hs
+			var w: float = width[kind] * hs
 			var hmi := _put(kind, Vector3(lx + sd * (half + 0.8 + dep / 2.0), 0.0, z - w / 2.0), yaw, 1.0)
+			if hmi != null and hs < 1.0:
+				hmi.transform.basis = Basis(Vector3.UP, yaw).scaled(Vector3.ONE * hs)
 			if hmi != null:
 				_house_smoke(kind, hmi.transform)
 			if rng.randf() < 0.3:                                      # Leute vor dem Haus (am Straßenrand, nicht auf der Lane)
