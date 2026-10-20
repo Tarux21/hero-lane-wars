@@ -1976,9 +1976,9 @@ func unit_model_path(type: String) -> String:
 ## Erzeugt ein Monster auf einer Lane der Seite `side_idx`. from_side: Seite, die es geschickt hat (-1 = Welle).
 ## Figuren (Quaternius, CC0, als Platzhalter): werden zur Laufzeit aus den glTF-Dateien geladen und gemerkt.
 const MODEL_DIR := "res://assets/quaternius/"
-## Held-Modelle: [Datei, Angriffsanimation, Laufanimation, Ruheanimation, Höhe in m]
-const HERO_MODEL := {"tank": ["res://assets/heroes/Tank.glb", "Sword_Attack", "Run", "Idle", 3.0], "damage": ["res://assets/heroes/Rogue.glb", "Dagger_Attack", "Run", "Idle", 2.9], "caster": ["res://assets/heroes/Mage.glb", "Staff_Attack", "Run", "Idle", 2.9],
-	"ranger": ["res://assets/heroes/Ranger.glb", "Attack", "Run", "Idle", 2.8], "druid": ["res://assets/heroes/Druid.glb", "Attack", "Run", "Idle", 2.8], "necro": ["res://assets/heroes/Necro.glb", "Attack", "Run", "Idle", 2.9]}
+## Held-Modelle: [Datei, Angriffsanimation, Laufanimation, Ruheanimation, Höhe in m, Laufgeschwindigkeit der Laufanimation in m/s (Beine im natürlichen Tempo; sonst 5)]
+const HERO_MODEL := {"tank": ["res://assets/heroes/Tank.glb", "Sword_Attack", "Run", "Idle", 3.0, 8.5], "damage": ["res://assets/heroes/Rogue.glb", "Dagger_Attack", "Run", "Idle", 2.9, 8.5], "caster": ["res://assets/heroes/Mage.glb", "Staff_Attack", "Run", "Idle", 2.9, 8.5],
+	"ranger": ["res://assets/heroes/Ranger.glb", "Attack", "Run", "Idle", 2.8, 8.5], "druid": ["res://assets/heroes/Druid.glb", "Attack", "Run", "Idle", 2.8, 8.5], "necro": ["res://assets/heroes/Necro.glb", "Attack", "Run", "Idle", 2.9, 8.5]}
 const UNIT_MODEL := {"grunt": "res://assets/monsters/Pilzling.glb", "tank": "res://assets/monsters/Borkengolem.glb", "archer": "res://assets/monsters/Dornspinne.glb", "fast": "res://assets/monsters/Pestratte.glb", "elite": "res://assets/monsters/Sumpftroll.glb", "boss": "res://assets/monsters/Gifthydra.glb"}
 const LOOP_ANIMS := ["Idle", "Walk", "Run", "Flying", "Attacking_Idle", "Run_Weapon", "Idle_Weapon"]
 var model_cache: Dictionary = {}
@@ -3102,13 +3102,15 @@ func _animate(e: Dictionary, node: Node3D, side_idx: int, delta: float, attack_a
 	var vx: float = (vis.y - old.y) * S / delta         # Weltgeschwindigkeit (m/s), x = quer, z = längs
 	var vz: float = -(vis.x - old.x) * S / delta
 	var speed := sqrt(vx * vx + vz * vz)
+	var aspd: float = lerpf(float(fig.get("aspd", speed)), speed, 1.0 - exp(-delta * 6.0))     # geglättet fürs Lauftempo der Beine (Spieltakt ruckelt)
+	fig["aspd"] = aspd
 	var hold: float = fig.get("hold", 0.0)
 	hold = 0.18 if speed > 0.5 else maxf(0.0, hold - delta)       # kurzes Nachhalten: kein Flackern zwischen Laufen und Stehen
 	fig["hold"] = hold
 	var moving := hold > 0.0
 	var utr: AnimationTree = fig.get("tree")
 	if utr != null and utr.active:                      # Schlag im Laufen: Laufzyklus mitzählen, am Ende oder beim Anhalten zurück zum AnimationPlayer
-		var rsp: float = clampf(speed / ref, 0.7, 2.0)
+		var rsp: float = clampf(float(fig.get("aspd", speed)) / ref, 0.7, 2.0)
 		utr.set("parameters/rs/scale", rsp)
 		fig["run_pos"] = float(fig["run_pos"]) + delta * rsp
 		fig["upper_t"] = float(fig["upper_t"]) - delta
@@ -3149,7 +3151,7 @@ func _animate(e: Dictionary, node: Node3D, side_idx: int, delta: float, attack_a
 	_play_anim(fig, anim)
 	var ap: AnimationPlayer = fig["anim"]
 	if ap != null:
-		ap.speed_scale = clampf(speed / ref, 0.7, 2.0) if moving and anim == move_anim else (float(fig.get("force_speed", 1.0)) if force > 0.0 else 1.0)
+		ap.speed_scale = clampf(aspd / ref, 0.7, 2.0) if moving and anim == move_anim else (float(fig.get("force_speed", 1.0)) if force > 0.0 else 1.0)
 	var spin: float = fig.get("spin", 0.0)
 	if spin > 0.0:                                      # Drehung (Dolchfächer): einmal im Kreis
 		fig["spin"] = spin - delta
@@ -3306,7 +3308,7 @@ func _sync_visuals(delta: float) -> void:
 		var pn: Node3D = p["node"]
 		pn.visible = p["dead"] <= 0.0 and p["side"]["idx"] == hero["side"]["idx"]      # Gegner-Seite bleibt verdeckt
 		var hm: Array = HERO_MODEL.get(p["key"], ["", "", "Run", "Idle", 2.8])
-		_animate(p, pn, p["side"]["idx"], delta, str(hm[1]), str(hm[2]), str(hm[3]), 5.0)
+		_animate(p, pn, p["side"]["idx"], delta, str(hm[1]), str(hm[2]), str(hm[3]), float(hm[5]) if hm.size() > 5 else 5.0)
 		p["label"].text = ("Lv %d   %d" % [p["lvl"], int(p["hp"])]) if Data.user.hp_numbers else ("Lv %d" % p["lvl"])
 		_set_bar(p["bar"], p["bar_w"], p["hp"] / skills.h_max_hp(p), p["side"]["idx"] == hero["side"]["idx"])
 	var mob_ring := _ring_layout()

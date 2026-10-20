@@ -1190,15 +1190,17 @@ def place(o, arm, side, tip="down", lift=0.0):
     return attach(o, arm, "hand_" + side)
 
 
-def place_dir(o, arm, side, d=(0, -0.35, 1.0)):
-    """Waffe so in die Hand, dass sie in der Ruhepose (UAL2 Idle_No_Loop) in Richtung d (Welt) zeigt; in der T-Pose zurückgerechnet."""
-    new = _import(UAL2)
-    act = next(a for a in bpy.data.actions if a.name.startswith("Idle_No_Loop"))
-    for n in [x.name for x in new]:
-        if n in bpy.data.objects:
-            bpy.data.objects.remove(bpy.data.objects[n], do_unlink=True)
+def place_dir(o, arm, side, d=(0, -0.35, 1.0), act=None, frame=5):
+    """Waffe so in die Hand, dass sie in einer Ruhepose in Richtung d (Welt, +Z der Waffe) zeigt; in der T-Pose zurückgerechnet.
+    act = Aktion der Ruhepose (Standard: UAL2 Idle_No_Loop)."""
+    if act is None:
+        new = _import(UAL2)
+        act = next(a for a in bpy.data.actions if a.name.startswith("Idle_No_Loop"))
+        for n in [x.name for x in new]:
+            if n in bpy.data.objects:
+                bpy.data.objects.remove(bpy.data.objects[n], do_unlink=True)
     arm.animation_data_create(); arm.animation_data.action = act
-    bpy.context.scene.frame_set(5)
+    bpy.context.scene.frame_set(frame)
     pb = arm.pose.bones["hand_" + side]
     rp = (arm.matrix_world @ pb.matrix).to_quaternion()
     rr = (arm.matrix_world @ pb.bone.matrix_local).to_quaternion()
@@ -1211,6 +1213,19 @@ def place_dir(o, arm, side, d=(0, -0.35, 1.0)):
     o.location = hand(arm, side)
     bpy.context.view_layer.update()
     return attach(o, arm, "hand_" + side)
+
+
+MAGE_STAFF_D = (-0.3, -0.45, 1.0)                                    # Wanderstab: Kristall oben, etwas nach vorn und außen (rechte Hand: außen = -X)
+
+
+def mage_staff(arm, act=None, frame=5):
+    """Kristallstab des Magiers wie ein Wanderstab: Griff im oberen Drittel, in der Ruhepose fast senkrecht."""
+    o = wmod().mage_weapon(None, 3)
+    o.name = "mage_staff"
+    bpy.ops.object.select_all(action="DESELECT"); o.select_set(True); bpy.context.view_layer.objects.active = o
+    bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)     # Drehung/Skalierung aus dem Waffenbau in die Daten (sonst stimmt +Z nicht)
+    _grip(o, 0.62)
+    return place_dir(o, arm, "r", d=MAGE_STAFF_D, act=act, frame=frame)
 
 
 def place_shield(o, arm, out=0.12, tilt=40):
@@ -1513,8 +1528,7 @@ def build_hero(cls):
         place(pack_weapon("Dagger_2", cols, frac=0.14, length=0.48), arm, "l", tip="up")
     elif cls == "caster":                                               # eigenes Kristallzepter (M3) im Set-Stil, Gold wie die Magierrobe
         o = W.mage_weapon(None, 3)
-        _grip(o, 0.42)                                                  # langer Stab wie bei der Druidin gehalten: Griff knapp unter der Mitte
-        place(o, arm, "r", tip="up")
+        mage_staff(arm)
     elif cls == "ranger":                                               # 7 Holzbogen, Holz wie das Lederzeug
         b = pack_weapon("Bow_Wooden", {"DarkWood": ((0.16, 0.08, 0.04), 0.0, 0.7), "LightWood": ((0.3, 0.16, 0.07), 0.0, 0.7)}, frac=0.5, length=1.3)
         place(b, arm, "l", tip="up")
@@ -1590,7 +1604,7 @@ HERO_ANIMS = {
              "Hit": ("UAL1", "Hit_Chest"), "Roll": ("UAL1", "Roll")},
     "damage": {"Idle": ("UAL1", "Sword_Idle"), "Run": ("UAL1", "Jog_Fwd_Loop"), "Dagger_Attack": ("UAL1", "Sword_Attack"),
                "Dagger_Attack2": ("UAL2", "Sword_Regular_B"), "Roll": ("UAL1", "Roll"), "Death": ("UAL1", "Death01"), "Hit": ("UAL1", "Hit_Chest")},
-    "caster": {"Idle": ("UAL1", "Idle_Loop"), "Run": ("UAL1", "Jog_Fwd_Loop"), "Staff_Attack": ("UAL1", "Sword_Attack"), "Cast": ("UAL1", "Spell_Simple_Shoot"),
+    "caster": {"Idle": ("UAL1", "Idle_Loop"), "Run": ("UAL1", "Jog_Fwd_Loop"), "Staff_Attack": [("UAL1", "Idle_Loop", None), ("OLD", "Staff_Attack", None)], "Cast": ("UAL1", "Spell_Simple_Shoot"),
                "Death": ("UAL1", "Death01"), "Hit": ("UAL1", "Hit_Chest")},
     "ranger": {"Idle": ("UAL1", "Idle_Loop"), "Run": ("UAL1", "Jog_Fwd_Loop"), "Attack": ("UAL1", "Spell_Simple_Shoot"),
                "Cast": ("UAL2", "OverhandThrow"), "Death": ("UAL1", "Death01"), "Hit": ("UAL1", "Hit_Chest")},
@@ -1619,10 +1633,11 @@ def _posed(arm, action, frame):
     return {pb.name: arm.matrix_world @ pb.matrix for pb in arm.pose.bones}
 
 
-def _bake(arm, name, frames, world_of, fixed=None):
+def _bake(arm, name, frames, world_of, fixed=None, amp=None):
     """Aktion `name` auf `arm` schreiben: world_of(f) liefert gewünschte Welt-Matrizen (nur Rotation zählt; Becken auch Position).
     Nicht gelieferte Knochen bleiben in Ruhelage, Finger immer zur Faust; fixed = {Knochen: feste lokale Matrix} (z. B. Schildarm)."""
     fixed = fixed or {}
+    amp = amp or {}                                                      # {Knochen: Faktor}: Gelenkwinkel verstärken (z. B. Beine beim Laufen)
     act = bpy.data.actions.new(name)
     inv = arm.matrix_world.inverted()
     bones = [b for b in arm.data.bones]                                  # Eltern stehen vor Kindern
@@ -1644,6 +1659,9 @@ def _bake(arm, name, frames, world_of, fixed=None):
                 loc = w.to_translation() if b.name == "pelvis" else chain.to_translation()
                 Mb = Matrix.Translation(loc) @ w.to_quaternion().to_matrix().to_4x4()
                 basis = rel.inverted() @ (M[par.name].inverted() if par else Matrix()) @ Mb
+                if b.name in amp:
+                    basis = Matrix.Translation(basis.to_translation()) @ _amplify(basis.to_quaternion(), amp[b.name]).to_matrix().to_4x4()
+                    Mb = chain @ basis
             else:
                 basis = q.to_matrix().to_4x4() if q else Matrix()
                 Mb = chain @ basis
@@ -1664,58 +1682,125 @@ def _bake(arm, name, frames, world_of, fixed=None):
     return act
 
 
+OLD_WIZ = os.path.join(ROOT, "godot", "assets", "quaternius", "rpg", "Wizard.gltf")
+# Prototyp-Magier (altes Skelett) -> unser Skelett, nur Oberkörper (für den Stabschlag wie im Prototyp)
+_OLD_UPPER = {"Abdomen": "spine_02", "Torso": "spine_03", "Neck": "neck_01", "Head": "Head"}
+for _s, _t in (("L", "l"), ("R", "r")):
+    _OLD_UPPER.update({"Shoulder." + _s: "clavicle_" + _t, "UpperArm." + _s: "upperarm_" + _t, "LowerArm." + _s: "lowerarm_" + _t, "Fist." + _s: "hand_" + _t})
+# Arm, der in Ruhe/Laufen/Zaubern fest hält (Pose aus UAL2 Idle_No_Loop, wie beim Ausrichten der Waffe): Held -> (Seite, Animationen)
+HERO_HOLD = {"caster": ("r", ("Run", "Cast"))}                            # Haltung aus der fertigen Ruhe-Animation (Bild HOLD_FRAME)
+HOLD_FRAME = 10
+LEG_BONES = ("thigh_l", "calf_l", "foot_l", "thigh_r", "calf_r", "foot_r")
+RUN_LEGS = float(os.environ.get("RUN_LEGS", "1.25"))                     # Laufen: Beinbewegung ausladender (von oben besser sichtbar)
+
+
+def _rest_world(arm):
+    return {b.name: arm.matrix_world @ b.matrix_local for b in arm.data.bones}
+
+
+def _amplify(q, k):
+    """Drehung q um den Faktor k verstärken (Winkel mal k, gleiche Achse)."""
+    from mathutils import Quaternion
+    ax, ang = q.to_axis_angle()
+    if ang > math.pi:
+        ang -= math.tau
+    return Quaternion(ax, ang * k)
+
+
 def add_anims(arm, cls):
-    """Animationen aus beiden Bibliotheken auf das Heldenskelett übertragen (als NLA-Spuren mit den Spielnamen).
-    Übertragung über die gemeinsame Bezugspose A_TPose beider Bibliotheken: Welt-Drehung je Knochen relativ zu dieser Pose."""
+    """Animationen auf das Heldenskelett übertragen (als NLA-Spuren mit den Spielnamen).
+    Quellen: UAL1/UAL2 (Bezugspose A_TPose beider Bibliotheken) und der Prototyp-Magier (Bezug: Ruhelage, beide T-Pose).
+    Ein Eintrag ist (Bibliothek, Aktion) oder eine Liste von Schichten [(Bibliothek, Aktion, Knochen oder None)], spätere überdecken frühere."""
     for pb in arm.pose.bones:
         pb.rotation_mode = 'QUATERNION'
     libs = {}
-    for key, path in (("UAL1", UAL1), ("UAL2", UAL2)):
+    for key, path, suf in (("UAL1", UAL1, "_Rig"), ("UAL2", UAL2, "_Armature"), ("OLD", OLD_WIZ, "_CharacterArmature")):
         new = _import(path)
         src = next(o for o in new if o.type == 'ARMATURE')
-        acts = {a.name.rsplit("_", 1)[0]: a for a in bpy.data.actions if a.name.endswith("_Rig" if key == "UAL1" else "_Armature")}
-        libs[key] = (src, new, acts)
-    ref_t = _posed(arm, libs["UAL2"][2]["A_TPose"], 0)
-    for key, (src, new, acts) in libs.items():
+        acts = {a.name[:-len(suf)]: a for a in bpy.data.actions if a.name.endswith(suf)}
         src.animation_data_create()
-    ref_s = {}
-    for key, (src, new, acts) in libs.items():
-        ref_s[key] = _posed(src, acts["A_TPose"], 0)
-    arm.animation_data_create()
-    arm.animation_data.action = libs["UAL2"][2]["Idle_No_Loop"]          # Schildarm wie im Vorschaubild (seitlich)
-    bpy.context.scene.frame_set(5)
-    side_arm = {n: arm.pose.bones[n].matrix_basis.copy() for n in SHIELD_ARM}
-    arm.animation_data_create()
+        libs[key] = (src, new, acts)
+    ref_t = {"UAL1": _posed(arm, libs["UAL2"][2]["A_TPose"], 0), "UAL2": None, "OLD": None}
+    ref_t["UAL2"] = ref_t["UAL1"]
     arm.animation_data.action = None
-    for game_name, (lib, aname) in HERO_ANIMS[cls].items():
+    for p_ in arm.pose.bones:
+        p_.matrix_basis = Matrix()
+    bpy.context.view_layer.update()
+    ref_t["OLD"] = _rest_world(arm)
+    ref_s = {k: _posed(libs[k][0], libs[k][2]["A_TPose"], 0) for k in ("UAL1", "UAL2")}
+    so = libs["OLD"][0]
+    so.animation_data.action = None
+    for p_ in so.pose.bones:
+        p_.matrix_basis = Matrix()
+    bpy.context.view_layer.update()
+    ref_s["OLD"] = _rest_world(so)
+    arm.animation_data.action = libs["UAL2"][2]["Idle_No_Loop"]          # Haltepose (Schildarm seitlich, Stab wie ein Wanderstab)
+    bpy.context.scene.frame_set(5)
+    hold_pose = {n: arm.pose.bones[n].matrix_basis.copy() for n in arm.pose.bones.keys()}
+    arm.animation_data.action = None
+    hip_t = ref_t["UAL1"]["pelvis"].to_translation()
+
+    def layer(lib, aname, bones):
         src, new, acts = libs[lib]
         act = acts[aname]
         f0, f1 = int(act.frame_range[0]), int(act.frame_range[1])
-        bmap = _RIG_MAP if lib == "UAL1" else {n: n for n in arm.pose.bones.keys() if n != "root"}
-        hk = "DEF-hips" if lib == "UAL1" else "pelvis"
+        if lib == "UAL1":
+            bmap = dict(_RIG_MAP)
+        elif lib == "UAL2":
+            bmap = {n: n for n in arm.pose.bones.keys() if n != "root"}
+        else:
+            bmap = dict(_OLD_UPPER)
+        if bones is not None:
+            bmap = {s: t for s, t in bmap.items() if t in bones}
+        hk = {"UAL1": "DEF-hips", "UAL2": "pelvis", "OLD": "Hips"}[lib]
         h0, h1 = _posed(src, act, f0)[hk].to_translation(), _posed(src, act, f1)[hk].to_translation()
         drift = Vector((h1.x - h0.x, h1.y - h0.y, 0))                  # Vorwärtsbewegung im Clip herausrechnen (Held bleibt am Platz)
-        hip_s = ref_s[lib]["DEF-hips" if lib == "UAL1" else "pelvis"].to_translation()
-        hip_t = ref_t["pelvis"].to_translation()
-        sc = hip_t.z / max(0.01, hip_s.z)
+        sc = hip_t.z / max(0.01, ref_s[lib][hk].to_translation().z)
+        return dict(src=src, act=act, f0=f0, f1=f1, bmap=bmap, lib=lib, drift=drift, sc=sc)
 
-        def world_of(f, src=src, act=act, bmap=bmap, lib=lib, f0=f0, f1=f1, drift=drift):
-            P = _posed(src, act, f)
-            dr = drift * ((f - f0) / max(1, f1 - f0))
+    def sample(L, f, legs):
+        f = L["f0"] + (f - L["f0"]) % (L["f1"] - L["f0"] + 1) if f > L["f1"] else f
+        P = _posed(L["src"], L["act"], f)
+        dr = L["drift"] * ((f - L["f0"]) / max(1, L["f1"] - L["f0"]))
+        rs_, rt_ = ref_s[L["lib"]], ref_t[L["lib"]]
+        out = {}
+        for sn, tn in L["bmap"].items():
+            if sn not in P or tn not in rt_:
+                continue
+            d = P[sn].to_quaternion() @ rs_[sn].to_quaternion().inverted()
+            rot = d @ rt_[tn].to_quaternion()
+            loc = rt_[tn].to_translation() + (P[sn].to_translation() - dr - rs_[sn].to_translation()) * L["sc"]
+            out[tn] = Matrix.Translation(loc) @ rot.to_matrix().to_4x4()
+        return out
+
+    hold = HERO_HOLD.get(cls)
+    if cls == "tank" and SHIELD_SIDE:
+        hold = ("l", ("Idle", "Run"))
+    for game_name, spec in HERO_ANIMS[cls].items():
+        layers = [layer(*s) for s in spec] if isinstance(spec, list) else [layer(spec[0], spec[1], None)]
+        main = layers[-1]
+        legs = RUN_LEGS if game_name == "Run" else 1.0
+
+        def world_of(f, layers=layers, main=main, legs=legs):
             out = {}
-            for sn, tn in bmap.items():
-                if sn not in P or tn not in ref_t:
-                    continue
-                rs = ref_s[lib][sn]
-                rot = P[sn].to_quaternion() @ rs.to_quaternion().inverted() @ ref_t[tn].to_quaternion()
-                loc = ref_t[tn].to_translation() + (P[sn].to_translation() - dr - rs.to_translation()) * sc
-                out[tn] = Matrix.Translation(loc) @ rot.to_matrix().to_4x4()
+            for L in layers:
+                out.update(sample(L, f, legs))
             return out
-        a = _bake(arm, game_name, range(f0, f1 + 1), world_of, side_arm if SHIELD_SIDE and cls == "tank" and game_name in ("Idle", "Run") else None)
+        fixed = None
+        if hold and game_name in hold[1]:
+            s_ = hold[0]
+            fixed = {n: hold_pose[n] for n in ("clavicle_" + s_, "upperarm_" + s_, "lowerarm_" + s_, "hand_" + s_)}
+        amp = {"thigh_l": legs, "thigh_r": legs, "calf_l": 1 + (legs - 1) * 0.4, "calf_r": 1 + (legs - 1) * 0.4} if legs != 1.0 else None   # Hüfte kräftig, Knie kaum (sonst Kniefall)
+        a = _bake(arm, game_name, range(main["f0"], main["f1"] + 1), world_of, fixed, amp)
         tr = arm.animation_data.nla_tracks.new()
         tr.name = game_name
         tr.strips.new(game_name, 0, a)
         tr.mute = False
+        if game_name == "Idle" and cls != "tank":                          # Haltearm = Arm der eigenen Ruhe-Animation
+            arm.animation_data.action = a
+            bpy.context.scene.frame_set(HOLD_FRAME)
+            hold_pose = {n: arm.pose.bones[n].matrix_basis.copy() for n in arm.pose.bones.keys()}
+            arm.animation_data.action = None
     for key, (src, new, acts) in libs.items():
         for n in [o.name for o in new]:
             if n in bpy.data.objects:
@@ -1807,6 +1892,14 @@ def export_hero(cls, out):
         if img.size[0] > 1024:
             img.scale(1024, 1024)
     add_anims(arm, cls)
+    if cls == "caster":                                                 # Stab an der echten Ruhepose ausrichten
+        for o in [o for o in arm.children if o.name.startswith("mage_staff")]:
+            bpy.data.objects.remove(o, do_unlink=True)
+        for t in arm.animation_data.nla_tracks:
+            t.mute = True
+        mage_staff(arm, bpy.data.actions["Idle"], HOLD_FRAME)
+        for t in arm.animation_data.nla_tracks:
+            t.mute = False
     bpy.ops.object.select_all(action='DESELECT')
     keep = [arm] + [o for o in bpy.data.objects if o.parent == arm]
     for o in list(bpy.data.objects):
