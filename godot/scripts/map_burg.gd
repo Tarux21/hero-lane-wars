@@ -573,9 +573,9 @@ func build_camp(cx: float, cz: float) -> void:
 	_put_parts("Barrel", forge_p + Vector3(0.8, 0.0, -2.6), 0.0, S)
 	_put_parts("Crate_Wooden", forge_p + Vector3(1.9, 0.0, -2.9), 0.3, S)
 	if true:                                                                  # Karren mit Heu neben der Werkstatt an der Mauer
-		_put_parts("Prop_Wagon", Vector3(wall_x + 1.8, 0.0, z0 + 9.5), 0.05, 1.3)
-		_nat_scatter("Grass_Wheat", [_t(wall_x + 1.6, z0 + 8.9, 1.5), _t(wall_x + 2.1, z0 + 9.6, 1.4)], false)
-		_put_parts("Bag", Vector3(wall_x + 3.4, 0.0, z0 + 8.6), 0.4, S)
+		_put_parts("Prop_Wagon", Vector3(wall_x + 3.4, 0.0, z0 + 9.5), 0.05, 1.3)
+		_nat_scatter("Grass_Wheat", [_t(wall_x + 3.2, z0 + 8.9, 1.5), _t(wall_x + 3.7, z0 + 9.6, 1.4)], false)
+		_put_parts("Bag", Vector3(wall_x + 5.2, 0.0, z0 + 8.4), 0.4, S)
 		var don: Dictionary = g._make_figure("res://assets/burg/Esel.gltf", 2.1)   # Esel am Karren: frisst Heu, schaut sich um
 		if not don.is_empty():
 			var dn: Node3D = don["model"]
@@ -1023,7 +1023,7 @@ func _castle(team: int, cxt: float, hw: float, lxs: Array, river_x: float) -> vo
 	while x < cxt + hw:                                                  # Mauer quer, Lücken an den Toren
 		var skip := false
 		for lx in lxs:
-			if absf(x + 1.0 - float(lx)) < 7.6:
+			if absf(x + 1.0 - float(lx)) < 3.2:                       # Mauer läuft bis an den Torbau (unter den Tortürmen durch, keine Lücke)
 				skip = true
 		if not skip:
 			_put("Burg_Mauer", Vector3(x + 1.0, 0.0, GATE_Z), 0.0, 1.0)
