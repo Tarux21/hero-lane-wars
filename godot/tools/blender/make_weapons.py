@@ -252,8 +252,9 @@ def mage_weapon(k, v):
         p.append(ball(m["arcane"], 0.02, (0, -0.04, 0.35)))
         p.append(cyl(m["darkwood"], 0.012, (0.35, 0, -0.1), (0.35, 0, 0.32), r2=0.006))
         p.append(ball(m["arcane"], 0.025, (0.35, 0, 0.34)))
-    else:                                                               # M3 Kristallzepter: kurzer Stab, Kristallsplitter im Kreis
-        p = [cyl(m["gold"], 0.02, (0, 0, -0.15), (0, 0, 0.45))]
+    else:                                                               # M3 Kristallstab: langer Goldstab, Kristallsplitter im Kreis
+        p = [cyl(m["gold"], 0.02, (0, 0, -0.95), (0, 0, 0.45))]
+        p.append(ball(m["gold"], 0.03, (0, 0, -0.96)))                   # Endkappe unten
         p.append(ball(m["gold"], 0.04, (0, 0, 0.46)))
         k_ = prim("ico_sphere", m["frost"], radius=0.06, subdivisions=1, location=(0, 0, 0.6)); k_.scale = (0.7, 0.7, 1.6); p.append(k_)
         for i in range(5):

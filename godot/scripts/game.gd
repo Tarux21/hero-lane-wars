@@ -3142,7 +3142,10 @@ func _animate(e: Dictionary, node: Node3D, side_idx: int, delta: float, attack_a
 		tw.angle = lerpf(float(tw.angle), want_tw, 1.0 - exp(-delta * 14.0))
 	var anim := move_anim if moving else (attack_anim if e.get("type") != null and e.get("fighting", false) else idle_anim)     # Helden: Angriff wird je Schlag abgespielt (_attack_anim)
 	if force > 0.0:
-		anim = str(fig.get("force_anim", "")) if str(fig.get("force_anim", "")) != "" else attack_anim
+		anim = str(fig.get("force_anim", ""))
+		if anim == "":                                  # Zauber ohne eigene Pose: Zauber-Animation des Modells (Hand heben), sonst Angriff
+			var apc: AnimationPlayer = fig["anim"]
+			anim = "Cast" if apc != null and apc.has_animation("Cast") else attack_anim
 	_play_anim(fig, anim)
 	var ap: AnimationPlayer = fig["anim"]
 	if ap != null:

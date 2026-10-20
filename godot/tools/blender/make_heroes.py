@@ -1513,8 +1513,8 @@ def build_hero(cls):
         place(pack_weapon("Dagger_2", cols, frac=0.14, length=0.48), arm, "l", tip="up")
     elif cls == "caster":                                               # eigenes Kristallzepter (M3) im Set-Stil, Gold wie die Magierrobe
         o = W.mage_weapon(None, 3)
-        _grip(o, 0.3)                                                   # Griff im unteren Schaftdrittel, Kristall über der Hand
-        place_dir(o, arm, "r", d=(0, 0.35, -1.0))                       # Kristall (-Z) in Ruhe schräg nach oben vorn
+        _grip(o, 0.42)                                                  # langer Stab wie bei der Druidin gehalten: Griff knapp unter der Mitte
+        place(o, arm, "r", tip="up")
     elif cls == "ranger":                                               # 7 Holzbogen, Holz wie das Lederzeug
         b = pack_weapon("Bow_Wooden", {"DarkWood": ((0.16, 0.08, 0.04), 0.0, 0.7), "LightWood": ((0.3, 0.16, 0.07), 0.0, 0.7)}, frac=0.5, length=1.3)
         place(b, arm, "l", tip="up")
@@ -1588,9 +1588,9 @@ HERO_ANIMS = {
     "tank": {"Idle": ("UAL1", "Sword_Idle"), "Run": ("UAL1", "Jog_Fwd_Loop"), "Sword_Attack": ("UAL2", "Sword_Regular_A"),
              "Sword_Attack2": ("UAL2", "Sword_Regular_B"), "Punch": ("UAL2", "Shield_OneShot"), "Death": ("UAL1", "Death01"),
              "Hit": ("UAL1", "Hit_Chest"), "Roll": ("UAL1", "Roll")},
-    "damage": {"Idle": ("UAL1", "Sword_Idle"), "Run": ("UAL1", "Sprint_Loop"), "Dagger_Attack": ("UAL1", "Sword_Attack"),
+    "damage": {"Idle": ("UAL1", "Sword_Idle"), "Run": ("UAL1", "Jog_Fwd_Loop"), "Dagger_Attack": ("UAL1", "Sword_Attack"),
                "Dagger_Attack2": ("UAL2", "Sword_Regular_B"), "Roll": ("UAL1", "Roll"), "Death": ("UAL1", "Death01"), "Hit": ("UAL1", "Hit_Chest")},
-    "caster": {"Idle": ("UAL1", "Idle_Loop"), "Run": ("UAL1", "Jog_Fwd_Loop"), "Staff_Attack": ("UAL1", "Spell_Simple_Shoot"),
+    "caster": {"Idle": ("UAL1", "Idle_Loop"), "Run": ("UAL1", "Jog_Fwd_Loop"), "Staff_Attack": ("UAL1", "Sword_Attack"), "Cast": ("UAL1", "Spell_Simple_Shoot"),
                "Death": ("UAL1", "Death01"), "Hit": ("UAL1", "Hit_Chest")},
     "ranger": {"Idle": ("UAL1", "Idle_Loop"), "Run": ("UAL1", "Jog_Fwd_Loop"), "Attack": ("UAL1", "Spell_Simple_Shoot"),
                "Cast": ("UAL2", "OverhandThrow"), "Death": ("UAL1", "Death01"), "Hit": ("UAL1", "Hit_Chest")},
