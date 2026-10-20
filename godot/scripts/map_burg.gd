@@ -240,16 +240,22 @@ func build_lane_ground(cx: float, half: float, court_x: float) -> void:
 # ---------------------------------------------------------------- Stadtfluss
 func build_river(river_x: float, lane_len: float) -> void:
 	river_x_ = river_x
+	var stil := 2                                                             # natürlicher Bach (gewählt; 1 = Stadtkanal mit Steinbrücken, 3 = Kanal mit Holzstegen)
 	var sh := load("res://shaders/burg_river.gdshader") as Shader
 	var z0 := COURT_DEPTH + 10.0
 	var z1 := -(lane_len + 24.0)
+	var half_w := 2.5 if stil != 2 else 3.0
 	if sh != null:
 		var q := PlaneMesh.new()
-		q.size = Vector2(5.0, z0 - z1)
+		q.size = Vector2(half_w * 2.0 + (1.6 if stil == 2 else 0.0), z0 - z1)
 		var sm := ShaderMaterial.new()
 		sm.shader = sh
 		sm.set_shader_parameter("river_x", river_x)
-		sm.set_shader_parameter("half_w", 2.5)
+		sm.set_shader_parameter("half_w", half_w)
+		if stil == 2:                                                         # Bach: klar, flach, grünlich, Kiesgrund am Rand
+			sm.set_shader_parameter("deep_c", Color(0.10, 0.30, 0.32))
+			sm.set_shader_parameter("shallow_c", Color(0.42, 0.50, 0.36))
+			sm.set_shader_parameter("soft_edge", 1.0)
 		sm.render_priority = -21
 		var mi := MeshInstance3D.new()
 		mi.mesh = q
@@ -257,27 +263,96 @@ func build_river(river_x: float, lane_len: float) -> void:
 		mi.position = Vector3(river_x, 0.035, (z0 + z1) / 2.0)                 # über dem Boden (sonst verdeckt)
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		g.add_child(mi)
-	# Kaimauern in der Stadt (flache Mauerstücke), danach natürliches Ufer mit Steinen und Gras
-	var z := z0
-	while z > TOWN_END:
-		for sd in [-1.0, 1.0]:
-			var mi2 := _put("Burg_Mauer", Vector3(river_x + sd * 2.85, -0.35, z), PI / 2.0, 1.0)
-			if mi2 != null:
-				mi2.transform.basis = Basis(Vector3.UP, PI / 2.0).scaled(Vector3(0.25, 0.13, 1.0))     # global skaliert: dünn (x), niedrig (y), Länge bleibt (z)
-		z -= 2.0
 	var stones: Array = []
 	var reeds: Array = []
-	z = TOWN_END
-	while z > z1:
+	var rocks: Array = []
+	var pads: Array = []
+	var z := z0
+	if stil != 2:                                                             # Kaimauern in Burg und Stadt
+		while z > TOWN_END:
+			for sd in [-1.0, 1.0]:
+				var mi2 := _put("Burg_Mauer", Vector3(river_x + sd * 2.85, -0.35, z), PI / 2.0, 1.0)
+				if mi2 != null:
+					mi2.transform.basis = Basis(Vector3.UP, PI / 2.0).scaled(Vector3(0.25, 0.13, 1.0))     # global skaliert: dünn (x), niedrig (y), Länge bleibt (z)
+			z -= 2.0
+		z = TOWN_END
+	while z > z1:                                                             # natürliches Ufer: Kiesel, Schilf (Bach: überall, dazu Felsen und Seerosen)
 		for sd in [-1.0, 1.0]:
+			var e: float = half_w + (0.3 if stil == 2 else 0.0)
 			if rng.randf() < 0.55:
-				stones.append(_t(river_x + sd * rng.randf_range(2.4, 3.1), z + rng.randf_range(-1.0, 1.0), rng.randf_range(0.5, 0.9)))
+				stones.append(_t(river_x + sd * rng.randf_range(e - 0.1, e + 0.6), z + rng.randf_range(-1.0, 1.0), rng.randf_range(0.5, 0.9)))
 			if rng.randf() < 0.8:
-				reeds.append(_t(river_x + sd * rng.randf_range(2.6, 3.4), z + rng.randf_range(-1.0, 1.0), rng.randf_range(0.9, 1.3)))
+				reeds.append(_t(river_x + sd * rng.randf_range(e + 0.1, e + 0.9), z + rng.randf_range(-1.0, 1.0), rng.randf_range(0.9, 1.3)))
+			if stil == 2 and rng.randf() < 0.12:
+				rocks.append(_t(river_x + sd * rng.randf_range(e - 0.6, e + 0.2), z, rng.randf_range(0.5, 0.9)))
+			if stil == 2 and rng.randf() < 0.15:
+				pads.append(_t(river_x + sd * rng.randf_range(0.6, half_w - 0.4), z + rng.randf_range(-0.8, 0.8), rng.randf_range(0.9, 1.3), -1.0, 0.03))
 		z -= 1.6
 	_nat_scatter("Pebble_Round_3", stones)
 	_nat_scatter("Grass_Wispy_Tall", reeds, false)
+	if stil == 2:
+		_nat_scatter("Rock_Medium_2", rocks)
+		_nat_scatter("Clover_1", pads, false)                                # Seerosenblätter
+	# Brücken bzw. Stege
+	for bz in [-14.0, -38.0, -80.0]:
+		if stil == 1:
+			_bridge_stone(river_x, bz)
+		elif stil == 2:
+			_bridge_wood(river_x, bz, 3.4)
+		else:
+			_bridge_wood(river_x, bz, 2.6)
+	if stil == 3:                                                             # Holzstege mit Fässern und Kisten an der Kaimauer
+		for e in [[-6.0, -1.0], [-26.0, 1.0], [-46.0, -1.0], [8.0, 1.0]]:
+			_pier(river_x, float(e[0]), float(e[1]))
 	build_pool_island()
+
+
+## Steinbrücke mit flachem Bogen und Brüstung (aus Burgmauer-Stücken)
+func _bridge_stone(rx: float, z: float) -> void:
+	var deck := _put("Burg_Mauer", Vector3(rx, 0.0, z), 0.0, 1.0)
+	if deck != null:
+		deck.transform.basis = Basis.IDENTITY.scaled(Vector3(3.6, 0.09, 1.4))           # Fahrbahn: 7 m über den Fluss (x), 3,4 m breit (z), 0,6 m hoch
+	for sd in [-1.0, 1.0]:
+		var rail := _put("Burg_Mauer", Vector3(rx, 0.0, z + sd * 1.6), 0.0, 1.0)
+		if rail != null:
+			rail.transform.basis = Basis.IDENTITY.scaled(Vector3(3.6, 0.17, 0.12))
+	_reserve(rx, z, 3.0)
+
+
+## Holzbrücke bzw. Steg aus Planken über den Fluss
+func _bridge_wood(rx: float, z: float, w: float) -> void:
+	var fence: Array = []
+	for sd in [-1.0, 1.0]:
+		fence.append(_t(rx - 2.2, z + sd * w * 0.5, 1.2, 0.0))
+		fence.append(_t(rx + 0.6, z + sd * w * 0.5, 1.2, 0.0))
+	_nat_scatter("Prop_WoodenFence_Extension1", fence)
+	var planks := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = Vector3(7.6, 0.18, w)
+	planks.mesh = bm
+	var wm := StandardMaterial3D.new()
+	wm.albedo_color = Color(0.45, 0.31, 0.18)
+	wm.roughness = 0.9
+	planks.material_override = wm
+	planks.position = Vector3(rx, 0.25, z)
+	g.add_child(planks)
+	_reserve(rx, z, 3.0)
+
+
+## Holzsteg an der Kaimauer, ragt ins Wasser, mit Fässern und Kisten
+func _pier(rx: float, z: float, sd: float) -> void:
+	var planks := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = Vector3(2.2, 0.15, 3.0)
+	planks.mesh = bm
+	var wm := StandardMaterial3D.new()
+	wm.albedo_color = Color(0.42, 0.29, 0.17)
+	wm.roughness = 0.9
+	planks.material_override = wm
+	planks.position = Vector3(rx + sd * 1.6, 0.3, z)
+	g.add_child(planks)
+	_put_parts("Barrel", Vector3(rx + sd * 1.9, 0.38, z - 0.8), 0.0, 1.2)
+	_put_parts("Crate_Wooden", Vector3(rx + sd * 1.7, 0.38, z + 0.7), 0.4, 1.2)
 
 
 # ---------------------------------------------------------------- Lager der gesendeten Monster (Lagerfeuer am Waldrand)
@@ -371,7 +446,7 @@ func set_statue_stage(entry: Dictionary, stage: int) -> void:
 func _gate_tower(p: Vector3, team: int) -> void:
 	var tw := _put("Haus_Tower", p, 0.0, 1.0)
 	if tw != null:
-		tw.transform.basis = Basis.IDENTITY.scaled(Vector3(0.8, 0.32, 0.8))
+		tw.transform.basis = Basis.IDENTITY.scaled(Vector3(0.8, 0.44, 0.8))
 
 
 ## Durchbrechendes Monster rennt gegen das Tor: Staubwolke, Tor wackelt (nur Optik, aufgerufen aus game.gd)
@@ -825,6 +900,79 @@ func decorate(wall_xs: Array, river_x: float, lane_xs: Array, half: float, x_min
 	_meadow(x_min, x_max, half, lane_xs, river_x)
 
 
+## Flussseite des Burghofs: Taverne in der Ecke am Tor, dahinter ein kleiner Hafen (Kai, Steg, Boote, Lastenkran, Waren)
+func _riverside(team: int, cxt: float, hw: float, river_x: float) -> void:
+	var rs := 1.0 if river_x > cxt else -1.0
+	var edge: float = cxt + rs * (hw + 1.0)                                   # Linie der Hofmauer zum Fluss
+	var face: float = -PI / 2.0 * rs                                          # Vorderseite in den Hof
+	var S := 1.4
+	# Taverne: Fachwerkhaus mit Rückwand zur Mauerlinie, Schild, Tische und Bänke davor
+	var tz := GATE_Z + 6.2
+	var tav := _put("Haus_Houses_D", Vector3(edge - rs * 5.2, 0.0, tz), face, 1.0)
+	if tav != null:
+		tav.transform.basis = Basis(Vector3.UP, face).scaled(Vector3.ONE * 0.85)
+		_house_smoke("Haus_Houses_D", tav.transform)
+	_put_parts("Sign_Pub", Vector3(edge - rs * 10.8, 0.0, tz + 4.6), face, S)
+	for e in [[-12.6, tz - 1.0, 0.0], [-12.6, tz + 2.8, 0.0]]:
+		var p := Vector3(edge + rs * float(e[0]), 0.0, float(e[1]))
+		_put_parts("Table_Large", p, PI / 2.0, S)
+		_put_parts("Stool", p + Vector3(0.0, 0.0, -1.3), 0.3, S)
+		_put_parts("Stool", p + Vector3(0.0, 0.0, 1.3), 2.0, S)
+		_put_parts("Bench", p + Vector3(-rs * 1.2, 0.0, 0.0), PI / 2.0, S)
+	_put_parts("Barrel", Vector3(edge - rs * 10.6, 0.0, tz - 4.2), 0.0, S)
+	_put_parts("Barrel_Holder", Vector3(edge - rs * 10.2, 0.0, tz - 3.0), face, S)
+	_put_parts("Torch_Metal", Vector3(edge - rs * 10.4, 0.0, tz + 5.8), face, S)
+	_light(Vector3(edge - rs * 10.4, 2.6, tz + 5.8), Color("#ffc070"), 0.6, 6.0)
+	_reserve(edge - rs * 7.0, tz, 7.0)
+	var H := "res://assets/heroes/"
+	_npc(H + "Bauer.glb", 2.85, Vector3(edge - rs * 13.8, 0, tz - 1.0), -face, ["Talk", "Idle"])
+	_npc(H + "Buergerin.glb", 2.8, Vector3(edge - rs * 11.4, 0, tz + 2.8), face, ["Talk", "Idle"])
+	# Hafen: offene Kaikante, Steg in den Bach, zwei Boote, Lastenkran, Warenstapel
+	var hz0 := tz + 7.0
+	var hz1 := COURT_DEPTH - 6.0
+	var z := hz0
+	while z < hz1:                                                            # flache Kaikante aus Steinplatten
+		var k := _put("Burg_Mauer", Vector3(edge, 0.0, z + 1.0), PI / 2.0, 1.0)
+		if k != null:
+			k.transform.basis = Basis(Vector3.UP, PI / 2.0).scaled(Vector3(0.5, 0.07, 1.0))
+		z += 2.0
+	var hm := (hz0 + hz1) / 2.0
+	_pier_long(edge, hm - 2.0, rs)
+	_put_parts("Boot", Vector3(river_x - rs * 0.4, 0.05, hm - 6.0), 0.15, 1.0)
+	_put_parts("Boot", Vector3(river_x + rs * 0.3, 0.05, hm + 2.5), -0.25, 1.0)
+	_put_parts("Kran", Vector3(edge - rs * 1.2, 0.0, hm + 5.5), -rs * PI / 2.0, 1.0)
+	for e in [["Crate_Wooden", -2.2, -4.0], ["Crate_Wooden", -3.0, -3.2], ["Barrel", -2.4, -1.6], ["Barrel", -3.2, -1.0], ["Bag", -2.0, 1.5],
+		["Pouch_Large", -2.6, 2.2], ["FarmCrate_Apple", -3.6, 3.4], ["Rope_1", -1.6, 0.4]]:
+		_put_parts(str(e[0]), Vector3(edge + rs * float(e[1]), 0.0, hm + float(e[2])), rng.randf() * TAU, S)
+	_npc(H + "Bauer.glb", 2.85, Vector3(edge - rs * 4.0, 0, hm - 2.5), -face, ["Idle", "Work2"], "patrol", Vector3(edge - rs * 4.0, 0, hm + 4.0))
+	_reserve(edge - rs * 3.0, hm, 6.0)
+
+
+## Langer Holzsteg vom Kai in den Bach
+func _pier_long(edge: float, z: float, rs: float) -> void:
+	var wm := StandardMaterial3D.new()
+	wm.albedo_color = Color(0.43, 0.30, 0.17)
+	wm.roughness = 0.9
+	var deck := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = Vector3(4.2, 0.16, 2.2)
+	deck.mesh = bm
+	deck.material_override = wm
+	deck.position = Vector3(edge + rs * 1.9, 0.32, z)
+	g.add_child(deck)
+	for dx in [0.6, 2.0, 3.6]:
+		for dz in [-0.95, 0.95]:
+			var post := MeshInstance3D.new()
+			var cm := CylinderMesh.new()
+			cm.top_radius = 0.11
+			cm.bottom_radius = 0.11
+			cm.height = 1.3
+			post.mesh = cm
+			post.material_override = wm
+			post.position = Vector3(edge + rs * dx, 0.2, z + dz)
+			g.add_child(post)
+
+
 func _castle(team: int, cxt: float, hw: float, lxs: Array, river_x: float) -> void:
 	var x := cxt - hw
 	while x < cxt + hw:                                                  # Mauer quer, Lücken an den Toren
@@ -838,23 +986,25 @@ func _castle(team: int, cxt: float, hw: float, lxs: Array, river_x: float) -> vo
 	for sd in [-1.0, 1.0]:                                              # Ecktürme (gleicher Stil wie am Tor)
 		_gate_tower(Vector3(cxt + sd * (hw + 1.0), 0.0, GATE_Z), team)
 	# Seitenmauern des Hofs und Bergfried hinten
+	var rs := 1.0 if river_x > cxt else -1.0
 	for sd in [-1.0, 1.0]:
 		var z := GATE_Z + 2.0
 		while z < COURT_DEPTH:
 			var mx: float = cxt + sd * (hw + 1.0)
-			if true:
+			if not (sd == rs and z < COURT_DEPTH - 6.0):                     # Flussseite: Taverne und Hafen statt Mauer
 				_put("Burg_Mauer", Vector3(mx, 0.0, z + 1.0), PI / 2.0, 1.0)
 			z += 2.0
 	var keep := _put("Haus_Tower", Vector3(cxt + (hw - 6.0) * (-1.0 if team == 0 else 1.0), 0.0, COURT_DEPTH - 6.0), 0.0, 1.0)
 	if keep != null:
 		keep.transform.basis = Basis.IDENTITY.scaled(Vector3(1.2, 0.75, 1.2))
 	_put("Haus_Houses_A", Vector3(cxt, 0.0, COURT_DEPTH - 4.0), PI, 0.9)           # Gebäude hinten im Hof
+	_riverside(team, cxt, hw, river_x)
 	# Leben im Hof: Marktstände, Schmiede, Fässer, Wagen, Übungspuppe, Fackeln
 	var props := [["Stall_Blacksmith", -8.0, 20.0, PI], ["Stall_Vegetables_Full", -3.5, 21.5, PI], ["Stall_Potions", 1.5, 21.5, PI],
-		["Stall_Empty", 6.0, 20.0, PI], ["Anvil", -10.5, 17.0, 0.4], ["WeaponStand", -12.0, 19.0, 1.2], ["Dummy", 11.0, 12.0, 2.6],
-		["Dummy", 13.0, 14.5, 2.2], ["Wagon", 10.5, 24.0, 0.3], ["Table_Large", -6.0, 26.5, 0.0], ["Stool", -7.4, 26.0, 0.5], ["Stool", -4.6, 27.2, 2.0],
-		["Barrel", -13.0, 22.5, 0.0], ["Barrel_Apples", -12.0, 24.0, 0.0], ["Crate_Wooden", 13.5, 21.0, 0.2], ["Bag", 12.5, 22.0, 0.0],
-		["Sign_Pub", -6.0, 29.0, 0.0], ["FarmCrate_Apple", 3.0, 24.0, 0.3], ["FarmCrate_Carrot", 4.2, 24.6, 1.0]]
+		["Stall_Empty", 6.0, 20.0, PI], ["Anvil", -10.5, 17.0, 0.4], ["WeaponStand", -12.0, 19.0, 1.2], ["Dummy", -2.0, 27.5, 2.6],
+		["Dummy", 1.5, 28.5, 2.2], ["Wagon", -9.0, 27.0, 0.3],
+		["Barrel", -13.0, 22.5, 0.0], ["Barrel_Apples", -12.0, 24.0, 0.0],
+		["FarmCrate_Apple", 3.0, 24.0, 0.3], ["FarmCrate_Carrot", 4.2, 24.6, 1.0]]
 	var sgn := 1.0 if team == 0 else -1.0
 	for e in props:
 		var px: float = cxt + sgn * float(e[1]) * hw / 16.0

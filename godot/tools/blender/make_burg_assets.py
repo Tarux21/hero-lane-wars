@@ -2,7 +2,7 @@
 #   blender -b -P make_burg_assets.py -- [nature] [props] [houses] [castle]     (ohne Angabe: alles)
 # Quellen (gekauft, CC0, in tools-extern/assets, nicht im Repo): Quaternius Stylized Nature / Medieval Village / Fantasy Props MegaKit [Source].
 # Texturen werden verkleinert (Farbe 1024 px, Normal/Rauheit/ORM 512 px): von oben aus der Spielkamera reicht das.
-import bpy, sys, os, re, math, shutil
+import bpy, bmesh, sys, os, re, math, shutil
 from mathutils import Matrix, Vector
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -246,6 +246,54 @@ def extras():
             bpy.ops.object.mode_set(mode='EDIT'); bpy.ops.mesh.select_all(action='SELECT')
             bpy.ops.uv.cube_project(cube_size=2.0); bpy.ops.object.mode_set(mode='OBJECT')
     _export_joined(objs, "Unterstand", center=False)
+    # Ruderboot: Rumpf aus halbierter, gestreckter Kugel, Bordwand, zwei Sitzbänke (Holz aus dem Dorfpaket)
+    objs = []
+    bpy.ops.mesh.primitive_uv_sphere_add(segments=16, ring_count=8, radius=1.0, location=(0, 0, 0))
+    hull = bpy.context.object
+    hull.scale = (0.85, 2.3, 0.55)
+    bpy.ops.object.transform_apply(scale=True)
+    bm = bmesh.new(); bm.from_mesh(hull.data)
+    bmesh.ops.bisect_plane(bm, geom=bm.verts[:] + bm.edges[:] + bm.faces[:], plane_co=(0, 0, 0), plane_no=(0, 0, 1), clear_outer=True)
+    bm.to_mesh(hull.data); bm.free()
+    so = hull.modifiers.new("s", "SOLIDIFY"); so.thickness = 0.08
+    bpy.context.view_layer.objects.active = hull; bpy.ops.object.modifier_apply(modifier="s")
+    hull.location.z = 0.45
+    hull.data.materials.append(wood)
+    objs.append(hull)
+    for y in (-0.7, 0.6):
+        bpy.ops.mesh.primitive_cube_add(size=1, location=(0, y, 0.3))
+        o = bpy.context.object; o.scale = (1.45, 0.3, 0.07); o.data.materials.append(wood); objs.append(o)
+    bpy.ops.mesh.primitive_cylinder_add(radius=0.04, depth=2.4, location=(0.45, -0.2, 0.55), rotation=(1.35, 0, 0.25))
+    o = bpy.context.object; o.data.materials.append(wood); objs.append(o)                         # Ruder
+    for o in objs:
+        bpy.context.view_layer.objects.active = o
+        bpy.ops.object.mode_set(mode='EDIT'); bpy.ops.mesh.select_all(action='SELECT')
+        bpy.ops.uv.cube_project(cube_size=2.0); bpy.ops.object.mode_set(mode='OBJECT')
+    _export_joined(objs, "Boot", center=False)
+    # Lastenkran: Mast, schräger Ausleger, Strebe, Seil mit Kiste; Drehpunkt am Mastfuß
+    objs = []
+    rope = bpy.data.materials.new("Seil"); rope.use_nodes = True
+    rope.node_tree.nodes["Principled BSDF"].inputs["Base Color"].default_value = (0.55, 0.45, 0.3, 1)
+    def beam(a, b, r, m):
+        a = Vector(a); b = Vector(b); d = b - a
+        bpy.ops.mesh.primitive_cube_add(size=1, location=(a + b) / 2)
+        o = bpy.context.object
+        o.scale = (r, r, d.length)
+        o.rotation_mode = 'QUATERNION'; o.rotation_quaternion = Vector((0, 0, 1)).rotation_difference(d.normalized())
+        o.data.materials.append(m); objs.append(o)
+    beam((0, 0, 0), (0, 0, 6.0), 0.35, wood)                                                # Mast
+    beam((0, 0, 5.2), (0, 4.6, 6.6), 0.25, wood)                                            # Ausleger zum Wasser (+y)
+    beam((0, 0, 3.0), (0, 2.4, 5.95), 0.15, wood)                                           # Strebe
+    beam((0, 4.5, 6.5), (0, 4.5, 2.6), 0.04, rope)                                          # Seil
+    for x, y in ((-0.6, -0.6), (0.6, -0.6), (-0.6, 0.6), (0.6, 0.6)):                      # Fuß
+        beam((x, y, 0), (0, 0, 1.4), 0.12, wood)
+    bpy.ops.mesh.primitive_cube_add(size=1, location=(0, 4.5, 2.15))
+    o = bpy.context.object; o.scale = (0.9, 0.9, 0.9); o.data.materials.append(wood); objs.append(o)      # Kiste am Haken
+    for o in objs:
+        bpy.context.view_layer.objects.active = o
+        bpy.ops.object.mode_set(mode='EDIT'); bpy.ops.mesh.select_all(action='SELECT')
+        bpy.ops.uv.cube_project(cube_size=2.0); bpy.ops.object.mode_set(mode='OBJECT')
+    _export_joined(objs, "Kran", center=False)
 
 
 def nature():
