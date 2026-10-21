@@ -25,15 +25,11 @@ var wind_tex: Texture2D
 var gates: Array = []                   # {"team", "lx", "left", "right", "open", "stage"}
 var camp_c := Vector3.ZERO
 var courts: Dictionary = {}               # Team -> begehbarer Burghof in Spielwerten (game.gd _court)
-var uebergang := 0                      # Test: Übergang Stadt -> Feldweg, --uebergang=1 (ausfransen), 2 (Stadttor), 3 (Platz am Stadtrand)
 
 
 func _init(game: Node) -> void:
 	super(game)
 	rng.seed = 515151
-	for a in OS.get_cmdline_user_args():
-		if a.begins_with("--uebergang="):
-			uebergang = int(a.substr(12))
 
 
 # ---------------------------------------------------------------- Laden
@@ -243,12 +239,7 @@ func build_lane_ground(cx: float, half: float, court_x: float) -> void:
 	sm.set_shader_parameter("center_x", cx)
 	sm.set_shader_parameter("half_w", half)
 	sm.set_shader_parameter("town_end", TOWN_END)
-	sm.set_shader_parameter("fray", 1.0 if uebergang == 1 else 0.0)
-	sm.set_shader_parameter("plaza_r", 8.2 if uebergang == 3 else 0.0)
-	if uebergang == 2:
-		_town_gate(cx, half)
-	elif uebergang == 3:
-		_town_plaza(cx, half)
+	sm.set_shader_parameter("fray", 1.0)                                    # Übergang: Pflaster franst zum Feldweg hin aus (gewählt)
 	sm.set_shader_parameter("court_z", GATE_Z + 1.0)
 	sm.render_priority = -20
 	var mi := MeshInstance3D.new()
@@ -1475,42 +1466,3 @@ func _castle_back(team: int, cxt: float, hw: float, river_x: float) -> void:
 		_nat_scatter(nm, outer[nm])
 	_reserve(cxt, (z0 + z1) / 2.0, hw)
 
-
-## Übergang V2: kleines Stadttor über der Straße am Stadtrand (Torbogen, zwei Tortürmchen, kurze Mauerstücke). Monster laufen hindurch.
-func _town_gate(cx: float, half: float) -> void:
-	var gz := TOWN_END + 1.0
-	var tb := _put("Burg_Torbau", Vector3(cx, 0.0, gz), 0.0, 1.0)
-	if tb != null:
-		tb.transform.basis = Basis.IDENTITY.scaled(Vector3(1.9, 0.85, 0.8))
-	for sd in [-1.0, 1.0]:
-		var tw := _put("Haus_Tower", Vector3(cx + sd * (half + 2.2), 0.0, gz), 0.0, 1.0)
-		if tw != null:
-			tw.transform.basis = Basis.IDENTITY.scaled(Vector3(0.6, 0.3, 0.6))
-		for k in 3:
-			var m := _put("Burg_Mauer", Vector3(cx + sd * (half + 5.0 + k * 2.0), 0.0, gz), 0.0, 1.0)
-			if m != null:
-				m.transform.basis = Basis.IDENTITY.scaled(Vector3(1.0, 0.45 - k * 0.1, 0.7))
-		_put_parts("Torch_Metal", Vector3(cx + sd * (half + 0.6), 0.0, gz - 1.6), 0.0, 1.4)
-		_light(Vector3(cx + sd * (half + 0.6), 2.6, gz - 1.6), Color("#ffc070"), 0.4, 5.0)
-	_reserve(cx - half - 4.0, gz, 3.0)
-	_reserve(cx + half + 4.0, gz, 3.0)
-
-
-## Übergang V3: halbrunder Platz am Stadtrand: Pflaster endet im Bogen mit Randsteinen, Wegweiser, Bank, Wegkreuz mit Blumen
-func _town_plaza(cx: float, half: float) -> void:
-	var r := 8.2
-	var curb: Array = []
-	for k in 25:
-		var a := PI * float(k) / 24.0                                         # Bogen zur Feldseite (z < TOWN_END)
-		var p := Vector2(cos(a) * r, -sin(a) * r / 1.2)
-		if absf(p.x) > half - 0.2:
-			curb.append(_t(cx + p.x, TOWN_END + p.y, rng.randf_range(0.6, 0.8)))
-	_nat_scatter("Pebble_Square_2" if false else "Pebble_Round_3", curb)
-	for sd in [-1.0, 1.0]:
-		var bx: float = cx + sd * (half + 1.6)
-		_put_parts("Bench", Vector3(bx, 0.0, TOWN_END - 1.0), PI / 2.0, 1.4)
-		_put_parts("Barrel", Vector3(bx, 0.0, TOWN_END + 1.6), 0.0, 1.3)
-		_nat_scatter("Flower_3_Group", [_t(bx + sd * 0.8, TOWN_END - 3.0, 1.0)], false)
-	_put_parts("Sign_Pub", Vector3(cx - half - 1.4, 0.0, TOWN_END - 3.6), PI / 2.0, 1.3)
-	_reserve(cx - half - 2.0, TOWN_END, 2.5)
-	_reserve(cx + half + 2.0, TOWN_END, 2.5)
