@@ -25,11 +25,15 @@ var wind_tex: Texture2D
 var gates: Array = []                   # {"team", "lx", "left", "right", "open", "stage"}
 var camp_c := Vector3.ZERO
 var courts: Dictionary = {}               # Team -> begehbarer Burghof in Spielwerten (game.gd _court)
+var uebergang := 0                      # Test: Übergang Stadt -> Feldweg, --uebergang=1 (ausfransen), 2 (Stadttor), 3 (Platz am Stadtrand)
 
 
 func _init(game: Node) -> void:
 	super(game)
 	rng.seed = 515151
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--uebergang="):
+			uebergang = int(a.substr(12))
 
 
 # ---------------------------------------------------------------- Laden
@@ -215,6 +219,14 @@ func forest_floor(mi: MeshInstance3D) -> void:
 	var sm := ShaderMaterial.new()
 	sm.shader = sh
 	mi.material_override = sm
+	var back := MeshInstance3D.new()                                       # Boden hinter der Burg (Karte endet nicht an der Burgmauer)
+	var q := PlaneMesh.new()
+	q.size = Vector2(500.0, 140.0)
+	back.mesh = q
+	back.material_override = sm
+	back.position = Vector3(mi.position.x, 0.0, 90.0)
+	back.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	g.add_child(back)
 
 
 func build_lane_ground(cx: float, half: float, court_x: float) -> void:
@@ -231,6 +243,12 @@ func build_lane_ground(cx: float, half: float, court_x: float) -> void:
 	sm.set_shader_parameter("center_x", cx)
 	sm.set_shader_parameter("half_w", half)
 	sm.set_shader_parameter("town_end", TOWN_END)
+	sm.set_shader_parameter("fray", 1.0 if uebergang == 1 else 0.0)
+	sm.set_shader_parameter("plaza_r", 8.2 if uebergang == 3 else 0.0)
+	if uebergang == 2:
+		_town_gate(cx, half)
+	elif uebergang == 3:
+		_town_plaza(cx, half)
 	sm.set_shader_parameter("court_z", GATE_Z + 1.0)
 	sm.render_priority = -20
 	var mi := MeshInstance3D.new()
@@ -246,7 +264,7 @@ func build_river(river_x: float, lane_len: float) -> void:
 	river_x_ = river_x
 	var stil := 2                                                             # natürlicher Bach (gewählt; 1 = Stadtkanal mit Steinbrücken, 3 = Kanal mit Holzstegen)
 	var sh := load("res://shaders/burg_river.gdshader") as Shader
-	var z0 := COURT_DEPTH + 10.0
+	var z0 := COURT_DEPTH + 80.0                                               # Bach fließt hinter der Burg weiter
 	var z1 := -(lane_len + 24.0)
 	var half_w := 2.5 if stil != 2 else 3.0
 	if sh != null:
@@ -372,21 +390,39 @@ func _pier(rx: float, z: float, sd: float) -> void:
 
 # ---------------------------------------------------------------- Lager der gesendeten Monster (Lagerfeuer am Waldrand)
 func _island_center() -> Vector3:
-	return Vector3(river_x_ - 9.0, 0.0, FIELD_END + 6.0)
+	return Vector3(river_x_ - 9.5, 0.0, FIELD_END - 9.0)                   # Lichtung zwischen Feldern und Wald
 
 
 func build_pool_island() -> void:
 	var c := _island_center()
 	camp_c = c
+	_clearing(c, Vector2(11.0, 26.0))
+	for k in 30:                                                           # Lichtung freihalten (keine Wiese, keine Felder)
+		_reserve(c.x, c.z - 12.0 + float(k) * 0.8, 5.0)
 	_put_parts("FirePit", c, 0.0, 1.6)
 	_put_parts("CampfireTripod", c, 0.4, 1.6)
-	for k in 6:                                                            # Holzbänke/Kisten im Kreis
-		var a := float(k) / 6.0 * TAU + 0.3
-		if k % 2 == 0:
-			_put_parts("Bench", c + Vector3(cos(a), 0, sin(a)) * 4.6, -a + PI / 2.0, 1.4)
-	_put_parts("Barrel", c + Vector3(-5.0, 0, 2.5), 0.2, 1.4)
-	_put_parts("Crate_Wooden", c + Vector3(5.2, 0, -2.0), 0.6, 1.4)
-	_reserve(c.x, c.z, 6.0)
+	_put_parts("Pot_1_Lid", c + Vector3(0.2, 0.0, 0.1), 0.0, 1.3)
+	for k in 4:                                                            # Sitzplätze um das Feuer (außerhalb der Monster-Ringe)
+		var a := float(k) / 4.0 * TAU + 0.6
+		_put_parts("Bench" if k % 2 == 0 else "Crate_Wooden", c + Vector3(cos(a) * 4.0, 0, sin(a) * 4.4), -a + PI / 2.0, 1.3)
+	# Zelte vorn und hinten, Eingang zum Feuer
+	_put_parts("Zelt_rot", c + Vector3(-0.8, 0, -8.2), 0.15, 1.0)
+	_put_parts("Zelt", c + Vector3(1.6, 0, -11.0), -0.25, 0.9)
+	_put_parts("Zelt", c + Vector3(-0.6, 0, 8.6), PI + 0.1, 1.0)
+	_put_parts("Zelt_rot", c + Vector3(1.8, 0, 11.4), PI - 0.2, 0.9)
+	# Ausrüstung, Waffen, Vorräte, Essen
+	var stuff := [["WeaponStand", 3.6, -5.6, -0.5], ["Shield_Wooden", 3.2, -6.8, 0.6], ["Shield_Metal", 4.0, -4.6, 1.2], ["Axe_Steel", -3.6, -5.2, 1.0],
+		["Barrel", -3.8, 5.6, 0.0], ["Barrel", -4.2, 6.6, 0.0], ["Barrel_Apples", -3.0, 6.4, 0.0], ["Crate_Wooden", 3.8, 5.2, 0.4], ["Crate_Wooden", 4.0, 6.4, 0.9],
+		["Bag", 3.0, 6.9, 0.2], ["Pouch_Large", -2.6, -6.2, 0.0], ["Table_Large", -3.8, -2.2, PI / 2.0], ["Table_Plate", -3.8, -2.6, 0.0], ["Mug", -3.6, -1.6, 0.0],
+		["Pan_1", 1.2, 1.6, 0.6], ["Chest_Wood", 0.4, -6.4, 0.0], ["Pickaxe_Steel", 4.4, 2.0, 1.4], ["Torch_Metal", 4.6, -1.0, 0.0], ["Torch_Metal", -4.6, 1.6, 0.0],
+		["Bed_Twin1", 2.6, 9.0, PI / 2.0], ["FarmCrate_Apple", -2.2, 7.6, 0.3]]
+	for e in stuff:
+		var y := 0.0
+		if str(e[0]) in ["Table_Plate", "Mug"]:
+			y = 1.25
+		_put_parts(str(e[0]), c + Vector3(float(e[1]), y, float(e[2])), float(e[3]), 1.3)
+	for tp in [Vector3(4.6, 0, -1.0), Vector3(-4.6, 0, 1.6)]:
+		_light(c + tp + Vector3(0, 2.6, 0), Color("#ffb060"), 0.5, 6.0)
 	var l := _light(c + Vector3(0.0, 1.6, 0.0), Color("#ff9a40"), 1.6, 12.0)
 	var tw := l.create_tween().set_loops()
 	tw.tween_property(l, "light_energy", 1.1 * Data.user.light_factor(), 0.35).set_trans(Tween.TRANS_SINE)
@@ -970,12 +1006,6 @@ func _riverside(team: int, cxt: float, hw: float, river_x: float) -> void:
 	# Hafen: offene Kaikante, Steg in den Bach, zwei Boote, Lastenkran, Warenstapel
 	var hz0 := tz + 6.0
 	var hz1 := COURT_DEPTH - 6.0
-	var z := hz0
-	while z < hz1:                                                            # flache Kaikante aus Steinplatten
-		var k := _put("Burg_Mauer", Vector3(edge, 0.0, z + 1.0), PI / 2.0, 1.0)
-		if k != null:
-			k.transform.basis = Basis(Vector3.UP, PI / 2.0).scaled(Vector3(0.5, 0.07, 1.0))
-		z += 2.0
 	var hm := (hz0 + hz1) / 2.0
 	var bz: float = hm + (8.0 if team == 1 else 0.0)                          # Gegenseite des Bachs: Steg und Boote versetzt (sonst liegen beide Häfen nebeneinander)
 	_pier_long(edge, bz - 2.0, rs)
@@ -1058,6 +1088,7 @@ func _castle(team: int, cxt: float, hw: float, lxs: Array, river_x: float) -> vo
 		keep.transform.basis = Basis.IDENTITY.scaled(Vector3(1.2, 0.75, 1.2))
 	_put("Haus_Houses_A", Vector3(cxt, 0.0, COURT_DEPTH - 4.0), PI, 0.9)           # Gebäude hinten im Hof
 	_riverside(team, cxt, hw, river_x)
+	_castle_back(team, cxt, hw, river_x)
 	# Leben im Hof: Marktstände, Schmiede, Fässer, Wagen, Übungspuppe, Fackeln
 	var props := [["Stall_Blacksmith", -8.0, 20.0, PI], ["Stall_Vegetables_Full", -3.5, 21.5, PI], ["Stall_Potions", 1.5, 21.5, PI],
 		["Stall_Empty", 6.0, 20.0, PI], ["Anvil", -10.5, 17.0, 0.4], ["WeaponStand", -12.0, 19.0, 1.2], ["Dummy", -2.0, 27.5, 2.6],
@@ -1121,12 +1152,8 @@ func _town(lx: float, half: float, team: int, k: int, lpt: int, river_x: float) 
 				for b in BRIDGES:
 					if float(b) > z - 9.0 and float(b) < z + 1.0:
 						bzz = float(b)
-				var steps: Array = []
-				var xx: float = half + 0.6
-				while xx < absf(river_x - lx) - 4.2:
-					steps.append(_t(lx + sd * xx, bzz + rng.randf_range(-0.6, 0.6), rng.randf_range(0.7, 0.95)))
-					xx += 1.5
-				_nat_scatter("RockPath_Round_Wide", steps, false)
+				var mzt: float = sin(bzz * 0.09) * 0.7 + sin(bzz * 0.23 + 1.7) * 0.3
+				_dirt_path(Vector3(lx + sd * (half + 0.3), 0, bzz), Vector3(river_x + mzt - sd * 4.4, 0, bzz), 2.4)
 				_reserve(lx + sd * (half + 4.0), bzz, 3.0)
 				z = bzz - 4.0
 				continue
@@ -1171,16 +1198,34 @@ func _fields(lx: float, half: float, team: int, k: int, lpt: int, river_x: float
 		var fx: float = lx + sd * (half + 0.45)
 		var z := TOWN_END - 1.0
 		var fence: Array = []
-		while z > FIELD_END:                                             # Zaun
-			fence.append(_t(fx, z, 1.4, PI / 2.0))
+		while z > FIELD_END:                                             # Zaun (Lücke am Feldweg zur Brücke)
+			var gap := false
+			if (river_x - lx) * sd > 0.0:
+				for b in BRIDGES:
+					if absf(z - float(b)) < 1.8:
+						gap = true
+			if not gap:
+				fence.append(_t(fx, z, 1.4, PI / 2.0))
 			z -= 2.8
 		_nat_scatter("Prop_WoodenFence_Extension1", fence)
 		if not outer:
 			continue
 		var limit: float = absf(river_x - lx) - half - 4.0 if (river_x - lx) * sd > 0.0 else 22.0
 		z = TOWN_END - 3.0
+		var to_river: bool = (river_x - lx) * sd > 0.0
 		while z > FIELD_END + 6.0:
-			var L := rng.randf_range(10.0, 15.0)
+			var L := minf(rng.randf_range(10.0, 15.0), z - (FIELD_END + 4.0))   # Felder enden vor der Lichtung des Lagers
+			if L < 4.0:
+				break
+			var br := 99999.0
+			for b in BRIDGES:
+				if to_river and float(b) < z + 2.0 and float(b) > z - L - 4.0:
+					br = float(b)
+			if br < 9999.0:                                              # Feldweg vom Zaun zur Brücke, Feld fällt hier weg
+				var mz: float = sin(br * 0.09) * 0.7 + sin(br * 0.23 + 1.7) * 0.3
+				_dirt_path(Vector3(lx + sd * (half + 0.2), 0, br), Vector3(river_x + mz - sd * 4.4, 0, br), 2.4)
+				z = br - 5.0
+				continue
 			var x0: float = half + 1.6
 			var x1: float = minf(half + 1.6 + 13.0, half + limit)
 			var kind := rng.randf()
@@ -1301,3 +1346,171 @@ func _vertex_color_fix(src: Mesh) -> Mesh:
 			m2.vertex_color_is_srgb = true
 			mesh.surface_set_material(s, m2)
 	return mesh
+
+
+## Trampelpfad von a nach b: Erdband mit unregelmäßigem, weichem Rand, ein paar Kiesel (statt Platten-Trittsteinen)
+func _dirt_path(a: Vector3, b: Vector3, w: float) -> void:
+	var d := b - a
+	d.y = 0.0
+	var q := PlaneMesh.new()
+	q.size = Vector2(w + 1.2, d.length() + 1.0)
+	var sm := ShaderMaterial.new()
+	var sh := Shader.new()
+	sh.code = "shader_type spatial;\nrender_mode diffuse_lambert, specular_disabled;\nuniform vec2 size;\nvarying vec3 lp;\nvarying vec3 wp;\nfloat h(vec2 p){vec3 q=fract(vec3(p.xyx)*0.1031);q+=dot(q,q.yzx+33.33);return fract((q.x+q.y)*q.z);}\nfloat n(vec2 p){vec2 i=floor(p);vec2 f=fract(p);vec2 u=f*f*(3.0-2.0*f);return mix(mix(h(i),h(i+vec2(1,0)),u.x),mix(h(i+vec2(0,1)),h(i+vec2(1,1)),u.x),u.y);}\nvoid vertex(){lp=VERTEX;wp=(MODEL_MATRIX*vec4(VERTEX,1.0)).xyz;}\nvoid fragment(){float ex=abs(lp.x)/(size.x*0.5-0.6);float ez=abs(lp.z)/(size.y*0.5);float r=max(ex+0.55*(n(wp.xz*0.45)-0.5)+0.3*(n(wp.xz*1.6)-0.5)+0.12*(n(wp.xz*5.0)-0.5),ez+0.3*(n(wp.xz*0.9)-0.5));if(r>1.0){discard;}vec3 c=mix(vec3(0.22,0.16,0.09),vec3(0.33,0.25,0.15),n(wp.xz*2.0))*(0.85+0.3*n(wp.xz*7.0));c=mix(c,vec3(0.34,0.42,0.14),smoothstep(0.6,1.0,r)*0.7+0.25*smoothstep(0.55,0.8,n(wp.xz*1.3)));ALBEDO=c;ROUGHNESS=1.0;}\n"
+	sm.shader = sh
+	sm.set_shader_parameter("size", q.size)
+	sm.render_priority = -17
+	var mi := MeshInstance3D.new()
+	mi.mesh = q
+	mi.material_override = sm
+	mi.transform = Transform3D(Basis(Vector3.UP, atan2(d.x, d.z)), (a + b) / 2.0 + Vector3(0, 0.03, 0))
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	g.add_child(mi)
+	var peb: Array = []
+	for k in int(d.length() / 1.4):
+		var t := rng.randf()
+		var side := rng.randf_range(-1.0, 1.0) * w * 0.55
+		var p := a + d * t + Vector3(d.z, 0, -d.x).normalized() * side
+		peb.append(_t(p.x, p.z, rng.randf_range(0.5, 0.9)))
+	_nat_scatter("Pebble_Round_3", peb)
+	for k in int(d.length() / 1.0) + 1:                                    # Pfad freihalten (Wiese wächst nicht hinein)
+		var p2 := a + d * (float(k) / maxf(1.0, int(d.length() / 1.0)))
+		_reserve(p2.x, p2.z, w * 0.6)
+
+
+## Lichtung: festgetretene Erde mit Grasresten (weicher, unregelmäßiger Rand)
+func _clearing(c: Vector3, size: Vector2) -> void:
+	var q := PlaneMesh.new()
+	q.size = size
+	var sm := ShaderMaterial.new()
+	var sh := Shader.new()
+	sh.code = "shader_type spatial;\nrender_mode diffuse_lambert, specular_disabled;\nuniform vec2 size;\nvarying vec3 lp;\nvarying vec3 wp;\nfloat h(vec2 p){vec3 q=fract(vec3(p.xyx)*0.1031);q+=dot(q,q.yzx+33.33);return fract((q.x+q.y)*q.z);}\nfloat n(vec2 p){vec2 i=floor(p);vec2 f=fract(p);vec2 u=f*f*(3.0-2.0*f);return mix(mix(h(i),h(i+vec2(1,0)),u.x),mix(h(i+vec2(0,1)),h(i+vec2(1,1)),u.x),u.y);}\nvoid vertex(){lp=VERTEX;wp=(MODEL_MATRIX*vec4(VERTEX,1.0)).xyz;}\nvoid fragment(){vec2 d=lp.xz/(size*0.5);float r=length(d)+0.3*(n(wp.xz*0.8)-0.5);if(r>1.0){discard;}float grass=smoothstep(0.35,0.95,r)+0.55*smoothstep(0.45,0.75,n(wp.xz*0.9))+0.25*n(wp.xz*3.5);vec3 dirt=mix(vec3(0.30,0.22,0.13),vec3(0.42,0.32,0.20),n(wp.xz*3.0));vec3 c=mix(dirt,vec3(0.36,0.44,0.15),clamp(grass,0.0,1.0)*0.85);ALBEDO=c;ROUGHNESS=1.0;}\n"
+	sm.shader = sh
+	sm.set_shader_parameter("size", size)
+	sm.render_priority = -17
+	var mi := MeshInstance3D.new()
+	mi.mesh = q
+	mi.material_override = sm
+	mi.position = c + Vector3(0, 0.03, 0)
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	g.add_child(mi)
+
+
+## Hinter dem Burghof: Oberburg (Palas, Kapellenturm, Wohnhäuser, Burggarten), dahinter die äußere Ringmauer mit Türmen und Wald.
+## So endet die Karte nicht an einer Mauer, sondern die Burg geht weiter (nur Kulisse, nicht begehbar).
+func _castle_back(team: int, cxt: float, hw: float, river_x: float) -> void:
+	var rs := 1.0 if river_x > cxt else -1.0
+	var z0 := COURT_DEPTH + 2.0                                               # hinter den Hofgebäuden
+	var z1 := COURT_DEPTH + 30.0                                              # äußere Ringmauer
+	# Boden: Pflaster in der Oberburg, Wiese außen herum (großer Bodenstreifen, damit die Karte hinten nicht leer ist)
+	var sh := load("res://shaders/burg_lane.gdshader") as Shader
+	if sh != null:
+		var q := PlaneMesh.new()
+		q.size = Vector2(hw * 2.0, z1 - COURT_DEPTH + 2.0)
+		var sm := ShaderMaterial.new()
+		sm.shader = sh
+		sm.set_shader_parameter("center_x", cxt)
+		sm.set_shader_parameter("half_w", hw)
+		sm.set_shader_parameter("court_z", -1000.0)
+		sm.render_priority = -19
+		var mi := MeshInstance3D.new()
+		mi.mesh = q
+		mi.material_override = sm
+		mi.position = Vector3(cxt, 0.014, (COURT_DEPTH + z1) / 2.0)
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		g.add_child(mi)
+	# Seitenmauern bis zur Ringmauer, Ringmauer quer mit Türmen
+	for sd in [-1.0, 1.0]:
+		var z := COURT_DEPTH
+		while z < z1:
+			_put("Burg_Mauer", Vector3(cxt + sd * (hw + 1.0), 0.0, z + 1.0), PI / 2.0, 1.0)
+			z += 2.0
+	var x := cxt - hw
+	while x < cxt + hw:
+		_put("Burg_Mauer", Vector3(x + 1.0, 0.0, z1), 0.0, 1.0)
+		x += 2.0
+	for sd in [-1.0, 0.0, 1.0]:
+		var tw := _put("Haus_Tower", Vector3(cxt + sd * (hw + 1.0), 0.0, z1), 0.0, 1.0)
+		if tw != null:
+			tw.transform.basis = Basis.IDENTITY.scaled(Vector3(0.9, 0.6, 0.9))
+	var tw2 := _put("Haus_Tower", Vector3(cxt - rs * (hw + 1.0), 0.0, (COURT_DEPTH + z1) / 2.0), 0.0, 1.0)
+	if tw2 != null:
+		tw2.transform.basis = Basis.IDENTITY.scaled(Vector3(0.9, 0.55, 0.9))
+	# Oberburg: Palas (großes Fachwerkhaus) zur Flussseite, Kapellenturm, Wohnhäuser, Garten mit Bäumen und Brunnen
+	var palas := _put("Haus_Houses_A", Vector3(cxt + rs * (hw - 11.0), 0.0, z0 + 17.0), PI, 0.8)
+	if palas != null:
+		_house_smoke("Haus_Houses_A", palas.transform)
+	var kap := _put("Haus_Tower", Vector3(cxt - rs * (hw - 6.0), 0.0, z0 + 18.0), 0.0, 1.0)
+	if kap != null:
+		kap.transform.basis = Basis.IDENTITY.scaled(Vector3(1.0, 1.05, 1.0))
+	var gx: float = cxt - rs * 4.0
+	var gz: float = z0 + 8.0
+	_put_parts("Brunnen", Vector3(gx, 0.0, gz), 0.0, 0.7)
+	var trees: Array = []
+	var flowers: Array = []
+	for k in 6:
+		var a := float(k) / 6.0 * TAU
+		trees.append(_t(gx + cos(a) * 6.5, gz + sin(a) * 4.5, rng.randf_range(0.8, 1.0)))
+	for k in 18:
+		flowers.append(_t(gx + rng.randf_range(-7.0, 7.0), gz + rng.randf_range(-5.0, 5.0), rng.randf_range(0.8, 1.2)))
+	_nat_scatter("CommonTree_2", trees)
+	_nat_scatter("Bush_Common_Flowers", flowers.slice(0, 9), false)
+	_nat_scatter("Flower_3_Group", flowers.slice(9), false)
+	for e in [["Bench", gx - 3.0, gz - 3.2, 0.0], ["Bench", gx + 3.0, gz + 3.2, PI], ["Banner_Vertical_%d" % (1 if team == 0 else 2), cxt, z0 + 1.0, PI]]:
+		_put_parts(str(e[0]), Vector3(float(e[1]), 0.0, float(e[2])), float(e[3]), 1.4)
+	_npc("res://assets/heroes/Buergerin.glb", 2.8, Vector3(gx - 2.0, 0.0, gz - 2.0), 0.5, ["Idle", "Talk"], "patrol", Vector3(gx + 3.0, 0.0, gz + 2.5))
+	_npc("res://assets/heroes/Wache.glb", 2.95, Vector3(cxt - hw + 4.0, 6.35, z1), PI / 2.0, ["Idle"], "patrol", Vector3(cxt + hw - 4.0, 6.35, z1))
+	# außerhalb der Ringmauer: Wiese und Wald bis zum Kartenrand
+	var outer := {"CommonTree_1": [], "CommonTree_3": [], "Pine_1": [], "Pine_2": [], "Birch_1": []}
+	var gzz := z1 + 4.0
+	while gzz < z1 + 40.0:
+		var xx := cxt - hw - 20.0
+		while xx < cxt + hw + 20.0:
+			if absf(xx - river_x) > 5.0:
+				var nm: String = outer.keys()[rng.randi() % outer.size()]
+				(outer[nm] as Array).append(_t(xx + rng.randf_range(-1.5, 1.5), gzz + rng.randf_range(-1.5, 1.5), rng.randf_range(1.2, 1.8)))
+			xx += rng.randf_range(4.0, 6.5)
+		gzz += rng.randf_range(4.0, 6.0)
+	for nm in outer:
+		_nat_scatter(nm, outer[nm])
+	_reserve(cxt, (z0 + z1) / 2.0, hw)
+
+
+## Übergang V2: kleines Stadttor über der Straße am Stadtrand (Torbogen, zwei Tortürmchen, kurze Mauerstücke). Monster laufen hindurch.
+func _town_gate(cx: float, half: float) -> void:
+	var gz := TOWN_END + 1.0
+	var tb := _put("Burg_Torbau", Vector3(cx, 0.0, gz), 0.0, 1.0)
+	if tb != null:
+		tb.transform.basis = Basis.IDENTITY.scaled(Vector3(1.9, 0.85, 0.8))
+	for sd in [-1.0, 1.0]:
+		var tw := _put("Haus_Tower", Vector3(cx + sd * (half + 2.2), 0.0, gz), 0.0, 1.0)
+		if tw != null:
+			tw.transform.basis = Basis.IDENTITY.scaled(Vector3(0.6, 0.3, 0.6))
+		for k in 3:
+			var m := _put("Burg_Mauer", Vector3(cx + sd * (half + 5.0 + k * 2.0), 0.0, gz), 0.0, 1.0)
+			if m != null:
+				m.transform.basis = Basis.IDENTITY.scaled(Vector3(1.0, 0.45 - k * 0.1, 0.7))
+		_put_parts("Torch_Metal", Vector3(cx + sd * (half + 0.6), 0.0, gz - 1.6), 0.0, 1.4)
+		_light(Vector3(cx + sd * (half + 0.6), 2.6, gz - 1.6), Color("#ffc070"), 0.4, 5.0)
+	_reserve(cx - half - 4.0, gz, 3.0)
+	_reserve(cx + half + 4.0, gz, 3.0)
+
+
+## Übergang V3: halbrunder Platz am Stadtrand: Pflaster endet im Bogen mit Randsteinen, Wegweiser, Bank, Wegkreuz mit Blumen
+func _town_plaza(cx: float, half: float) -> void:
+	var r := 8.2
+	var curb: Array = []
+	for k in 25:
+		var a := PI * float(k) / 24.0                                         # Bogen zur Feldseite (z < TOWN_END)
+		var p := Vector2(cos(a) * r, -sin(a) * r / 1.2)
+		if absf(p.x) > half - 0.2:
+			curb.append(_t(cx + p.x, TOWN_END + p.y, rng.randf_range(0.6, 0.8)))
+	_nat_scatter("Pebble_Square_2" if false else "Pebble_Round_3", curb)
+	for sd in [-1.0, 1.0]:
+		var bx: float = cx + sd * (half + 1.6)
+		_put_parts("Bench", Vector3(bx, 0.0, TOWN_END - 1.0), PI / 2.0, 1.4)
+		_put_parts("Barrel", Vector3(bx, 0.0, TOWN_END + 1.6), 0.0, 1.3)
+		_nat_scatter("Flower_3_Group", [_t(bx + sd * 0.8, TOWN_END - 3.0, 1.0)], false)
+	_put_parts("Sign_Pub", Vector3(cx - half - 1.4, 0.0, TOWN_END - 3.6), PI / 2.0, 1.3)
+	_reserve(cx - half - 2.0, TOWN_END, 2.5)
+	_reserve(cx + half + 2.0, TOWN_END, 2.5)

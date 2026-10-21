@@ -24,7 +24,7 @@ PROP_LIST = ["Barrel", "Barrel_Apples", "Barrel_Holder", "Crate_Wooden", "Bag", 
              "Banner_1", "Banner_2", "Banner_Vertical_1", "Banner_Vertical_2", "Banner_SmallTriangles_Long", "FarmCrate_Apple", "FarmCrate_Carrot",
              "FarmCrate_Radish", "FarmCrate_Empty", "Leek", "Carrot", "Radish", "Anvil", "WeaponStand", "Sign_Pub", "Sign_Blacksmith", "Sign_Potions",
              "Table_Large", "Stool", "CampfireTripod", "FirePit", "Pot_1", "Cauldron", "Dummy", "Ladder", "Rope_1",
-             "Anvil_Log", "Bellows", "Hammer_Rack", "Workbench", "Workbench_Vice", "Bucket_Metal", "Pouch_Large", "FarmCrate_GreenApples", "Shield_Metal", "Shield_Wooden", "Sword_Steel", "Axe_Steel", "Whetstone", "Chain_Coil"]
+             "Anvil_Log", "Bellows", "Hammer_Rack", "Workbench", "Workbench_Vice", "Bucket_Metal", "Pan_1", "Pot_1_Lid", "Mug", "Table_Plate", "Bed_Twin1", "Chest_Wood", "Axe_Steel", "Pickaxe_Steel", "Banner_2_Cloth", "Pouch_Large", "FarmCrate_GreenApples", "Shield_Metal", "Shield_Wooden", "Sword_Steel", "Axe_Steel", "Whetstone", "Chain_Coil"]
 SMALL = ("normal", "rough", "orm")
 
 
@@ -294,6 +294,36 @@ def extras():
         bpy.ops.object.mode_set(mode='EDIT'); bpy.ops.mesh.select_all(action='SELECT')
         bpy.ops.uv.cube_project(cube_size=2.0); bpy.ops.object.mode_set(mode='OBJECT')
     _export_joined(objs, "Kran", center=False)
+    # Zelte: Satteldach-Zelt aus Leinwand (A-Form), Stangen, Abspannseile; zwei Farben (Leinen hell, Kriegszelt rot-braun)
+    for tname, cloth_col in (("Zelt", (0.78, 0.70, 0.55, 1)), ("Zelt_rot", (0.55, 0.20, 0.14, 1))):
+        objs = []
+        cloth = bpy.data.materials.new(tname + "_stoff"); cloth.use_nodes = True
+        cloth.node_tree.nodes["Principled BSDF"].inputs["Base Color"].default_value = cloth_col
+        cloth.node_tree.nodes["Principled BSDF"].inputs["Roughness"].default_value = 0.9
+        L, Wd, H = 3.6, 3.0, 2.4
+        bm = bmesh.new()
+        v = [bm.verts.new(p) for p in ((-Wd / 2, -L / 2, 0), (0, -L / 2, H), (Wd / 2, -L / 2, 0), (-Wd / 2, L / 2, 0), (0, L / 2, H), (Wd / 2, L / 2, 0))]
+        bm.faces.new((v[0], v[1], v[4], v[3])); bm.faces.new((v[1], v[2], v[5], v[4])); bm.faces.new((v[3], v[4], v[5]))
+        bm.faces.new((v[0], v[1], (bm.verts.new((-0.35, -L / 2 - 0.15, 0.0)))))     # Eingang: eine Klappe offen
+        me = bpy.data.meshes.new(tname); bm.to_mesh(me); bm.free()
+        o = bpy.data.objects.new(tname, me); bpy.context.scene.collection.objects.link(o)
+        so = o.modifiers.new("s", "SOLIDIFY"); so.thickness = 0.04
+        bpy.context.view_layer.objects.active = o; bpy.ops.object.modifier_apply(modifier="s")
+        o.data.materials.append(cloth); objs.append(o)
+        for y in (-L / 2 - 0.05, L / 2 + 0.05):
+            bpy.ops.mesh.primitive_cylinder_add(vertices=6, radius=0.05, depth=H + 0.4, location=(0, y, (H + 0.4) / 2))
+            p = bpy.context.object; p.data.materials.append(wood); objs.append(p)
+        for sx in (-1, 1):
+            for y in (-L / 2 + 0.3, L / 2 - 0.3):
+                a = Vector((sx * Wd / 2 * 0.95, y, 0.35)); b = Vector((sx * (Wd / 2 + 0.9), y, 0.0)); d = b - a
+                bpy.ops.mesh.primitive_cylinder_add(vertices=4, radius=0.015, depth=d.length, location=(a + b) / 2)
+                r = bpy.context.object; r.rotation_mode = 'QUATERNION'; r.rotation_quaternion = Vector((0, 0, 1)).rotation_difference(d.normalized())
+                r.data.materials.append(rope); objs.append(r)
+        for ob in objs:
+            bpy.context.view_layer.objects.active = ob
+            bpy.ops.object.mode_set(mode='EDIT'); bpy.ops.mesh.select_all(action='SELECT')
+            bpy.ops.uv.cube_project(cube_size=2.0); bpy.ops.object.mode_set(mode='OBJECT')
+        _export_joined(objs, tname, center=False)
     # Holzbrücke: leicht gewölbter Bohlenbelag quer über den Bach (entlang x, 9 m), 3 m breit, Pfosten mit Handlauf, Stützbalken unten
     objs = []
     L, Wd = 9.0, 3.0

@@ -7,11 +7,13 @@ uniform float center_x = 0.0;
 uniform float half_w = 5.4;
 uniform float town_end = -52.0;      // ab hier (weiter weg) Feldweg
 uniform float court_z = 1.5;         // ab hier (zur Basis hin) Burghof: Pflaster über die ganze Breite
+uniform float fray = 0.0;           // Übergang Pflaster -> Feldweg: 0 = kurz, 1 = Pflaster franst über ~14 m aus (Steine werden lückig)
+uniform float plaza_r = 0.0;        // > 0: halbrunder Platz am Stadtrand (Pflaster endet im Bogen)
 
 varying vec3 wpos;
 
-vec2 h2(vec2 p) { p = vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3))); return fract(sin(p) * 43758.5453); }
-float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+vec2 h2(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * vec3(0.1031, 0.1030, 0.0973)); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.xx + p3.yz) * p3.zy); }
+float hash(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }   // ohne sin(): keine Vierecke bei großen Koordinaten
 float noise(vec2 p) {
 	vec2 i = floor(p); vec2 f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);
 	return mix(mix(hash(i), hash(i + vec2(1, 0)), u.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), u.x), u.y);
@@ -38,6 +40,15 @@ void fragment() {
 	float edge_n = noise(p * 0.7) * 1.2;
 	bool court = wpos.z > court_z;
 	float town = smoothstep(town_end - 3.0, town_end + 3.0, wpos.z);
+	if (fray > 0.5) {                                                       // Steine werden lückig: je weiter draußen, desto mehr Zellen fehlen
+		float t = clamp((wpos.z - (town_end - 14.0)) / 18.0, 0.0, 1.0);
+		float cid = cells(p * 1.35).y;
+		town = step(1.0 - t, cid * 0.85 + 0.15 * noise(p * 0.5));
+	}
+	if (plaza_r > 0.0) {                                                    // Platz: Pflaster als Halbkreis über die Lane hinaus, danach Feldweg
+		float pr = length(vec2(wpos.x - center_x, (wpos.z - town_end) * 1.2));
+		town = max(step(town_end, wpos.z), 1.0 - smoothstep(plaza_r - 0.3, plaza_r + 0.3, pr));
+	}
 	// Pflaster
 	vec2 c = cells(p * 1.35);
 	float joint = smoothstep(0.02, 0.09, c.x);
@@ -49,6 +60,9 @@ void fragment() {
 	dirt *= 1.0 - rut;
 	vec3 col = mix(dirt, cob, court ? 1.0 : town);
 	float half_here = court ? 40.0 : (half_w + mix(0.6, 0.15, town));
+	if (plaza_r > 0.0) {
+		half_here = max(half_here, plaza_r - abs(wpos.z - town_end) * 1.2 + 0.2);
+	}
 	float a = 1.0 - smoothstep(half_here - 0.6 - edge_n * (1.0 - town), half_here + 0.4, dx);
 	ALBEDO = col;
 	ALPHA = a;
